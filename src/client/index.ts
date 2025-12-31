@@ -10,7 +10,7 @@ import type {
 /**
  * WordPress API Client
  * Provides direct access to WordPress REST API endpoints
- * Use this for runtime data fetching (not build-time collections)
+ * Used internally by loaders and available for runtime data fetching
  */
 export class WordPressClient {
   private baseUrl: string;
@@ -33,7 +33,8 @@ export class WordPressClient {
   /**
    * Fetches data from WordPress REST API
    */
-  private async fetchAPI<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
+  async fetchAPI<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
+    const startTime = performance.now();
     const url = new URL(`${this.apiBase}${endpoint}`);
     Object.entries(params).forEach(([key, value]) => url.searchParams.append(key, value));
 
@@ -47,7 +48,11 @@ export class WordPressClient {
       throw new Error(`WordPress API error: ${response.status} ${response.statusText}`);
     }
 
-    return response.json();
+    const data = await response.json();
+    const duration = Math.round(performance.now() - startTime);
+    console.log(`[WP API] ${endpoint} - ${duration}ms - params:`, JSON.stringify(params));
+
+    return data;
   }
 
   /**
@@ -71,7 +76,7 @@ export class WordPressClient {
   /**
    * Gets a single post by slug
    */
-  async getPostBySlug(slug: string): Promise<WordPressPost> {
+  async getPostBySlug(slug: string): Promise<WordPressPost | undefined> {
     const posts = await this.fetchAPI<WordPressPost[]>('/posts', { slug, _embed: 'true' });
     return posts[0];
   }
@@ -97,7 +102,7 @@ export class WordPressClient {
   /**
    * Gets a single page by slug
    */
-  async getPageBySlug(slug: string): Promise<WordPressPage> {
+  async getPageBySlug(slug: string): Promise<WordPressPage | undefined> {
     const pages = await this.fetchAPI<WordPressPage[]>('/pages', { slug, _embed: 'true' });
     return pages[0];
   }
@@ -117,6 +122,14 @@ export class WordPressClient {
   }
 
   /**
+   * Gets a single media item by slug
+   */
+  async getMediaBySlug(slug: string): Promise<WordPressMedia | undefined> {
+    const media = await this.fetchAPI<WordPressMedia[]>('/media', { slug });
+    return media[0];
+  }
+
+  /**
    * Gets all categories
    */
   async getCategories(params: Record<string, string> = {}): Promise<WordPressCategory[]> {
@@ -131,6 +144,14 @@ export class WordPressClient {
   }
 
   /**
+   * Gets a single category by slug
+   */
+  async getCategoryBySlug(slug: string): Promise<WordPressCategory | undefined> {
+    const categories = await this.fetchAPI<WordPressCategory[]>('/categories', { slug });
+    return categories[0];
+  }
+
+  /**
    * Gets all tags
    */
   async getTags(params: Record<string, string> = {}): Promise<WordPressTag[]> {
@@ -142,6 +163,14 @@ export class WordPressClient {
    */
   async getTag(id: number): Promise<WordPressTag> {
     return this.fetchAPI<WordPressTag>(`/tags/${id}`);
+  }
+
+  /**
+   * Gets a single tag by slug
+   */
+  async getTagBySlug(slug: string): Promise<WordPressTag | undefined> {
+    const tags = await this.fetchAPI<WordPressTag[]>('/tags', { slug });
+    return tags[0];
   }
 
   /**
@@ -172,10 +201,6 @@ export class WordPressClient {
     return media.media_details.sizes[size].source_url;
   }
 }
-
-/**
- * Helper functions for backward compatibility
- */
 
 /**
  * Creates a WordPress client instance
