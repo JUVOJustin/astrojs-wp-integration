@@ -38,7 +38,15 @@
     "astro-integration",
     "wp-api"
   ],
-  "author": "",
+  "author": "juvojustin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/JUVOJustin/astrojs-wp-integration.git"
+  },
+  "bugs": {
+    "url": "https://github.com/JUVOJustin/astrojs-wp-integration/issues"
+  },
+  "homepage": "https://github.com/JUVOJustin/astrojs-wp-integration#readme",
   "license": "MIT",
   "peerDependencies": {
     "astro": "^5.0.0"
