@@ -28,7 +28,7 @@ import type { WordPressLoaderConfig, PostFilter, PageFilter, MediaFilter, Catego
 export function wordPressPostLoader(
   config: WordPressLoaderConfig
 ): LiveLoader<WordPressPost, PostFilter> {
-  const client = new WordPressClient(config.baseUrl);
+  const client = new WordPressClient({ baseUrl: config.baseUrl });
 
   return {
     name: 'wordpress-post-loader',
@@ -102,7 +102,7 @@ export function wordPressPostLoader(
 export function wordPressPageLoader(
   config: WordPressLoaderConfig
 ): LiveLoader<WordPressPage, PageFilter> {
-  const client = new WordPressClient(config.baseUrl);
+  const client = new WordPressClient({ baseUrl: config.baseUrl });
 
   return {
     name: 'wordpress-page-loader',
@@ -170,7 +170,7 @@ export function wordPressPageLoader(
 export function wordPressMediaLoader(
   config: WordPressLoaderConfig
 ): LiveLoader<WordPressMedia, MediaFilter> {
-  const client = new WordPressClient(config.baseUrl);
+  const client = new WordPressClient({ baseUrl: config.baseUrl });
 
   return {
     name: 'wordpress-media-loader',
@@ -232,7 +232,7 @@ export function wordPressMediaLoader(
 export function wordPressCategoryLoader(
   config: WordPressLoaderConfig
 ): LiveLoader<WordPressCategory, CategoryFilter> {
-  const client = new WordPressClient(config.baseUrl);
+  const client = new WordPressClient({ baseUrl: config.baseUrl });
 
   return {
     name: 'wordpress-category-loader',

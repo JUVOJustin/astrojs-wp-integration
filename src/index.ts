@@ -40,6 +40,7 @@ export {
   mediaSchema,
   categorySchema,
   embeddedMediaSchema,
+  settingsSchema,
 } from './schemas';
 
 export type {
@@ -52,11 +53,17 @@ export type {
   WordPressTag,
   WordPressAuthor,
   WordPressEmbeddedMedia,
+  WordPressSettings,
 } from './schemas';
 
 // Export client
-export { WordPressClient, createWordPressClient } from './client';
+export { WordPressClient } from './client';
+export type { WordPressClientConfig } from './client';
+
+// Export auth utilities
+export { createBasicAuthHeader } from './client/auth';
+export type { BasicAuthCredentials } from './client/auth';
 
 // Components are imported directly via:
-// import { WPImage } from 'wp-astrojs-integration/components/WPImage.astro';
-// import { WPContent } from 'wp-astrojs-integration/components/WPContent.astro';
+// import WPImage from 'wp-astrojs-integration/components/WPImage.astro';
+// import WPContent from 'wp-astrojs-integration/components/WPContent.astro';

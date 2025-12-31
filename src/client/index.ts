@@ -1,48 +1,151 @@
-import type {
-  WordPressPost,
-  WordPressPage,
-  WordPressMedia,
-  WordPressCategory,
-  WordPressTag,
-  WordPressAuthor,
-} from '../schemas';
+import { createBasicAuthHeader, type BasicAuthCredentials } from './auth';
+import { createPostsMethods } from './posts';
+import { createPagesMethods } from './pages';
+import { createMediaMethods } from './media';
+import { createCategoriesMethods } from './categories';
+import { createTagsMethods } from './tags';
+import { createUsersMethods } from './users';
+import { createSettingsMethods } from './settings';
+
+/**
+ * WordPress client configuration
+ */
+export interface WordPressClientConfig {
+  /** WordPress site URL (e.g., 'https://example.com') */
+  baseUrl: string;
+  /** Authentication credentials for all API requests */
+  auth?: BasicAuthCredentials;
+}
 
 /**
  * WordPress API Client
  * Provides direct access to WordPress REST API endpoints
  * Used internally by loaders and available for runtime data fetching
+ * 
+ * @example
+ * // Without auth
+ * const wp = new WordPressClient({ baseUrl: 'https://example.com' });
+ * 
+ * @example
+ * // With auth
+ * const wp = new WordPressClient({
+ *   baseUrl: 'https://example.com',
+ *   auth: { username: 'admin', password: 'app-password' }
+ * });
  */
 export class WordPressClient {
   private baseUrl: string;
   private apiBase: string;
+  private authHeader: string | undefined;
+
+  // Posts methods
+  public getPosts: ReturnType<typeof createPostsMethods>['getPosts'];
+  public getPost: ReturnType<typeof createPostsMethods>['getPost'];
+  public getPostBySlug: ReturnType<typeof createPostsMethods>['getPostBySlug'];
+
+  // Pages methods
+  public getPages: ReturnType<typeof createPagesMethods>['getPages'];
+  public getPage: ReturnType<typeof createPagesMethods>['getPage'];
+  public getPageBySlug: ReturnType<typeof createPagesMethods>['getPageBySlug'];
+
+  // Media methods
+  public getMedia: ReturnType<typeof createMediaMethods>['getMedia'];
+  public getMediaItem: ReturnType<typeof createMediaMethods>['getMediaItem'];
+  public getMediaBySlug: ReturnType<typeof createMediaMethods>['getMediaBySlug'];
+  public getImageUrl: ReturnType<typeof createMediaMethods>['getImageUrl'];
+
+  // Categories methods
+  public getCategories: ReturnType<typeof createCategoriesMethods>['getCategories'];
+  public getCategory: ReturnType<typeof createCategoriesMethods>['getCategory'];
+  public getCategoryBySlug: ReturnType<typeof createCategoriesMethods>['getCategoryBySlug'];
+
+  // Tags methods
+  public getTags: ReturnType<typeof createTagsMethods>['getTags'];
+  public getTag: ReturnType<typeof createTagsMethods>['getTag'];
+  public getTagBySlug: ReturnType<typeof createTagsMethods>['getTagBySlug'];
+
+  // Users methods
+  public getUsers: ReturnType<typeof createUsersMethods>['getUsers'];
+  public getUser: ReturnType<typeof createUsersMethods>['getUser'];
+  public getCurrentUser: ReturnType<typeof createUsersMethods>['getCurrentUser'];
+  public isAuthenticated: ReturnType<typeof createUsersMethods>['isAuthenticated'];
+
+  // Settings methods
+  public getSettings: ReturnType<typeof createSettingsMethods>['getSettings'];
+
+  constructor(config: WordPressClientConfig) {
+    this.baseUrl = config.baseUrl;
+    this.authHeader = config.auth ? createBasicAuthHeader(config.auth) : undefined;
+    this.apiBase = `${this.baseUrl}/index.php?rest_route=/wp/v2`;
+
+    // Bind fetchAPI and hasAuth for resource methods
+    const fetchAPI = this.fetchAPI.bind(this);
+    const hasAuth = this.hasAuth.bind(this);
+
+    // Initialize resource methods
+    const posts = createPostsMethods(fetchAPI);
+    this.getPosts = posts.getPosts;
+    this.getPost = posts.getPost;
+    this.getPostBySlug = posts.getPostBySlug;
+
+    const pages = createPagesMethods(fetchAPI);
+    this.getPages = pages.getPages;
+    this.getPage = pages.getPage;
+    this.getPageBySlug = pages.getPageBySlug;
+
+    const media = createMediaMethods(fetchAPI);
+    this.getMedia = media.getMedia;
+    this.getMediaItem = media.getMediaItem;
+    this.getMediaBySlug = media.getMediaBySlug;
+    this.getImageUrl = media.getImageUrl;
+
+    const categories = createCategoriesMethods(fetchAPI);
+    this.getCategories = categories.getCategories;
+    this.getCategory = categories.getCategory;
+    this.getCategoryBySlug = categories.getCategoryBySlug;
+
+    const tags = createTagsMethods(fetchAPI);
+    this.getTags = tags.getTags;
+    this.getTag = tags.getTag;
+    this.getTagBySlug = tags.getTagBySlug;
+
+    const users = createUsersMethods(fetchAPI, hasAuth);
+    this.getUsers = users.getUsers;
+    this.getUser = users.getUser;
+    this.getCurrentUser = users.getCurrentUser;
+
+    const settings = createSettingsMethods(fetchAPI, hasAuth);
+    this.getSettings = settings.getSettings;
+  }
 
   /**
-   * Creates a WordPress API client
-   * 
-   * @param baseUrl - WordPress site URL (e.g., 'https://example.com')
-   * 
-   * @example
-   * const wp = new WordPressClient('https://example.com');
-   * const posts = await wp.getPosts();
+   * Checks if authentication is configured
    */
-  constructor(baseUrl: string) {
-    this.baseUrl = baseUrl;
-    this.apiBase = `${baseUrl}/index.php?rest_route=/wp/v2`;
+  hasAuth(): boolean {
+    return this.authHeader !== undefined;
   }
 
   /**
    * Fetches data from WordPress REST API
+   * Auth header is automatically added if configured
+   * 
+   * @param endpoint - API endpoint path (e.g., '/posts', '/settings')
+   * @param params - Query parameters to append to the request
    */
   async fetchAPI<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {
     const startTime = performance.now();
     const url = new URL(`${this.apiBase}${endpoint}`);
     Object.entries(params).forEach(([key, value]) => url.searchParams.append(key, value));
 
-    const response = await fetch(url.toString(), {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    if (this.authHeader) {
+      headers['Authorization'] = this.authHeader;
+    }
+
+    const response = await fetch(url.toString(), { headers });
 
     if (!response.ok) {
       throw new Error(`WordPress API error: ${response.status} ${response.statusText}`);
@@ -54,158 +157,4 @@ export class WordPressClient {
 
     return data;
   }
-
-  /**
-   * Gets all posts
-   */
-  async getPosts(params: Record<string, string> = {}): Promise<WordPressPost[]> {
-    return this.fetchAPI<WordPressPost[]>('/posts', {
-      per_page: '100',
-      _embed: 'true',
-      ...params,
-    });
-  }
-
-  /**
-   * Gets a single post by ID
-   */
-  async getPost(id: number): Promise<WordPressPost> {
-    return this.fetchAPI<WordPressPost>(`/posts/${id}`, { _embed: 'true' });
-  }
-
-  /**
-   * Gets a single post by slug
-   */
-  async getPostBySlug(slug: string): Promise<WordPressPost | undefined> {
-    const posts = await this.fetchAPI<WordPressPost[]>('/posts', { slug, _embed: 'true' });
-    return posts[0];
-  }
-
-  /**
-   * Gets all pages
-   */
-  async getPages(params: Record<string, string> = {}): Promise<WordPressPage[]> {
-    return this.fetchAPI<WordPressPage[]>('/pages', {
-      per_page: '100',
-      _embed: 'true',
-      ...params,
-    });
-  }
-
-  /**
-   * Gets a single page by ID
-   */
-  async getPage(id: number): Promise<WordPressPage> {
-    return this.fetchAPI<WordPressPage>(`/pages/${id}`, { _embed: 'true' });
-  }
-
-  /**
-   * Gets a single page by slug
-   */
-  async getPageBySlug(slug: string): Promise<WordPressPage | undefined> {
-    const pages = await this.fetchAPI<WordPressPage[]>('/pages', { slug, _embed: 'true' });
-    return pages[0];
-  }
-
-  /**
-   * Gets all media items
-   */
-  async getMedia(params: Record<string, string> = {}): Promise<WordPressMedia[]> {
-    return this.fetchAPI<WordPressMedia[]>('/media', { per_page: '100', ...params });
-  }
-
-  /**
-   * Gets a single media item by ID
-   */
-  async getMediaItem(id: number): Promise<WordPressMedia> {
-    return this.fetchAPI<WordPressMedia>(`/media/${id}`);
-  }
-
-  /**
-   * Gets a single media item by slug
-   */
-  async getMediaBySlug(slug: string): Promise<WordPressMedia | undefined> {
-    const media = await this.fetchAPI<WordPressMedia[]>('/media', { slug });
-    return media[0];
-  }
-
-  /**
-   * Gets all categories
-   */
-  async getCategories(params: Record<string, string> = {}): Promise<WordPressCategory[]> {
-    return this.fetchAPI<WordPressCategory[]>('/categories', { per_page: '100', ...params });
-  }
-
-  /**
-   * Gets a single category by ID
-   */
-  async getCategory(id: number): Promise<WordPressCategory> {
-    return this.fetchAPI<WordPressCategory>(`/categories/${id}`);
-  }
-
-  /**
-   * Gets a single category by slug
-   */
-  async getCategoryBySlug(slug: string): Promise<WordPressCategory | undefined> {
-    const categories = await this.fetchAPI<WordPressCategory[]>('/categories', { slug });
-    return categories[0];
-  }
-
-  /**
-   * Gets all tags
-   */
-  async getTags(params: Record<string, string> = {}): Promise<WordPressTag[]> {
-    return this.fetchAPI<WordPressTag[]>('/tags', { per_page: '100', ...params });
-  }
-
-  /**
-   * Gets a single tag by ID
-   */
-  async getTag(id: number): Promise<WordPressTag> {
-    return this.fetchAPI<WordPressTag>(`/tags/${id}`);
-  }
-
-  /**
-   * Gets a single tag by slug
-   */
-  async getTagBySlug(slug: string): Promise<WordPressTag | undefined> {
-    const tags = await this.fetchAPI<WordPressTag[]>('/tags', { slug });
-    return tags[0];
-  }
-
-  /**
-   * Gets all authors/users
-   */
-  async getAuthors(params: Record<string, string> = {}): Promise<WordPressAuthor[]> {
-    return this.fetchAPI<WordPressAuthor[]>('/users', { per_page: '100', ...params });
-  }
-
-  /**
-   * Gets a single author by ID
-   */
-  async getAuthor(id: number): Promise<WordPressAuthor> {
-    return this.fetchAPI<WordPressAuthor>(`/users/${id}`);
-  }
-
-  /**
-   * Gets the URL for a specific media size
-   * 
-   * @param media - WordPress media object
-   * @param size - Size name (e.g., 'thumbnail', 'medium', 'large', 'full')
-   * @returns Image URL for the specified size
-   */
-  getImageUrl(media: WordPressMedia, size: string = 'full'): string {
-    if (size === 'full' || !media.media_details.sizes[size]) {
-      return media.source_url;
-    }
-    return media.media_details.sizes[size].source_url;
-  }
-}
-
-/**
- * Creates a WordPress client instance
- * @deprecated Use `new WordPressClient(baseUrl)` instead
- */
-export function createWordPressClient(baseUrl: string): WordPressClient {
-  return new WordPressClient(baseUrl);
 }

@@ -20,7 +20,7 @@ import type { WordPressStaticLoaderConfig } from './types';
  * });
  */
 export function wordPressPostStaticLoader(config: WordPressStaticLoaderConfig): Loader {
-  const client = new WordPressClient(config.baseUrl);
+  const client = new WordPressClient({ baseUrl: config.baseUrl });
 
   return {
     name: 'wordpress-post-static-loader',
@@ -65,7 +65,7 @@ export function wordPressPostStaticLoader(config: WordPressStaticLoaderConfig): 
  * });
  */
 export function wordPressPageStaticLoader(config: WordPressStaticLoaderConfig): Loader {
-  const client = new WordPressClient(config.baseUrl);
+  const client = new WordPressClient({ baseUrl: config.baseUrl });
 
   return {
     name: 'wordpress-page-static-loader',
@@ -110,7 +110,7 @@ export function wordPressPageStaticLoader(config: WordPressStaticLoaderConfig): 
  * });
  */
 export function wordPressMediaStaticLoader(config: WordPressStaticLoaderConfig): Loader {
-  const client = new WordPressClient(config.baseUrl);
+  const client = new WordPressClient({ baseUrl: config.baseUrl });
 
   return {
     name: 'wordpress-media-static-loader',
@@ -154,7 +154,7 @@ export function wordPressMediaStaticLoader(config: WordPressStaticLoaderConfig):
  * });
  */
 export function wordPressCategoryStaticLoader(config: WordPressStaticLoaderConfig): Loader {
-  const client = new WordPressClient(config.baseUrl);
+  const client = new WordPressClient({ baseUrl: config.baseUrl });
 
   return {
     name: 'wordpress-category-static-loader',
@@ -198,7 +198,7 @@ export function wordPressCategoryStaticLoader(config: WordPressStaticLoaderConfi
  * });
  */
 export function wordPressTagStaticLoader(config: WordPressStaticLoaderConfig): Loader {
-  const client = new WordPressClient(config.baseUrl);
+  const client = new WordPressClient({ baseUrl: config.baseUrl });
 
   return {
     name: 'wordpress-tag-static-loader',

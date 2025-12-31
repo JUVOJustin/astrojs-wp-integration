@@ -279,7 +279,7 @@ For runtime data fetching:
 ```typescript
 import { WordPressClient } from 'wp-astrojs-integration';
 
-const wp = new WordPressClient('https://your-wordpress-site.com');
+const wp = new WordPressClient({ baseUrl: 'https://your-wordpress-site.com' });
 
 // Get posts
 const posts = await wp.getPosts();
@@ -296,6 +296,96 @@ const image = await wp.getMediaItem(123);
 // Get categories and tags
 const categories = await wp.getCategories();
 const tags = await wp.getTags();
+```
+
+### With Authentication
+
+For endpoints requiring authentication (e.g., `/settings`, `/users/me`):
+
+```typescript
+import { WordPressClient } from 'wp-astrojs-integration';
+
+const wp = new WordPressClient({
+  baseUrl: 'https://your-wordpress-site.com',
+  auth: {
+    username: 'your-username',
+    password: 'your-application-password'
+  }
+});
+
+// Get WordPress site settings (requires auth)
+const settings = await wp.getSettings();
+console.log(settings.title, settings.description);
+
+// Get current authenticated user
+const currentUser = await wp.getCurrentUser();
+console.log(currentUser.name, currentUser.email);
+
+// Check if credentials are valid
+const isValid = await wp.isAuthenticated();
+```
+
+### Astro Middleware Authentication Example
+
+Use the WordPress client in Astro middleware to protect routes with WordPress authentication:
+
+```typescript
+// src/middleware.ts
+import { defineMiddleware } from 'astro:middleware';
+import { WordPressClient } from 'wp-astrojs-integration';
+
+const WORDPRESS_BASE_URL = import.meta.env.PUBLIC_WORDPRESS_BASE_URL;
+
+export const onRequest = defineMiddleware(async (context, next) => {
+  // Only protect /admin routes
+  if (!context.url.pathname.startsWith('/admin')) {
+    return next();
+  }
+
+  // Get credentials from Authorization header (Basic Auth)
+  const authHeader = context.request.headers.get('Authorization');
+  if (!authHeader?.startsWith('Basic ')) {
+    return new Response('Authentication required', {
+      status: 401,
+      headers: { 'WWW-Authenticate': 'Basic realm="Admin Area"' }
+    });
+  }
+
+  // Decode credentials
+  const base64Credentials = authHeader.slice(6);
+  const credentials = atob(base64Credentials);
+  const [username, password] = credentials.split(':');
+
+  // Verify against WordPress
+  const wp = new WordPressClient({
+    baseUrl: WORDPRESS_BASE_URL,
+    auth: { username, password }
+  });
+
+  const isAuthenticated = await wp.isAuthenticated();
+  if (!isAuthenticated) {
+    return new Response('Invalid credentials', {
+      status: 401,
+      headers: { 'WWW-Authenticate': 'Basic realm="Admin Area"' }
+    });
+  }
+
+  // Store user in locals for use in routes
+  const user = await wp.getCurrentUser();
+  context.locals.user = user;
+
+  return next();
+});
+```
+
+Then access the authenticated user in your protected routes:
+
+```astro
+---
+// src/pages/admin/index.astro
+const user = Astro.locals.user;
+---
+<h1>Welcome, {user.name}!</h1>
 ```
 
 ## API Reference

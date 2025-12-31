@@ -212,3 +212,31 @@ export interface WordPressAuthor {
  * WordPress Tag type (alias for Category)
  */
 export type WordPressTag = WordPressCategory;
+
+/**
+ * Schema for WordPress site settings (requires authentication)
+ */
+export const settingsSchema = z.object({
+  title: z.string(),
+  description: z.string(),
+  url: z.string().url(),
+  email: z.string().email().optional(),
+  timezone: z.string(),
+  date_format: z.string(),
+  time_format: z.string(),
+  start_of_week: z.number(),
+  language: z.string(),
+  use_smilies: z.boolean(),
+  default_category: z.number(),
+  default_post_format: z.string(),
+  posts_per_page: z.number(),
+  show_on_front: z.string(),
+  page_on_front: z.number(),
+  page_for_posts: z.number(),
+  default_ping_status: z.string(),
+  default_comment_status: z.string(),
+  site_logo: z.number().nullable().optional(),
+  site_icon: z.number().nullable().optional(),
+});
+
+export type WordPressSettings = z.infer<typeof settingsSchema>;
