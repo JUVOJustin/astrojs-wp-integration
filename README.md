@@ -1,0 +1,376 @@
+# WordPress Astro.js Integration
+
+Fast and better WordPress integration for Astro.js with live loaders, static loaders, client API, and full Gutenberg block support.
+
+## Features
+
+- **Live Loaders**: Real-time data fetching from WordPress REST API (server-side rendering)
+- **Static Loaders**: Build-time data fetching for static site generation
+- **WordPress Client**: Direct runtime API access for dynamic content
+- **Gutenberg Support**: Automatic block styles loading for proper rendering
+- **TypeScript First**: Fully typed with extensible schemas
+- **Easy Extension**: Simple API for adding custom ACF fields, post types, and taxonomies
+- **Optimized Images**: Responsive image component with srcset support
+
+## Installation
+
+```bash
+npm install wp-astrojs-integration
+```
+
+## Quick Start
+
+### Option 1: Live Collections (Server-Side Rendering)
+
+Use live loaders for SSR or when you need real-time data:
+
+```typescript
+// src/live.config.ts
+import { defineLiveCollection } from 'astro:content';
+import {
+  wordPressPostLoader,
+  wordPressPageLoader,
+  wordPressCategoryLoader,
+  postSchema,
+  pageSchema,
+  categorySchema,
+} from 'wp-astrojs-integration';
+
+const WORDPRESS_BASE_URL = import.meta.env.PUBLIC_WORDPRESS_BASE_URL;
+
+const posts = defineLiveCollection({
+  loader: wordPressPostLoader({ baseUrl: WORDPRESS_BASE_URL }),
+  schema: postSchema,
+});
+
+const pages = defineLiveCollection({
+  loader: wordPressPageLoader({ baseUrl: WORDPRESS_BASE_URL }),
+  schema: pageSchema,
+});
+
+const categories = defineLiveCollection({
+  loader: wordPressCategoryLoader({ baseUrl: WORDPRESS_BASE_URL }),
+  schema: categorySchema,
+});
+
+export const collections = { posts, pages, categories };
+```
+
+### Option 2: Static Collections (Build-Time Only)
+
+Use static loaders for fully static site generation:
+
+```typescript
+// src/content.config.ts
+import { defineCollection } from 'astro:content';
+import {
+  wordPressPostStaticLoader,
+  wordPressPageStaticLoader,
+  wordPressCategoryStaticLoader,
+  postSchema,
+  pageSchema,
+  categorySchema,
+} from 'wp-astrojs-integration';
+
+const WORDPRESS_BASE_URL = import.meta.env.PUBLIC_WORDPRESS_BASE_URL;
+
+const posts = defineCollection({
+  loader: wordPressPostStaticLoader({ baseUrl: WORDPRESS_BASE_URL }),
+  schema: postSchema,
+});
+
+const pages = defineCollection({
+  loader: wordPressPageStaticLoader({ baseUrl: WORDPRESS_BASE_URL }),
+  schema: pageSchema,
+});
+
+const categories = defineCollection({
+  loader: wordPressCategoryStaticLoader({ baseUrl: WORDPRESS_BASE_URL }),
+  schema: categorySchema,
+});
+
+export const collections = { posts, pages, categories };
+```
+
+### Environment Variable
+
+Create `.env`:
+
+```env
+PUBLIC_WORDPRESS_BASE_URL=https://your-wordpress-site.com
+```
+
+### Using in Pages
+
+```astro
+---
+// For live collections
+import { getLiveEntry } from 'astro:content';
+import WPContent from 'wp-astrojs-integration/components/WPContent.astro';
+import WPImage from 'wp-astrojs-integration/components/WPImage.astro';
+
+const { slug } = Astro.params;
+const { entry: post } = await getLiveEntry('posts', { slug });
+
+const featuredMedia = post.data._embedded?.['wp:featuredmedia']?.[0];
+---
+
+<article>
+  {featuredMedia && (
+    <WPImage media={featuredMedia} loading="eager" />
+  )}
+  
+  <h1 set:html={post.data.title.rendered} />
+  
+  <WPContent 
+    content={post.data.content.rendered}
+    baseUrl={import.meta.env.PUBLIC_WORDPRESS_BASE_URL}
+  />
+</article>
+```
+
+```astro
+---
+// For static collections
+import { getCollection, getEntry } from 'astro:content';
+import WPContent from 'wp-astrojs-integration/components/WPContent.astro';
+
+const { slug } = Astro.params;
+const post = await getEntry('posts', slug);
+---
+
+<article>
+  <h1 set:html={post.data.title.rendered} />
+  
+  <WPContent 
+    content={post.data.content.rendered}
+    baseUrl={import.meta.env.PUBLIC_WORDPRESS_BASE_URL}
+  />
+</article>
+```
+
+## Extending with Custom Fields
+
+### Custom ACF Fields
+
+Extend the default schemas with your ACF fields:
+
+```typescript
+import { postSchema } from 'wp-astrojs-integration';
+import { z } from 'astro/zod';
+
+const customPostSchema = postSchema.extend({
+  acf: z.object({
+    video_url: z.string().optional(),
+    featured_color: z.string().optional(),
+    custom_field: z.string().optional(),
+  }).optional(),
+});
+
+const posts = defineLiveCollection({
+  loader: wordPressPostLoader({ baseUrl: WORDPRESS_BASE_URL }),
+  schema: customPostSchema,
+});
+```
+
+### Custom Post Types
+
+Create a custom post type loader:
+
+```typescript
+import { contentWordPressSchema } from 'wp-astrojs-integration';
+import { z } from 'astro/zod';
+
+const productSchema = contentWordPressSchema.extend({
+  acf: z.object({
+    price: z.number().optional(),
+    sku: z.string().optional(),
+  }).optional(),
+});
+
+// Use the base loader pattern for custom post types
+import { wordPressPostLoader } from 'wp-astrojs-integration';
+
+const products = defineLiveCollection({
+  loader: wordPressPostLoader({ baseUrl: WORDPRESS_BASE_URL }),
+  schema: productSchema,
+});
+```
+
+### Custom Taxonomies
+
+Extend category schema for custom taxonomies:
+
+```typescript
+import { categorySchema } from 'wp-astrojs-integration';
+
+const customCategorySchema = categorySchema.extend({
+  acf: z.object({
+    color: z.string().optional(),
+    icon: z.string().optional(),
+  }).optional(),
+});
+
+const categories = defineLiveCollection({
+  loader: wordPressCategoryLoader({ baseUrl: WORDPRESS_BASE_URL }),
+  schema: customCategorySchema,
+});
+```
+
+## Components
+
+### WPContent
+
+Renders WordPress Gutenberg content with automatic block styles loading:
+
+```astro
+---
+import WPContent from 'wp-astrojs-integration/components/WPContent.astro';
+---
+
+<WPContent 
+  content={post.data.content.rendered}
+  baseUrl={import.meta.env.PUBLIC_WORDPRESS_BASE_URL}
+  class="custom-class"
+  loadBlockStyles={true}
+/>
+```
+
+**Props:**
+- `content` (string, required): Rendered HTML from WordPress
+- `baseUrl` (string, required): WordPress site URL
+- `class` (string): Additional CSS classes
+- `loadBlockStyles` (boolean): Load Gutenberg block styles (default: true)
+
+### WPImage
+
+Optimized responsive images with srcset support:
+
+```astro
+---
+import WPImage from 'wp-astrojs-integration/components/WPImage.astro';
+---
+
+<!-- With embedded media -->
+<WPImage media={featuredMedia} loading="eager" />
+
+<!-- With media ID -->
+<WPImage 
+  mediaId={123} 
+  baseUrl={import.meta.env.PUBLIC_WORDPRESS_BASE_URL}
+  loading="lazy"
+/>
+```
+
+**Props:**
+- `media` (object): Pre-loaded media data from `_embedded`
+- `mediaId` (number): WordPress media ID
+- `baseUrl` (string): Required if using `mediaId`
+- `class` (string): CSS classes
+- `loading` ('lazy' | 'eager'): Image loading strategy
+- `width` (number): Custom width
+- `height` (number): Custom height
+- `sizes` (string): Responsive sizes attribute
+
+## WordPress Client (Runtime API)
+
+For runtime data fetching:
+
+```typescript
+import { WordPressClient } from 'wp-astrojs-integration';
+
+const wp = new WordPressClient('https://your-wordpress-site.com');
+
+// Get posts
+const posts = await wp.getPosts();
+const post = await wp.getPostBySlug('my-post');
+
+// Get pages
+const pages = await wp.getPages();
+const page = await wp.getPageBySlug('about');
+
+// Get media
+const media = await wp.getMedia();
+const image = await wp.getMediaItem(123);
+
+// Get categories and tags
+const categories = await wp.getCategories();
+const tags = await wp.getTags();
+```
+
+## API Reference
+
+### Live Loaders (for `defineLiveCollection`)
+
+Use these for server-side rendering or real-time data:
+
+- `wordPressPostLoader(config)`: Live loader for posts
+- `wordPressPageLoader(config)`: Live loader for pages
+- `wordPressMediaLoader(config)`: Live loader for media
+- `wordPressCategoryLoader(config)`: Live loader for categories/taxonomies
+
+### Static Loaders (for `defineCollection`)
+
+Use these for static site generation (build-time only):
+
+- `wordPressPostStaticLoader(config)`: Static loader for posts
+- `wordPressPageStaticLoader(config)`: Static loader for pages
+- `wordPressMediaStaticLoader(config)`: Static loader for media
+- `wordPressCategoryStaticLoader(config)`: Static loader for categories
+- `wordPressTagStaticLoader(config)`: Static loader for tags
+
+**Static Loader Config:**
+```typescript
+interface WordPressStaticLoaderConfig {
+  baseUrl: string;
+  perPage?: number;  // Items per page (default: 100)
+  params?: Record<string, string>;  // Additional query params
+}
+```
+
+### Schemas
+
+Default schemas for WordPress content:
+
+- `baseWordPressSchema`: Base fields for all content
+- `contentWordPressSchema`: Content-specific fields (posts/pages)
+- `postSchema`: WordPress posts
+- `pageSchema`: WordPress pages
+- `mediaSchema`: WordPress media
+- `categorySchema`: Categories and taxonomies
+- `embeddedMediaSchema`: Embedded media from `_embedded` field
+
+### Types
+
+TypeScript types inferred from schemas:
+
+- `WordPressPost`
+- `WordPressPage`
+- `WordPressMedia`
+- `WordPressCategory`
+- `WordPressTag`
+- `WordPressAuthor`
+- `WordPressEmbeddedMedia`
+
+## Live vs Static Loaders
+
+| Feature | Live Loaders | Static Loaders |
+|---------|-------------|----------------|
+| Data freshness | Real-time | Build-time snapshot |
+| Use case | SSR, dynamic content | SSG, static sites |
+| Performance | Fetches on each request | Fetches once at build |
+| Astro API | `defineLiveCollection` | `defineCollection` |
+| Content access | `getLiveEntry`, `getLiveCollection` | `getEntry`, `getCollection` |
+
+## Why This Package?
+
+- **Flexible**: Choose between live (SSR) and static (SSG) data fetching
+- **Type Safety**: Full TypeScript support with extensible schemas
+- **Gutenberg Ready**: Automatic block styles ensure proper rendering
+- **Easy Extension**: Simple API for custom fields and post types
+- **Modern Workflow**: Works seamlessly with Astro's content collections
+- **Optimized**: Responsive images, efficient caching, and minimal overhead
+
+## License
+
+MIT

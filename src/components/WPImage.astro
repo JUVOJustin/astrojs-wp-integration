@@ -1,0 +1,106 @@
+---
+import type { WordPressMedia, WordPressEmbeddedMedia } from '../schemas';
+
+/**
+ * Props for the WPImage component.
+ * Accepts either a mediaId for fetching, or pre-loaded media data from embedded responses.
+ */
+interface Props {
+  /** Media ID for fetching from WordPress API */
+  mediaId?: number;
+  /** Pre-loaded media data from _embed=true responses */
+  media?: WordPressMedia | WordPressEmbeddedMedia;
+  /** WordPress base URL (required if using mediaId) */
+  baseUrl?: string;
+  class?: string;
+  loading?: 'lazy' | 'eager';
+  decoding?: 'async' | 'auto' | 'sync';
+  width?: number;
+  height?: number;
+  sizes?: string;
+}
+
+const {
+  mediaId,
+  media: providedMedia,
+  baseUrl,
+  class: className = '',
+  loading = 'lazy',
+  decoding = 'async',
+  width: customWidth,
+  height: customHeight,
+  sizes = 'auto',
+} = Astro.props;
+
+let media: WordPressMedia | WordPressEmbeddedMedia | undefined;
+
+if (providedMedia) {
+  media = providedMedia;
+} else if (mediaId && baseUrl) {
+  try {
+    const url = new URL(`${baseUrl}/index.php?rest_route=/wp/v2/media/${mediaId}`);
+    const response = await fetch(url.toString());
+    if (response.ok) {
+      media = await response.json();
+    }
+  } catch (error) {
+    console.error(`Failed to fetch media ${mediaId}:`, error);
+  }
+}
+
+if (!media) {
+  console.error('WPImage: Either (mediaId + baseUrl) or media prop must be provided');
+  return;
+}
+
+/** Size data structure from WordPress media_details.sizes */
+type MediaSize = {
+  file: string;
+  width: number;
+  height: number;
+  filesize?: number;
+  mime_type: string;
+  source_url: string;
+};
+
+/**
+ * Generates srcset string from WordPress media sizes for responsive images.
+ */
+function generateSrcset(media: WordPressMedia | WordPressEmbeddedMedia): string {
+  if (!media.media_details?.sizes) {
+    return '';
+  }
+
+  const srcsetItems: string[] = [];
+  const sizes = media.media_details.sizes as Record<string, MediaSize>;
+
+  Object.entries(sizes).forEach(([_sizeName, sizeData]) => {
+    srcsetItems.push(`${sizeData.source_url} ${sizeData.width}w`);
+  });
+
+  srcsetItems.sort((a, b) => {
+    const widthA = parseInt(a.split(' ')[1]);
+    const widthB = parseInt(b.split(' ')[1]);
+    return widthA - widthB;
+  });
+
+  return srcsetItems.join(', ');
+}
+
+const alt = media.alt_text || media.title?.rendered || '';
+const width = customWidth || media.media_details?.width;
+const height = customHeight || media.media_details?.height;
+const srcset = generateSrcset(media);
+---
+
+<img
+  src={media.source_url}
+  srcset={srcset || undefined}
+  alt={alt}
+  width={width}
+  height={height}
+  loading={loading}
+  decoding={decoding}
+  sizes={sizes}
+  class={className}
+/>

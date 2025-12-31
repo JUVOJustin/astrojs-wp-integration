@@ -1,0 +1,48 @@
+---
+/**
+ * WPContent component for rendering WordPress Gutenberg content
+ * Automatically loads block styles from WordPress site
+ * 
+ * Features:
+ * - Dynamically loads Gutenberg block CSS from WordPress
+ * - Supports both posts and pages with Gutenberg content
+ * - Handles embedded media and custom blocks
+ */
+
+interface Props {
+  /** Rendered HTML content from WordPress */
+  content: string;
+  /** WordPress base URL for loading block styles */
+  baseUrl: string;
+  /** Additional CSS classes to apply */
+  class?: string;
+  /** Whether to load block styles (default: true) */
+  loadBlockStyles?: boolean;
+}
+
+const {
+  content,
+  baseUrl,
+  class: className = '',
+  loadBlockStyles = true,
+} = Astro.props;
+
+// Build the block styles URL
+const blockStylesUrl = loadBlockStyles
+  ? `${baseUrl}/wp-includes/css/dist/block-library/style.min.css`
+  : null;
+
+// Optional: Load theme styles for blocks
+const themeBlockStylesUrl = loadBlockStyles
+  ? `${baseUrl}/wp-includes/css/dist/block-library/theme.min.css`
+  : null;
+---
+
+{loadBlockStyles && blockStylesUrl && (
+  <>
+    <link rel="stylesheet" href={blockStylesUrl} />
+    {themeBlockStylesUrl && <link rel="stylesheet" href={themeBlockStylesUrl} />}
+  </>
+)}
+
+<div class:list={['wp-block-content', className]} set:html={content} />
