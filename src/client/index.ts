@@ -146,7 +146,7 @@ export class WordPressClient {
     this.getAllUsers = users.getAllUsers;
     this.getUsersPaginated = users.getUsersPaginated;
     this.getUser = users.getUser;
-    this.getCurrentUser = users.getCurrentUser();
+    this.getCurrentUser = users.getCurrentUser;
 
     const settings = createSettingsMethods(fetchAPI, hasAuth);
     this.getSettings = settings.getSettings;
