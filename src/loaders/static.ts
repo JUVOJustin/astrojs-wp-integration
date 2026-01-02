@@ -5,10 +5,12 @@ import type { WordPressStaticLoaderConfig } from './types';
 /**
  * Static Loaders for WordPress content
  * Use with Astro's defineCollection for build-time static site generation
+ * These loaders automatically paginate to fetch ALL content
  */
 
 /**
  * Creates a static loader for WordPress posts (build-time only)
+ * Automatically fetches all posts by paginating through all pages
  * 
  * @example
  * import { defineCollection } from 'astro:content';
@@ -25,13 +27,10 @@ export function wordPressPostStaticLoader(config: WordPressStaticLoaderConfig): 
   return {
     name: 'wordpress-post-static-loader',
     load: async ({ store, logger }) => {
-      logger.info('Loading WordPress posts...');
+      logger.info('Loading all WordPress posts...');
 
       try {
-        const posts = await client.getPosts({
-          per_page: String(config.perPage || 100),
-          ...config.params,
-        });
+        const posts = await client.getAllPosts();
 
         store.clear();
 
@@ -54,6 +53,7 @@ export function wordPressPostStaticLoader(config: WordPressStaticLoaderConfig): 
 
 /**
  * Creates a static loader for WordPress pages (build-time only)
+ * Automatically fetches all pages by paginating through all pages
  * 
  * @example
  * import { defineCollection } from 'astro:content';
@@ -70,13 +70,10 @@ export function wordPressPageStaticLoader(config: WordPressStaticLoaderConfig): 
   return {
     name: 'wordpress-page-static-loader',
     load: async ({ store, logger }) => {
-      logger.info('Loading WordPress pages...');
+      logger.info('Loading all WordPress pages...');
 
       try {
-        const pages = await client.getPages({
-          per_page: String(config.perPage || 100),
-          ...config.params,
-        });
+        const pages = await client.getAllPages();
 
         store.clear();
 
@@ -99,6 +96,7 @@ export function wordPressPageStaticLoader(config: WordPressStaticLoaderConfig): 
 
 /**
  * Creates a static loader for WordPress media (build-time only)
+ * Automatically fetches all media by paginating through all pages
  * 
  * @example
  * import { defineCollection } from 'astro:content';
@@ -115,13 +113,10 @@ export function wordPressMediaStaticLoader(config: WordPressStaticLoaderConfig):
   return {
     name: 'wordpress-media-static-loader',
     load: async ({ store, logger }) => {
-      logger.info('Loading WordPress media...');
+      logger.info('Loading all WordPress media...');
 
       try {
-        const media = await client.getMedia({
-          per_page: String(config.perPage || 100),
-          ...config.params,
-        });
+        const media = await client.getAllMedia();
 
         store.clear();
 
@@ -143,6 +138,7 @@ export function wordPressMediaStaticLoader(config: WordPressStaticLoaderConfig):
 
 /**
  * Creates a static loader for WordPress categories (build-time only)
+ * Automatically fetches all categories by paginating through all pages
  * 
  * @example
  * import { defineCollection } from 'astro:content';
@@ -159,13 +155,10 @@ export function wordPressCategoryStaticLoader(config: WordPressStaticLoaderConfi
   return {
     name: 'wordpress-category-static-loader',
     load: async ({ store, logger }) => {
-      logger.info('Loading WordPress categories...');
+      logger.info('Loading all WordPress categories...');
 
       try {
-        const categories = await client.getCategories({
-          per_page: String(config.perPage || 100),
-          ...config.params,
-        });
+        const categories = await client.getAllCategories();
 
         store.clear();
 
@@ -187,6 +180,7 @@ export function wordPressCategoryStaticLoader(config: WordPressStaticLoaderConfi
 
 /**
  * Creates a static loader for WordPress tags (build-time only)
+ * Automatically fetches all tags by paginating through all pages
  * 
  * @example
  * import { defineCollection } from 'astro:content';
@@ -203,13 +197,10 @@ export function wordPressTagStaticLoader(config: WordPressStaticLoaderConfig): L
   return {
     name: 'wordpress-tag-static-loader',
     load: async ({ store, logger }) => {
-      logger.info('Loading WordPress tags...');
+      logger.info('Loading all WordPress tags...');
 
       try {
-        const tags = await client.getTags({
-          per_page: String(config.perPage || 100),
-          ...config.params,
-        });
+        const tags = await client.getAllTags();
 
         store.clear();
 

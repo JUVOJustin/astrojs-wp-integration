@@ -58,7 +58,19 @@ export type {
 
 // Export client
 export { WordPressClient } from './client';
-export type { WordPressClientConfig } from './client';
+export type { WordPressClientConfig, FetchResult } from './client';
+
+// Export client filter types for typesafe API calls
+export type {
+  PaginationParams,
+  PaginatedResponse,
+  PostsFilter,
+  PagesFilter,
+  MediaFilter as ClientMediaFilter,
+  CategoriesFilter,
+  TagsFilter,
+  UsersFilter,
+} from './client/types';
 
 // Export auth utilities
 export { createBasicAuthHeader } from './client/auth';

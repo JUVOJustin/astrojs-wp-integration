@@ -6,7 +6,57 @@ import type {
   WordPressCategory,
 } from '../schemas';
 import { WordPressClient } from '../client';
-import type { WordPressLoaderConfig, PostFilter, PageFilter, MediaFilter, CategoryFilter } from './types';
+
+/**
+ * Loader configuration for WordPress content
+ */
+export interface WordPressLoaderConfig {
+  baseUrl: string;
+}
+
+/**
+ * Filter options for posts (live loader)
+ */
+export interface PostFilter {
+  id?: number;
+  slug?: string;
+  status?: string;
+  categories?: number[];
+  tags?: number[];
+  terms?: string;
+  orderby?: 'date' | 'id' | 'title' | 'slug' | 'modified' | 'relevance';
+  order?: 'asc' | 'desc';
+}
+
+/**
+ * Filter options for pages (live loader)
+ */
+export interface PageFilter {
+  id?: number;
+  slug?: string;
+  status?: string;
+}
+
+/**
+ * Filter options for media (live loader)
+ */
+export interface LiveMediaFilter {
+  id?: number;
+  slug?: string;
+}
+
+/**
+ * Filter options for categories/taxonomies (live loader)
+ */
+export interface CategoryFilter {
+  id?: number;
+  slug?: string;
+  taxonomy?: string;
+  hide_empty?: boolean;
+  parent?: number;
+  orderby?: 'id' | 'name' | 'slug' | 'count' | 'term_group';
+  order?: 'asc' | 'desc';
+}
 
 /**
  * Live Loaders for WordPress content
@@ -34,17 +84,15 @@ export function wordPressPostLoader(
     name: 'wordpress-post-loader',
     loadCollection: async ({ filter }) => {
       try {
-        const params: Record<string, string> = {};
         const postFilter = (filter as any)?.filter || (filter as PostFilter | undefined);
 
-        if (postFilter?.status) params.status = postFilter.status;
-        if (postFilter?.categories) params.categories = postFilter.categories.join(',');
-        if (postFilter?.tags) params.tags = postFilter.tags.join(',');
-        if (postFilter?.terms) params.terms = postFilter.terms;
-        if (postFilter?.orderby) params.orderby = postFilter.orderby;
-        if (postFilter?.order) params.order = postFilter.order;
-
-        const posts = await client.getPosts(params);
+        const posts = await client.getPosts({
+          status: postFilter?.status as any,
+          categories: postFilter?.categories,
+          tags: postFilter?.tags,
+          orderby: postFilter?.orderby,
+          order: postFilter?.order,
+        });
 
         return {
           entries: posts.map((post) => ({
@@ -108,12 +156,11 @@ export function wordPressPageLoader(
     name: 'wordpress-page-loader',
     loadCollection: async ({ filter }) => {
       try {
-        const params: Record<string, string> = {};
         const pageFilter = filter as PageFilter | undefined;
 
-        if (pageFilter?.status) params.status = pageFilter.status;
-
-        const pages = await client.getPages(params);
+        const pages = await client.getPages({
+          status: pageFilter?.status as any,
+        });
 
         return {
           entries: pages.map((page) => ({
@@ -169,14 +216,14 @@ export function wordPressPageLoader(
  */
 export function wordPressMediaLoader(
   config: WordPressLoaderConfig
-): LiveLoader<WordPressMedia, MediaFilter> {
+): LiveLoader<WordPressMedia, LiveMediaFilter> {
   const client = new WordPressClient({ baseUrl: config.baseUrl });
 
   return {
     name: 'wordpress-media-loader',
     loadCollection: async () => {
       try {
-        const media = await client.getMedia({ per_page: '1000' });
+        const media = await client.getMedia({ perPage: 1000 });
 
         return {
           entries: media.map((item) => ({
@@ -238,15 +285,14 @@ export function wordPressCategoryLoader(
     name: 'wordpress-category-loader',
     loadCollection: async ({ filter }) => {
       try {
-        const params: Record<string, string> = {};
         const categoryFilter = (filter as any)?.filter || (filter as CategoryFilter | undefined);
 
-        if (categoryFilter?.hide_empty !== undefined) params.hide_empty = String(categoryFilter.hide_empty);
-        if (categoryFilter?.parent !== undefined) params.parent = String(categoryFilter.parent);
-        if (categoryFilter?.orderby) params.orderby = categoryFilter.orderby;
-        if (categoryFilter?.order) params.order = categoryFilter.order;
-
-        const categories = await client.getCategories(params);
+        const categories = await client.getCategories({
+          hideEmpty: categoryFilter?.hide_empty,
+          parent: categoryFilter?.parent,
+          orderby: categoryFilter?.orderby,
+          order: categoryFilter?.order,
+        });
 
         return {
           entries: categories.map((category) => ({

@@ -20,7 +20,7 @@ export interface WordPressStaticLoaderConfig extends WordPressLoaderConfig {
 }
 
 /**
- * Filter options for posts
+ * Filter options for posts (live loader)
  */
 export interface PostFilter {
   id?: number;
@@ -34,7 +34,7 @@ export interface PostFilter {
 }
 
 /**
- * Filter options for pages
+ * Filter options for pages (live loader)
  */
 export interface PageFilter {
   id?: number;
@@ -43,7 +43,8 @@ export interface PageFilter {
 }
 
 /**
- * Filter options for media
+ * Filter options for media (live loader)
+ * Named differently from client MediaFilter to avoid collision
  */
 export interface MediaFilter {
   id?: number;
@@ -51,7 +52,7 @@ export interface MediaFilter {
 }
 
 /**
- * Filter options for categories/taxonomies
+ * Filter options for categories/taxonomies (live loader)
  */
 export interface CategoryFilter {
   id?: number;

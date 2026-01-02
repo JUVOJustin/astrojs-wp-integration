@@ -1,15 +1,67 @@
 import type { WordPressMedia } from '../schemas';
+import type { FetchResult } from './index';
+import type { MediaFilter, PaginatedResponse } from './types';
+import { filterToParams } from './types';
 
 /**
- * Media API methods
+ * Media API methods factory
+ * Creates type-safe methods for fetching WordPress media with filtering and pagination
  */
-export function createMediaMethods(fetchAPI: <T>(endpoint: string, params?: Record<string, string>) => Promise<T>) {
+export function createMediaMethods(
+  fetchAPI: <T>(endpoint: string, params?: Record<string, string>) => Promise<T>,
+  fetchAPIPaginated: <T>(endpoint: string, params?: Record<string, string>) => Promise<FetchResult<T>>
+) {
   return {
     /**
-     * Gets all media items
+     * Gets media items with optional filtering (single page, max 100 items)
+     * 
+     * @param filter - Filter options (mediaType, mimeType, author, parent, etc.)
+     * @returns Array of media items matching the filter criteria
      */
-    async getMedia(params: Record<string, string> = {}): Promise<WordPressMedia[]> {
-      return fetchAPI<WordPressMedia[]>('/media', { per_page: '100', ...params });
+    async getMedia(filter: MediaFilter = {}): Promise<WordPressMedia[]> {
+      const params = filterToParams(filter as Record<string, unknown>);
+      return fetchAPI<WordPressMedia[]>('/media', params);
+    },
+
+    /**
+     * Gets ALL media items by automatically paginating through all pages
+     * Use this for static site generation to ensure all content is fetched
+     * 
+     * @param filter - Filter options (mediaType, mimeType, author, parent, etc.)
+     * @returns Array of all media items matching the filter criteria
+     */
+    async getAllMedia(filter: Omit<MediaFilter, 'page'> = {}): Promise<WordPressMedia[]> {
+      const allMedia: WordPressMedia[] = [];
+      let page = 1;
+      let totalPages = 1;
+
+      do {
+        const params = filterToParams({ ...filter, page, perPage: 100 } as Record<string, unknown>);
+        const result = await fetchAPIPaginated<WordPressMedia[]>('/media', params);
+        allMedia.push(...result.data);
+        totalPages = result.totalPages;
+        page++;
+      } while (page <= totalPages);
+
+      return allMedia;
+    },
+
+    /**
+     * Gets media items with pagination metadata
+     * 
+     * @param filter - Filter options including pagination (perPage, page)
+     * @returns Paginated response with media items and total counts
+     */
+    async getMediaPaginated(filter: MediaFilter = {}): Promise<PaginatedResponse<WordPressMedia>> {
+      const params = filterToParams(filter as Record<string, unknown>);
+      const result = await fetchAPIPaginated<WordPressMedia[]>('/media', params);
+      return {
+        data: result.data,
+        total: result.total,
+        totalPages: result.totalPages,
+        page: filter.page || 1,
+        perPage: filter.perPage || 100,
+      };
     },
 
     /**
