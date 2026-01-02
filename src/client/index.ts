@@ -89,7 +89,7 @@ export class WordPressClient {
   public getAllUsers: ReturnType<typeof createUsersMethods>['getAllUsers'];
   public getUsersPaginated: ReturnType<typeof createUsersMethods>['getUsersPaginated'];
   public getUser: ReturnType<typeof createUsersMethods>['getUser'];
-  public getAuthenticatedUser: ReturnType<typeof createUsersMethods>['getAuthenticatedUser'];
+  public getCurrentUser: ReturnType<typeof createUsersMethods>['getCurrentUser'];
 
   // Settings methods
   public getSettings: ReturnType<typeof createSettingsMethods>['getSettings'];
@@ -146,7 +146,7 @@ export class WordPressClient {
     this.getAllUsers = users.getAllUsers;
     this.getUsersPaginated = users.getUsersPaginated;
     this.getUser = users.getUser;
-    this.getAuthenticatedUser = users.getAuthenticatedUser;
+    this.getCurrentUser = users.getCurrentUser();
 
     const settings = createSettingsMethods(fetchAPI, hasAuth);
     this.getSettings = settings.getSettings;
