@@ -12,7 +12,13 @@ import type { PaginatedResponse } from './types';
  * WordPress client configuration
  */
 export interface WordPressClientConfig {
-  /** WordPress site URL (e.g., 'https://example.com') */
+  /** 
+   * WordPress site URL, including any path prefix
+   * Examples: 
+   * - 'https://example.com'
+   * - 'https://example.com/blog'
+   * - 'https://example.com/en'
+   */
   baseUrl: string;
   /** Authentication credentials for all API requests */
   auth?: BasicAuthCredentials;
@@ -42,6 +48,10 @@ export interface FetchResult<T> {
  *   baseUrl: 'https://example.com',
  *   auth: { username: 'admin', password: 'app-password' }
  * });
+ * 
+ * @example
+ * // With path prefix (e.g., multilingual site)
+ * const wp = new WordPressClient({ baseUrl: 'https://example.com/en' });
  */
 export class WordPressClient {
   private baseUrl: string;
@@ -95,9 +105,12 @@ export class WordPressClient {
   public getSettings: ReturnType<typeof createSettingsMethods>['getSettings'];
 
   constructor(config: WordPressClientConfig) {
-    this.baseUrl = config.baseUrl;
+    this.baseUrl = config.baseUrl.replace(/\/$/, ''); // Remove trailing slash
     this.authHeader = config.auth ? createBasicAuthHeader(config.auth) : undefined;
-    this.apiBase = `${this.baseUrl}/index.php?rest_route=/wp/v2`;
+    
+    // Use WordPress REST API pretty permalinks format
+    // Supports base URLs with path prefixes (e.g., https://example.com/en)
+    this.apiBase = `${this.baseUrl}/wp-json/wp/v2`;
 
     // Bind fetchAPI and hasAuth for resource methods
     const fetchAPI = this.fetchAPI.bind(this);
