@@ -1,6 +1,6 @@
 # WordPress Astro.js Integration
 
-Fast and better WordPress integration for Astro.js with live loaders, static loaders, client API, and full Gutenberg block support.
+Ready to use WordPress integration for Astro.js with live loaders, static loaders, client API, and Gutenberg block support.
 
 ## Features
 
@@ -18,23 +18,28 @@ Fast and better WordPress integration for Astro.js with live loaders, static loa
 npm install wp-astrojs-integration
 ```
 
+## Available Entities
+
+| Entity | Schema Name | Live Loader | Static Loader | Notes |
+|--------|-------------|-------------|---------------|-------|
+| Posts | `postSchema` | `wordPressPostLoader` | `wordPressPostStaticLoader` | |
+| Pages | `pageSchema` | `wordPressPageLoader` | `wordPressPageStaticLoader` | |
+| Media | `mediaSchema` | `wordPressMediaLoader` | `wordPressMediaStaticLoader` | |
+| Categories | `categorySchema` | `wordPressCategoryLoader` | `wordPressCategoryStaticLoader` | |
+| Tags | `categorySchema` | - | `wordPressTagStaticLoader` | |
+| Users | `WordPressAuthor` | - | - | Client-only, no loaders |
+| Settings | `settingsSchema` | - | - | Client-only, requires auth |
+
 ## Quick Start
 
 ### Option 1: Live Collections (Server-Side Rendering)
 
-Use live loaders for SSR or when you need real-time data:
+Use [live loaders](https://docs.astro.build/de/reference/experimental-flags/live-content-collections/) for SSR or when you need real-time data:
 
 ```typescript
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
-import {
-  wordPressPostLoader,
-  wordPressPageLoader,
-  wordPressCategoryLoader,
-  postSchema,
-  pageSchema,
-  categorySchema,
-} from 'wp-astrojs-integration';
+import { wordPressPostLoader, postSchema } from 'wp-astrojs-integration';
 
 const WORDPRESS_BASE_URL = import.meta.env.PUBLIC_WORDPRESS_BASE_URL;
 
@@ -43,34 +48,17 @@ const posts = defineLiveCollection({
   schema: postSchema,
 });
 
-const pages = defineLiveCollection({
-  loader: wordPressPageLoader({ baseUrl: WORDPRESS_BASE_URL }),
-  schema: pageSchema,
-});
-
-const categories = defineLiveCollection({
-  loader: wordPressCategoryLoader({ baseUrl: WORDPRESS_BASE_URL }),
-  schema: categorySchema,
-});
-
-export const collections = { posts, pages, categories };
+export const collections = { posts };
 ```
 
 ### Option 2: Static Collections (Build-Time Only)
 
-Use static loaders for fully static site generation:
+Use [static loaders](https://docs.astro.build/de/reference/modules/astro-content/) for fully static site generation. Pagination is done automatically.
 
 ```typescript
 // src/content.config.ts
 import { defineCollection } from 'astro:content';
-import {
-  wordPressPostStaticLoader,
-  wordPressPageStaticLoader,
-  wordPressCategoryStaticLoader,
-  postSchema,
-  pageSchema,
-  categorySchema,
-} from 'wp-astrojs-integration';
+import { wordPressPostStaticLoader, postSchema } from 'wp-astrojs-integration';
 
 const WORDPRESS_BASE_URL = import.meta.env.PUBLIC_WORDPRESS_BASE_URL;
 
@@ -79,25 +67,19 @@ const posts = defineCollection({
   schema: postSchema,
 });
 
-const pages = defineCollection({
-  loader: wordPressPageStaticLoader({ baseUrl: WORDPRESS_BASE_URL }),
-  schema: pageSchema,
-});
-
-const categories = defineCollection({
-  loader: wordPressCategoryStaticLoader({ baseUrl: WORDPRESS_BASE_URL }),
-  schema: categorySchema,
-});
-
-export const collections = { posts, pages, categories };
+export const collections = { posts };
 ```
 
-### Environment Variable
+### Configuration
 
-Create `.env`:
+The `baseUrl` parameter is required for loaders and components. You can provide it directly or use environment variables:
 
-```env
-PUBLIC_WORDPRESS_BASE_URL=https://your-wordpress-site.com
+```typescript
+// Option 1: Direct configuration
+const posts = defineLiveCollection({
+  loader: wordPressPostLoader({ baseUrl: 'https://your-wordpress-site.com' }),
+  schema: postSchema,
+});
 ```
 
 ### Using in Pages
@@ -124,27 +106,7 @@ const featuredMedia = post.data._embedded?.['wp:featuredmedia']?.[0];
   
   <WPContent 
     content={post.data.content.rendered}
-    baseUrl={import.meta.env.PUBLIC_WORDPRESS_BASE_URL}
-  />
-</article>
-```
-
-```astro
----
-// For static collections
-import { getCollection, getEntry } from 'astro:content';
-import WPContent from 'wp-astrojs-integration/components/WPContent.astro';
-
-const { slug } = Astro.params;
-const post = await getEntry('posts', slug);
----
-
-<article>
-  <h1 set:html={post.data.title.rendered} />
-  
-  <WPContent 
-    content={post.data.content.rendered}
-    baseUrl={import.meta.env.PUBLIC_WORDPRESS_BASE_URL}
+    baseUrl="https://your-wordpress-site.com"
   />
 </article>
 ```
@@ -230,7 +192,7 @@ import WPContent from 'wp-astrojs-integration/components/WPContent.astro';
 
 <WPContent 
   content={post.data.content.rendered}
-  baseUrl={import.meta.env.PUBLIC_WORDPRESS_BASE_URL}
+  baseUrl="https://your-wordpress-site.com"
   class="custom-class"
   loadBlockStyles={true}
 />
@@ -257,7 +219,7 @@ import WPImage from 'wp-astrojs-integration/components/WPImage.astro';
 <!-- With media ID -->
 <WPImage 
   mediaId={123} 
-  baseUrl={import.meta.env.PUBLIC_WORDPRESS_BASE_URL}
+  baseUrl="https://your-wordpress-site.com"
   loading="lazy"
 />
 ```
@@ -334,8 +296,6 @@ Use the WordPress client in Astro middleware to protect routes with WordPress au
 import { defineMiddleware } from 'astro:middleware';
 import { WordPressClient } from 'wp-astrojs-integration';
 
-const WORDPRESS_BASE_URL = import.meta.env.PUBLIC_WORDPRESS_BASE_URL;
-
 export const onRequest = defineMiddleware(async (context, next) => {
   // Only protect /admin routes
   if (!context.url.pathname.startsWith('/admin')) {
@@ -358,7 +318,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   // Verify against WordPress
   const wp = new WordPressClient({
-    baseUrl: WORDPRESS_BASE_URL,
+    baseUrl: 'https://your-wordpress-site.com',
     auth: { username, password }
   });
 
