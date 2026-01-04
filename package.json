@@ -36,7 +36,7 @@
     "gutenberg",
     "headless",
     "astro-integration",
-    "wp-api"
+    "astro-loader"
   ],
   "author": "juvojustin",
   "repository": {

@@ -212,8 +212,6 @@ export class WordPressClient {
     }
 
     const data = await response.json();
-    const duration = Math.round(performance.now() - startTime);
-    console.log(`[WP API] ${endpoint} - ${duration}ms - params:`, JSON.stringify(params));
 
     // Extract pagination headers
     const total = parseInt(response.headers.get('X-WP-Total') || '0', 10);

@@ -101,7 +101,6 @@ export function wordPressPostLoader(
           })),
         };
       } catch (error) {
-        console.error('Error in loadCollection:', error);
         return {
           error: error instanceof Error ? error : new Error('Failed to load posts'),
         };

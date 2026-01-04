@@ -27,7 +27,7 @@ export function wordPressPostStaticLoader(config: WordPressStaticLoaderConfig): 
   return {
     name: 'wordpress-post-static-loader',
     load: async ({ store, logger }) => {
-      logger.info('Loading all WordPress posts...');
+      logger.info('Loading WordPress posts...');
 
       try {
         const posts = await client.getAllPosts();
@@ -70,7 +70,7 @@ export function wordPressPageStaticLoader(config: WordPressStaticLoaderConfig): 
   return {
     name: 'wordpress-page-static-loader',
     load: async ({ store, logger }) => {
-      logger.info('Loading all WordPress pages...');
+      logger.info('Loading WordPress pages...');
 
       try {
         const pages = await client.getAllPages();
@@ -113,7 +113,7 @@ export function wordPressMediaStaticLoader(config: WordPressStaticLoaderConfig):
   return {
     name: 'wordpress-media-static-loader',
     load: async ({ store, logger }) => {
-      logger.info('Loading all WordPress media...');
+      logger.info('Loading WordPress media...');
 
       try {
         const media = await client.getAllMedia();
@@ -155,7 +155,7 @@ export function wordPressCategoryStaticLoader(config: WordPressStaticLoaderConfi
   return {
     name: 'wordpress-category-static-loader',
     load: async ({ store, logger }) => {
-      logger.info('Loading all WordPress categories...');
+      logger.info('Loading WordPress categories...');
 
       try {
         const categories = await client.getAllCategories();
@@ -197,7 +197,7 @@ export function wordPressTagStaticLoader(config: WordPressStaticLoaderConfig): L
   return {
     name: 'wordpress-tag-static-loader',
     load: async ({ store, logger }) => {
-      logger.info('Loading all WordPress tags...');
+      logger.info('Loading WordPress tags...');
 
       try {
         const tags = await client.getAllTags();
