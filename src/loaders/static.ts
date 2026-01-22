@@ -219,3 +219,44 @@ export function wordPressTagStaticLoader(config: WordPressStaticLoaderConfig): L
     },
   };
 }
+
+/**
+ * Creates a static loader for WordPress users (build-time only)
+ * Automatically fetches all users by paginating through all pages
+ * 
+ * @example
+ * import { defineCollection } from 'astro:content';
+ * import { wordPressUserStaticLoader } from 'wp-astrojs-integration';
+ * 
+ * const users = defineCollection({
+ *   loader: wordPressUserStaticLoader({ baseUrl: 'https://example.com' }),
+ * });
+ */
+export function wordPressUserStaticLoader(config: WordPressStaticLoaderConfig): Loader {
+  const client = new WordPressClient({ baseUrl: config.baseUrl });
+
+  return {
+    name: 'wordpress-user-static-loader',
+    load: async ({ store, logger }) => {
+      logger.info('Loading all WordPress users...');
+
+      try {
+        const users = await client.getAllUsers();
+
+        store.clear();
+
+        for (const user of users) {
+          store.set({
+            id: String(user.id),
+            data: user,
+          });
+        }
+
+        logger.info(`Loaded ${users.length} users`);
+      } catch (error) {
+        logger.error(`Failed to load users: ${error}`);
+        throw error;
+      }
+    },
+  };
+}

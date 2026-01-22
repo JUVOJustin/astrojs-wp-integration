@@ -27,7 +27,7 @@ npm install wp-astrojs-integration
 | Media | `mediaSchema` | `wordPressMediaLoader` | `wordPressMediaStaticLoader` | |
 | Categories | `categorySchema` | `wordPressCategoryLoader` | `wordPressCategoryStaticLoader` | |
 | Tags | `categorySchema` | - | `wordPressTagStaticLoader` | |
-| Users | `WordPressAuthor` | - | - | Client-only, no loaders |
+| Users | `WordPressAuthor` | `wordPressUserLoader` | `wordPressUserStaticLoader` | |
 | Settings | `settingsSchema` | - | - | Client-only, requires auth |
 
 ## Quick Start
@@ -358,6 +358,7 @@ Use these for server-side rendering or real-time data:
 - `wordPressPageLoader(config)`: Live loader for pages
 - `wordPressMediaLoader(config)`: Live loader for media
 - `wordPressCategoryLoader(config)`: Live loader for categories/taxonomies
+- `wordPressUserLoader(config)`: Live loader for users
 
 ### Static Loaders (for `defineCollection`)
 
@@ -368,6 +369,7 @@ Use these for static site generation (build-time only):
 - `wordPressMediaStaticLoader(config)`: Static loader for media
 - `wordPressCategoryStaticLoader(config)`: Static loader for categories
 - `wordPressTagStaticLoader(config)`: Static loader for tags
+- `wordPressUserStaticLoader(config)`: Static loader for users
 
 **Static Loader Config:**
 ```typescript
