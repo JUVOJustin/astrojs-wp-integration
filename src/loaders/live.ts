@@ -4,6 +4,7 @@ import type {
   WordPressPage,
   WordPressMedia,
   WordPressCategory,
+  WordPressAuthor,
 } from '../schemas';
 import { WordPressClient } from '../client';
 
@@ -328,6 +329,73 @@ export function wordPressCategoryLoader(
       } catch (error) {
         return {
           error: error instanceof Error ? error : new Error('Failed to load category'),
+        };
+      }
+    },
+  };
+}
+
+/**
+ * Creates a live loader for WordPress users
+ * 
+ * @example
+ * import { defineLiveCollection } from 'astro:content';
+ * import { wordPressUserLoader } from 'wp-astrojs-integration';
+ * 
+ * const users = defineLiveCollection({
+ *   loader: wordPressUserLoader({ baseUrl: 'https://example.com' }),
+ * });
+ */
+export function wordPressUserLoader(
+  config: WordPressLoaderConfig
+): LiveLoader<WordPressAuthor, { id?: number; slug?: string; roles?: string[] }> {
+  const client = new WordPressClient({ baseUrl: config.baseUrl });
+
+  return {
+    name: 'wordpress-user-loader',
+    loadCollection: async ({ filter }) => {
+      try {
+        const userFilter = (filter as any)?.filter || (filter as { roles?: string[] } | undefined);
+
+        const users = await client.getUsers({
+          roles: userFilter?.roles,
+        });
+
+        return {
+          entries: users.map((user) => ({
+            id: String(user.id),
+            data: user,
+          })),
+        };
+      } catch (error) {
+        return {
+          error: error instanceof Error ? error : new Error('Failed to load users'),
+        };
+      }
+    },
+    loadEntry: async ({ filter }) => {
+      try {
+        let user: WordPressAuthor | undefined;
+
+        if (typeof filter === 'object' && 'id' in filter && filter.id) {
+          user = await client.getUser(filter.id);
+        } else if (typeof filter === 'object' && 'slug' in filter && filter.slug) {
+          // Get all users and find by slug
+          const users = await client.getUsers();
+          user = users.find((u) => u.slug === filter.slug);
+        }
+
+        if (!user) {
+          return { error: new Error('User not found') };
+        }
+
+        return {
+          id: String(user.id),
+          data: user,
+        };
+      } catch (error) {
+        return {
+          error: error instanceof Error ? error : new Error('Failed to load user'),
         };
       }
     },
