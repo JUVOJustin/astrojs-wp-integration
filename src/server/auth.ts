@@ -16,7 +16,7 @@ const DEFAULT_COOKIE_PATH = '/';
 const DEFAULT_COOKIE_SAME_SITE: 'lax' = 'lax';
 const DEFAULT_SESSION_DURATION_SECONDS = 60 * 60 * 12;
 
-const loginIdentifierSchema = z.string().trim().min(1).max(320);
+const loginUsernameOrEmailSchema = z.string().trim().min(1).max(320);
 
 type UserLoaderEntryInput = Parameters<ReturnType<typeof wordPressUserLoader>['loadEntry']>[0];
 
@@ -30,32 +30,14 @@ type UserLoaderResult = {
  */
 export const wordPressLoginInputSchema = z
   .object({
-    identifier: loginIdentifierSchema.optional(),
-    email: loginIdentifierSchema.optional(),
-    username: loginIdentifierSchema.optional(),
+    usernameOrEmail: loginUsernameOrEmailSchema,
     password: z.string().min(1).max(512),
     redirectTo: z.string().optional(),
   })
-  .strict()
-  .superRefine((input, context) => {
-    if (input.identifier || input.email || input.username) {
-      return;
-    }
-
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: 'Please provide your email address or username.',
-      path: ['identifier'],
-    });
-  })
-  .transform((input) => ({
-    usernameOrEmail: (input.identifier || input.email || input.username || '').trim(),
-    password: input.password,
-    redirectTo: input.redirectTo,
-  }));
+  .strict();
 
 /**
- * Type-safe normalized login payload inferred from the shared login schema output.
+ * Type-safe login payload inferred from the shared login schema output.
  */
 export type WordPressLoginInput = z.infer<typeof wordPressLoginInputSchema>;
 

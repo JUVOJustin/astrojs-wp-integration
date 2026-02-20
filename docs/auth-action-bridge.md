@@ -14,9 +14,7 @@ The package ships a ready-to-use Astro server action bridge for WordPress authen
 
 The login action uses a predefined Zod schema:
 
-- `identifier`: username or email string
-- `email`: username or email string (backward-compatible alias)
-- `username`: username or email string (backward-compatible alias)
+- `usernameOrEmail`: username or email string
 - `password`: non-empty string (max 512 chars)
 - `redirectTo`: optional local path
 
@@ -68,12 +66,12 @@ const inputErrors = isInputError(result?.error) ? result.error.fields : {};
 
 <form method="POST" action={actions.login}>
   <input type="hidden" name="redirectTo" value="/" />
-  <input type="text" name="identifier" autocomplete="username" required />
+  <input type="text" name="usernameOrEmail" autocomplete="username" required />
   <input type="password" name="password" autocomplete="current-password" required />
   <button type="submit">Sign in</button>
 </form>
 
-{inputErrors.identifier && <p>{inputErrors.identifier.join(', ')}</p>}
+{inputErrors.usernameOrEmail && <p>{inputErrors.usernameOrEmail.join(', ')}</p>}
 ```
 
 ```typescript

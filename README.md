@@ -291,7 +291,7 @@ Use the packaged bridge to get a ready-to-use login server action with Zod valid
 
 The bridge includes:
 
-- `wordPressLoginInputSchema` for predefined Zod validation (`identifier`/`email`/`username`, `password`, `redirectTo`)
+- `wordPressLoginInputSchema` for predefined Zod validation (`usernameOrEmail`, `password`, `redirectTo`)
 - `loginAction` for Astro Actions
 - session helpers for middleware (`resolveUserBySessionId`, `clearAuthentication`)
 
@@ -336,11 +336,11 @@ if (result && !result.error) {
 const inputErrors = isInputError(result?.error) ? result.error.fields : {};
 ---
 
-{inputErrors.identifier && <p>{inputErrors.identifier.join(', ')}</p>}
+{inputErrors.usernameOrEmail && <p>{inputErrors.usernameOrEmail.join(', ')}</p>}
 
 <form method="POST" action={actions.login}>
   <input type="hidden" name="redirectTo" value="/" />
-  <input type="text" name="identifier" autocomplete="username" required />
+  <input type="text" name="usernameOrEmail" autocomplete="username" required />
   <input type="password" name="password" autocomplete="current-password" required />
   <button type="submit">Sign in</button>
 </form>
