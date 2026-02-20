@@ -415,6 +415,7 @@ Use these for static site generation (build-time only):
 interface WordPressStaticLoaderConfig {
   baseUrl: string;
   auth?: BasicAuthCredentials;
+  cookies?: string;
   perPage?: number;  // Items per page (default: 100)
   params?: Record<string, string>;  // Additional query params
 }
