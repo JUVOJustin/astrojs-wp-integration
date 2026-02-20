@@ -16,6 +16,8 @@ const DEFAULT_COOKIE_PATH = '/';
 const DEFAULT_COOKIE_SAME_SITE: 'lax' = 'lax';
 const DEFAULT_SESSION_DURATION_SECONDS = 60 * 60 * 12;
 
+const loginIdentifierSchema = z.string().trim().min(1).max(320);
+
 type UserLoaderEntryInput = Parameters<ReturnType<typeof wordPressUserLoader>['loadEntry']>[0];
 
 type UserLoaderResult = {
@@ -28,16 +30,39 @@ type UserLoaderResult = {
  */
 export const wordPressLoginInputSchema = z
   .object({
-    email: z.string().trim().email(),
+    identifier: loginIdentifierSchema.optional(),
+    email: loginIdentifierSchema.optional(),
+    username: loginIdentifierSchema.optional(),
     password: z.string().min(1).max(512),
     redirectTo: z.string().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((input, context) => {
+    if (input.identifier || input.email || input.username) {
+      return;
+    }
+
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Please provide your email address or username.',
+      path: ['identifier'],
+    });
+  })
+  .transform((input) => ({
+    usernameOrEmail: (input.identifier || input.email || input.username || '').trim(),
+    password: input.password,
+    redirectTo: input.redirectTo,
+  }));
 
 /**
- * Type-safe login payload inferred directly from the login input schema.
+ * Type-safe normalized login payload inferred from the shared login schema output.
  */
 export type WordPressLoginInput = z.infer<typeof wordPressLoginInputSchema>;
+
+/**
+ * Type-safe login payload expected by callers, inferred from the shared login schema input.
+ */
+export type WordPressLoginActionPayload = z.input<typeof wordPressLoginInputSchema>;
 
 /**
  * Successful login payload returned by the packaged WordPress login action.
@@ -53,7 +78,7 @@ export interface WordPressLoginActionResult {
  */
 export type WordPressLoginAction = ActionClient<
   WordPressLoginActionResult,
-  'json',
+  'form',
   typeof wordPressLoginInputSchema
 >;
 
@@ -233,14 +258,14 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
   }
 
   const loginAction: WordPressLoginAction = defineAction({
-    accept: 'json',
+    accept: 'form',
     input: wordPressLoginInputSchema,
     handler: async (
       input: WordPressLoginInput,
       context: ActionAPIContext,
     ): Promise<WordPressLoginActionResult> => {
       const credentials: BasicAuthCredentials = {
-        username: input.email,
+        username: input.usernameOrEmail,
         password: input.password,
       };
 

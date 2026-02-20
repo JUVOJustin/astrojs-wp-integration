@@ -90,6 +90,7 @@ export type {
   WordPressAuthBridgeConfig,
   WordPressAuthSession,
   WordPressLoginAction,
+  WordPressLoginActionPayload,
   WordPressLoginActionResult,
   WordPressLoginInput,
 } from './server';

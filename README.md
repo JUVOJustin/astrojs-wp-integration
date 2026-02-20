@@ -291,7 +291,7 @@ Use the packaged bridge to get a ready-to-use login server action with Zod valid
 
 The bridge includes:
 
-- `wordPressLoginInputSchema` for predefined Zod validation (`email`, `password`, `redirectTo`)
+- `wordPressLoginInputSchema` for predefined Zod validation (`identifier`/`email`/`username`, `password`, `redirectTo`)
 - `loginAction` for Astro Actions
 - session helpers for middleware (`resolveUserBySessionId`, `clearAuthentication`)
 
@@ -299,7 +299,7 @@ The bridge includes:
 import { z } from 'astro/zod';
 import { wordPressLoginInputSchema } from 'wp-astrojs-integration';
 
-type LoginPayload = z.infer<typeof wordPressLoginInputSchema>;
+type LoginPayload = z.input<typeof wordPressLoginInputSchema>;
 ```
 
 ```typescript
@@ -325,17 +325,25 @@ export const server = {
 ---
 // src/pages/login.astro
 import { server } from '../actions';
+import { isInputError } from 'astro:actions';
 
-const result = await Astro.callAction(server.login, {
-  email: 'creator@example.com',
-  password: 'secret',
-  redirectTo: '/',
-});
+const result = Astro.getActionResult(server.login);
 
-if (!result.error) {
+if (result && !result.error) {
   return Astro.redirect(result.data.redirectTo);
 }
+
+const inputErrors = isInputError(result?.error) ? result.error.fields : {};
 ---
+
+{inputErrors.identifier && <p>{inputErrors.identifier.join(', ')}</p>}
+
+<form method="POST" action={server.login}>
+  <input type="hidden" name="redirectTo" value="/" />
+  <input type="text" name="identifier" autocomplete="username" required />
+  <input type="password" name="password" autocomplete="current-password" required />
+  <button type="submit">Sign in</button>
+</form>
 ```
 
 ### Astro Middleware Authentication Example

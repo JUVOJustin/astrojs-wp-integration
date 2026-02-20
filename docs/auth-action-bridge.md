@@ -6,7 +6,7 @@ The package ships a ready-to-use Astro server action bridge for WordPress authen
 
 - `createWordPressAuthBridge(config)` to create a full auth bridge
 - `wordPressLoginInputSchema` for strict Zod validation
-- `loginAction` for Astro Actions (`Astro.callAction`)
+- `loginAction` for Astro Actions form submissions
 - in-memory session helpers for middleware and logout
 - cookie writing on successful login (HTTP-only)
 
@@ -14,7 +14,9 @@ The package ships a ready-to-use Astro server action bridge for WordPress authen
 
 The login action uses a predefined Zod schema:
 
-- `email`: valid email string
+- `identifier`: username or email string
+- `email`: username or email string (backward-compatible alias)
+- `username`: username or email string (backward-compatible alias)
 - `password`: non-empty string (max 512 chars)
 - `redirectTo`: optional local path
 
@@ -24,7 +26,7 @@ Input is validated before any WordPress request is executed.
 import { z } from 'astro/zod';
 import { wordPressLoginInputSchema } from 'wp-astrojs-integration';
 
-type LoginPayload = z.infer<typeof wordPressLoginInputSchema>;
+type LoginPayload = z.input<typeof wordPressLoginInputSchema>;
 ```
 
 ## Example Setup
@@ -52,18 +54,26 @@ export const server = {
 ```astro
 ---
 // src/pages/login.astro
+import { isInputError } from 'astro:actions';
 import { server } from '../actions';
 
-const result = await Astro.callAction(server.login, {
-  email: 'creator@example.com',
-  password: 'secret',
-  redirectTo: '/',
-});
+const result = Astro.getActionResult(server.login);
 
-if (!result.error) {
+if (result && !result.error) {
   return Astro.redirect(result.data.redirectTo);
 }
+
+const inputErrors = isInputError(result?.error) ? result.error.fields : {};
 ---
+
+<form method="POST" action={server.login}>
+  <input type="hidden" name="redirectTo" value="/" />
+  <input type="text" name="identifier" autocomplete="username" required />
+  <input type="password" name="password" autocomplete="current-password" required />
+  <button type="submit">Sign in</button>
+</form>
+
+{inputErrors.identifier && <p>{inputErrors.identifier.join(', ')}</p>}
 ```
 
 ```typescript
