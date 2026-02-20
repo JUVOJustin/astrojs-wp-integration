@@ -15,6 +15,7 @@ import type { BasicAuthCredentials } from '../client/auth';
 export interface WordPressLoaderConfig {
   baseUrl: string;
   auth?: BasicAuthCredentials;
+  cookies?: string;
 }
 
 /**

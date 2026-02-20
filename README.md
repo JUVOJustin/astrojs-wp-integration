@@ -295,6 +295,9 @@ The bridge includes:
 - `loginAction` for Astro Actions
 - session helpers for middleware (`resolveUserBySessionId`, `clearAuthentication`)
 
+The packaged bridge submits a form POST to `/wp-login.php`, stores the WordPress
+session cookies, and reuses those cookies for authenticated REST API calls.
+
 ```typescript
 import { z } from 'astro/zod';
 import { wordPressLoginInputSchema } from 'wp-astrojs-integration';

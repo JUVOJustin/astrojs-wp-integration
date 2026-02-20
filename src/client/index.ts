@@ -22,6 +22,8 @@ export interface WordPressClientConfig {
   baseUrl: string;
   /** Authentication credentials for all API requests */
   auth?: BasicAuthCredentials;
+  /** Cookie header string for WordPress session-based authentication */
+  cookies?: string;
 }
 
 /**
@@ -57,6 +59,7 @@ export class WordPressClient {
   private baseUrl: string;
   private apiBase: string;
   private authHeader: string | undefined;
+  private cookieHeader: string | undefined;
 
   // Posts methods
   public getPosts: ReturnType<typeof createPostsMethods>['getPosts'];
@@ -107,6 +110,7 @@ export class WordPressClient {
   constructor(config: WordPressClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, ''); // Remove trailing slash
     this.authHeader = config.auth ? createBasicAuthHeader(config.auth) : undefined;
+    this.cookieHeader = config.cookies;
     
     // Use WordPress REST API pretty permalinks format
     // Supports base URLs with path prefixes (e.g., https://example.com/en)
@@ -169,7 +173,7 @@ export class WordPressClient {
    * Checks if authentication is configured
    */
   hasAuth(): boolean {
-    return this.authHeader !== undefined;
+    return this.authHeader !== undefined || this.cookieHeader !== undefined;
   }
 
   /**
@@ -203,6 +207,10 @@ export class WordPressClient {
 
     if (this.authHeader) {
       headers['Authorization'] = this.authHeader;
+    }
+
+    if (this.cookieHeader) {
+      headers['Cookie'] = this.cookieHeader;
     }
 
     const response = await fetch(url.toString(), { headers });

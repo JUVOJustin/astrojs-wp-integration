@@ -18,6 +18,10 @@ The login action uses a predefined Zod schema:
 - `password`: non-empty string (max 512 chars)
 - `redirectTo`: optional local path
 
+The bridge submits a form POST to `/wp-login.php` and stores the returned WordPress
+session cookies. Those cookies are used for authenticated REST API calls such as
+`/wp-json/wp/v2/users/me`.
+
 Input is validated before any WordPress request is executed.
 
 ```typescript

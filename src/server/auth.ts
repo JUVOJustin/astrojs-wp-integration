@@ -7,7 +7,6 @@ import {
 import type { APIContext } from 'astro';
 import { z } from 'astro/zod';
 import { WordPressClient } from '../client';
-import type { BasicAuthCredentials } from '../client/auth';
 import { wordPressUserLoader } from '../loaders/live';
 import type { WordPressAuthor } from '../schemas';
 
@@ -15,6 +14,10 @@ const DEFAULT_COOKIE_NAME = 'wp_astro_auth';
 const DEFAULT_COOKIE_PATH = '/';
 const DEFAULT_COOKIE_SAME_SITE: 'lax' = 'lax';
 const DEFAULT_SESSION_DURATION_SECONDS = 60 * 60 * 12;
+const WORDPRESS_LOGIN_PATH = '/wp-login.php';
+const WORDPRESS_ADMIN_PATH = '/wp-admin/';
+const WORDPRESS_TEST_COOKIE_NAME = 'wordpress_test_cookie';
+const WORDPRESS_TEST_COOKIE_VALUE = 'WP Cookie check';
 
 const loginUsernameOrEmailSchema = z.string().trim().min(1).max(320);
 
@@ -78,11 +81,12 @@ export interface WordPressAuthBridgeConfig {
 
 /**
  * In-memory authentication session for one logged-in WordPress user.
+ * Stores the WordPress session cookies used for REST API requests.
  */
 export interface WordPressAuthSession {
   id: string;
   userId: number;
-  credentials: BasicAuthCredentials;
+  cookies: string;
   expiresAt: number;
 }
 
@@ -130,6 +134,152 @@ function isSessionExpired(session: WordPressAuthSession): boolean {
 }
 
 /**
+ * Builds a WordPress URL by appending a suffix to the configured base URL.
+ */
+function buildWordPressURL(baseUrl: string, suffix: string): string {
+  return `${baseUrl.replace(/\/$/, '')}${suffix}`;
+}
+
+/**
+ * Splits a combined Set-Cookie header into individual cookie strings.
+ */
+function splitSetCookieHeader(headerValue: string): string[] {
+  return headerValue
+    .split(/,(?=[^;]+?=)/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Extracts Set-Cookie header values from a fetch response.
+ */
+function extractSetCookieHeaders(response: Response): string[] {
+  const headers = response.headers as unknown as { getSetCookie?: () => string[] };
+
+  if (typeof headers.getSetCookie === 'function') {
+    return headers.getSetCookie();
+  }
+
+  const setCookieHeader = response.headers.get('set-cookie');
+
+  if (!setCookieHeader) {
+    return [];
+  }
+
+  return splitSetCookieHeader(setCookieHeader);
+}
+
+/**
+ * Converts Set-Cookie header values into a Cookie header string.
+ */
+function toCookieHeader(setCookieHeaders: string[]): string {
+  return setCookieHeaders
+    .map((cookie) => cookie.split(';')[0]?.trim())
+    .filter(Boolean)
+    .join('; ');
+}
+
+/**
+ * Merges multiple Cookie header strings into a single normalized header value.
+ */
+function mergeCookieHeaders(...headers: Array<string | undefined>): string {
+  const cookieMap = new Map<string, string>();
+
+  for (const header of headers) {
+    if (!header) {
+      continue;
+    }
+
+    const parts = header.split(';');
+
+    for (const part of parts) {
+      const trimmed = part.trim();
+
+      if (!trimmed) {
+        continue;
+      }
+
+      const separatorIndex = trimmed.indexOf('=');
+
+      if (separatorIndex <= 0) {
+        continue;
+      }
+
+      const name = trimmed.slice(0, separatorIndex).trim();
+      const value = trimmed.slice(separatorIndex + 1).trim();
+
+      if (!name) {
+        continue;
+      }
+
+      cookieMap.set(name, value);
+    }
+  }
+
+  return Array.from(cookieMap.entries())
+    .map(([name, value]) => `${name}=${value}`)
+    .join('; ');
+}
+
+/**
+ * Checks whether the cookie header contains a WordPress logged-in cookie.
+ */
+function hasWordPressLoginCookie(cookieHeader: string): boolean {
+  return cookieHeader
+    .split(';')
+    .map((part) => part.trim())
+    .some((part) => part.startsWith('wordpress_logged_in_') || part.startsWith('wordpress_sec_'));
+}
+
+/**
+ * Authenticates against the WordPress login form and returns the session cookies.
+ */
+async function loginWithWordPressForm(
+  baseUrl: string,
+  usernameOrEmail: string,
+  password: string,
+): Promise<string> {
+  const loginUrl = buildWordPressURL(baseUrl, WORDPRESS_LOGIN_PATH);
+  const adminUrl = buildWordPressURL(baseUrl, WORDPRESS_ADMIN_PATH);
+
+  const initialResponse = await fetch(loginUrl, { redirect: 'manual' });
+  const initialCookies = toCookieHeader(extractSetCookieHeaders(initialResponse));
+  const testCookieHeader = `${WORDPRESS_TEST_COOKIE_NAME}=${WORDPRESS_TEST_COOKIE_VALUE}`;
+  const initialCookieHeader = mergeCookieHeaders(testCookieHeader, initialCookies);
+
+  const body = new URLSearchParams({
+    log: usernameOrEmail,
+    pwd: password,
+    redirect_to: adminUrl,
+    rememberme: 'forever',
+    'wp-submit': 'Log In',
+    testcookie: '1',
+  });
+
+  const loginResponse = await fetch(loginUrl, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      ...(initialCookieHeader ? { Cookie: initialCookieHeader } : {}),
+    },
+    body: body.toString(),
+  });
+
+  const loginCookies = toCookieHeader(extractSetCookieHeaders(loginResponse));
+  const mergedCookieHeader = mergeCookieHeaders(initialCookieHeader, loginCookies);
+
+  if (!mergedCookieHeader || !hasWordPressLoginCookie(mergedCookieHeader)) {
+    throw new ActionError({
+      code: 'UNAUTHORIZED',
+      message: 'WordPress rejected these credentials.',
+    });
+  }
+
+  return mergedCookieHeader;
+}
+
+/**
  * Creates a ready-to-use WordPress authentication bridge with a predefined login server action.
  */
 export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): WordPressAuthBridge {
@@ -146,11 +296,11 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
   /**
    * Creates one in-memory session record and returns its generated token details.
    */
-  function createSession(userId: number, credentials: BasicAuthCredentials): WordPressAuthSession {
+  function createSession(userId: number, cookies: string): WordPressAuthSession {
     const session: WordPressAuthSession = {
       id: crypto.randomUUID(),
       userId,
-      credentials,
+      cookies,
       expiresAt: Date.now() + normalizedConfig.sessionDurationSeconds * 1000,
     };
 
@@ -222,7 +372,7 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
 
     const loader = wordPressUserLoader({
       baseUrl: normalizedConfig.baseUrl,
-      auth: session.credentials,
+      cookies: session.cookies,
     });
 
     const result = (await loader.loadEntry({
@@ -246,14 +396,15 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
       input: WordPressLoginInput,
       context: ActionAPIContext,
     ): Promise<WordPressLoginActionResult> => {
-      const credentials: BasicAuthCredentials = {
-        username: input.usernameOrEmail,
-        password: input.password,
-      };
+      const cookieHeader = await loginWithWordPressForm(
+        normalizedConfig.baseUrl,
+        input.usernameOrEmail,
+        input.password,
+      );
 
       const client = new WordPressClient({
         baseUrl: normalizedConfig.baseUrl,
-        auth: credentials,
+        cookies: cookieHeader,
       });
 
       let user: WordPressAuthor;
@@ -267,7 +418,7 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
         });
       }
 
-      const session = createSession(user.id, credentials);
+      const session = createSession(user.id, cookieHeader);
 
       context.cookies.set(normalizedConfig.cookieName, session.id, {
         path: normalizedConfig.cookiePath,
