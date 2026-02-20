@@ -324,10 +324,10 @@ export const server = {
 ```astro
 ---
 // src/pages/login.astro
-import { server } from '../actions';
 import { isInputError } from 'astro:actions';
+import { actions } from 'astro:actions';
 
-const result = Astro.getActionResult(server.login);
+const result = Astro.getActionResult(actions.login);
 
 if (result && !result.error) {
   return Astro.redirect(result.data.redirectTo);
@@ -338,7 +338,7 @@ const inputErrors = isInputError(result?.error) ? result.error.fields : {};
 
 {inputErrors.identifier && <p>{inputErrors.identifier.join(', ')}</p>}
 
-<form method="POST" action={server.login}>
+<form method="POST" action={actions.login}>
   <input type="hidden" name="redirectTo" value="/" />
   <input type="text" name="identifier" autocomplete="username" required />
   <input type="password" name="password" autocomplete="current-password" required />
