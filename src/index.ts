@@ -42,6 +42,7 @@ export {
   embeddedMediaSchema,
   settingsSchema,
   wordPressErrorSchema,
+  updatePostFieldsSchema,
 } from './schemas';
 
 export type {
@@ -56,6 +57,7 @@ export type {
   WordPressEmbeddedMedia,
   WordPressSettings,
   WordPressError,
+  WordPressPostWriteFields,
 } from './schemas';
 
 // Export predefined server actions
