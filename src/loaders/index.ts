@@ -25,8 +25,6 @@ export {
   wordPressUserLoader,
 } from './live';
 
-export { wordPressCustomPostLoader } from './custom-live';
-
 // Re-export static loaders
 export {
   wordPressPostStaticLoader,
@@ -36,5 +34,3 @@ export {
   wordPressTagStaticLoader,
   wordPressUserStaticLoader,
 } from './static';
-
-export { wordPressCustomPostStaticLoader } from './custom-static';

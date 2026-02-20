@@ -12,7 +12,6 @@ export {
   wordPressMediaLoader,
   wordPressCategoryLoader,
   wordPressUserLoader,
-  wordPressCustomPostLoader,
 } from './loaders';
 
 // Export static loaders (for defineCollection - build-time only)
@@ -23,7 +22,6 @@ export {
   wordPressCategoryStaticLoader,
   wordPressTagStaticLoader,
   wordPressUserStaticLoader,
-  wordPressCustomPostStaticLoader,
 } from './loaders';
 
 export type {

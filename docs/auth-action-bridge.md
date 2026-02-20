@@ -1,4 +1,4 @@
-# Auth Action Bridge
+# auth-action-bridge.md
 
 The package ships a ready-to-use Astro server action bridge for WordPress authentication.
 
@@ -45,9 +45,9 @@ export const server = {
 ```astro
 ---
 // src/pages/login.astro
-import { wordPressAuthBridge } from '../lib/auth/bridge';
+import { server } from '../actions';
 
-const result = await Astro.callAction(wordPressAuthBridge.loginAction, {
+const result = await Astro.callAction(server.login, {
   email: 'creator@example.com',
   password: 'secret',
   redirectTo: '/',

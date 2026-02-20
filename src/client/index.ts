@@ -6,7 +6,6 @@ import { createCategoriesMethods } from './categories';
 import { createTagsMethods } from './tags';
 import { createUsersMethods } from './users';
 import { createSettingsMethods } from './settings';
-import { createCustomPostMethods } from './custom';
 import type { PaginatedResponse } from './types';
 
 /**
@@ -164,12 +163,6 @@ export class WordPressClient {
 
     const settings = createSettingsMethods(fetchAPI, hasAuth);
     this.getSettings = settings.getSettings;
-  }
-
-  public getCustomPostType(postType: string) {
-    const fetchAPI = this.fetchAPI.bind(this);
-    const fetchAPIPaginated = this.fetchAPIPaginated.bind(this);
-    return createCustomPostMethods(fetchAPI, fetchAPIPaginated, postType);
   }
 
   /**
