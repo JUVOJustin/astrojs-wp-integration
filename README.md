@@ -7,6 +7,7 @@ Ready to use WordPress integration for Astro.js with live loaders, static loader
 - **Live Loaders**: Real-time data fetching from WordPress REST API (server-side rendering)
 - **Static Loaders**: Build-time data fetching for static site generation
 - **WordPress Client**: Direct runtime API access for dynamic content
+- **Auth Action Bridge**: Pre-shipped Astro server action with Zod-validated WordPress login
 - **Gutenberg Support**: Automatic block styles loading for proper rendering
 - **TypeScript First**: Fully typed with extensible schemas
 - **Easy Extension**: Simple API for adding custom ACF fields, post types, and taxonomies
@@ -27,7 +28,7 @@ npm install wp-astrojs-integration
 | Media | `mediaSchema` | `wordPressMediaLoader` | `wordPressMediaStaticLoader` | |
 | Categories | `categorySchema` | `wordPressCategoryLoader` | `wordPressCategoryStaticLoader` | |
 | Tags | `categorySchema` | - | `wordPressTagStaticLoader` | |
-| Users | `WordPressAuthor` | - | - | Client-only, no loaders |
+| Users | `WordPressAuthor` | `wordPressUserLoader` | `wordPressUserStaticLoader` | |
 | Settings | `settingsSchema` | - | - | Client-only, requires auth |
 
 ## Quick Start
@@ -282,56 +283,76 @@ console.log(settings.title, settings.description);
 // Get current authenticated user
 const currentUser = await wp.getCurrentUser();
 console.log(currentUser.name, currentUser.email);
+```
 
-// Check if credentials are valid
-const isValid = await wp.isAuthenticated();
+### Astro Actions Authentication Bridge (Pre-Shipped)
+
+Use the packaged bridge to get a ready-to-use login server action with Zod validation and automatic cookie handling.
+
+The bridge includes:
+
+- `wordPressLoginInputSchema` for predefined Zod validation (`email`, `password`, `redirectTo`)
+- `loginAction` for Astro Actions
+- session helpers for middleware (`resolveUserBySessionId`, `clearAuthentication`)
+
+```typescript
+// src/lib/auth/bridge.ts
+import { createWordPressAuthBridge } from 'wp-astrojs-integration';
+
+export const wordPressAuthBridge = createWordPressAuthBridge({
+  baseUrl: 'https://your-wordpress-site.com',
+  cookieName: 'collabfinder_session',
+});
+```
+
+```typescript
+// src/actions/index.ts
+import { wordPressAuthBridge } from '../lib/auth/bridge';
+
+export const server = {
+  login: wordPressAuthBridge.loginAction,
+};
+```
+
+```astro
+---
+// src/pages/login.astro
+import { wordPressAuthBridge } from '../lib/auth/bridge';
+
+const result = await Astro.callAction(wordPressAuthBridge.loginAction, {
+  email: 'creator@example.com',
+  password: 'secret',
+  redirectTo: '/',
+});
+
+if (!result.error) {
+  return Astro.redirect(result.data.redirectTo);
+}
+---
 ```
 
 ### Astro Middleware Authentication Example
 
-Use the WordPress client in Astro middleware to protect routes with WordPress authentication:
+Protect routes by resolving the authenticated user through the dynamic user loader and bridge session:
 
 ```typescript
 // src/middleware.ts
 import { defineMiddleware } from 'astro:middleware';
-import { WordPressClient } from 'wp-astrojs-integration';
+import { wordPressAuthBridge } from './lib/auth/bridge';
 
 export const onRequest = defineMiddleware(async (context, next) => {
-  // Only protect /admin routes
-  if (!context.url.pathname.startsWith('/admin')) {
+  if (context.url.pathname === '/login') {
     return next();
   }
 
-  // Get credentials from Authorization header (Basic Auth)
-  const authHeader = context.request.headers.get('Authorization');
-  if (!authHeader?.startsWith('Basic ')) {
-    return new Response('Authentication required', {
-      status: 401,
-      headers: { 'WWW-Authenticate': 'Basic realm="Admin Area"' }
-    });
+  const sessionId = context.cookies.get(wordPressAuthBridge.cookieName)?.value;
+  const user = await wordPressAuthBridge.resolveUserBySessionId(sessionId);
+
+  if (!user) {
+    wordPressAuthBridge.clearAuthentication(context.cookies, sessionId);
+    return Response.redirect(new URL('/login', context.url), 302);
   }
 
-  // Decode credentials
-  const base64Credentials = authHeader.slice(6);
-  const credentials = atob(base64Credentials);
-  const [username, password] = credentials.split(':');
-
-  // Verify against WordPress
-  const wp = new WordPressClient({
-    baseUrl: 'https://your-wordpress-site.com',
-    auth: { username, password }
-  });
-
-  const isAuthenticated = await wp.isAuthenticated();
-  if (!isAuthenticated) {
-    return new Response('Invalid credentials', {
-      status: 401,
-      headers: { 'WWW-Authenticate': 'Basic realm="Admin Area"' }
-    });
-  }
-
-  // Store user in locals for use in routes
-  const user = await wp.getCurrentUser();
   context.locals.user = user;
 
   return next();
@@ -358,6 +379,7 @@ Use these for server-side rendering or real-time data:
 - `wordPressPageLoader(config)`: Live loader for pages
 - `wordPressMediaLoader(config)`: Live loader for media
 - `wordPressCategoryLoader(config)`: Live loader for categories/taxonomies
+- `wordPressUserLoader(config)`: Live loader for users
 
 ### Static Loaders (for `defineCollection`)
 
@@ -368,15 +390,22 @@ Use these for static site generation (build-time only):
 - `wordPressMediaStaticLoader(config)`: Static loader for media
 - `wordPressCategoryStaticLoader(config)`: Static loader for categories
 - `wordPressTagStaticLoader(config)`: Static loader for tags
+- `wordPressUserStaticLoader(config)`: Static loader for users
 
 **Static Loader Config:**
 ```typescript
 interface WordPressStaticLoaderConfig {
   baseUrl: string;
+  auth?: BasicAuthCredentials;
   perPage?: number;  // Items per page (default: 100)
   params?: Record<string, string>;  // Additional query params
 }
 ```
+
+### Server Authentication Bridge
+
+- `createWordPressAuthBridge(config)`: Creates a packaged Astro action login bridge with cookie/session helpers
+- `wordPressLoginInputSchema`: Predefined Zod schema for login payload validation
 
 ### Schemas
 

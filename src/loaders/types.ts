@@ -2,11 +2,14 @@
  * Type definitions for WordPress loaders
  */
 
+import type { BasicAuthCredentials } from '../client/auth';
+
 /**
  * Configuration for WordPress loaders
  */
 export interface WordPressLoaderConfig {
   baseUrl: string;
+  auth?: BasicAuthCredentials;
 }
 
 /**
@@ -61,5 +64,16 @@ export interface CategoryFilter {
   hide_empty?: boolean;
   parent?: number;
   orderby?: 'id' | 'name' | 'slug' | 'count' | 'term_group';
+  order?: 'asc' | 'desc';
+}
+
+/**
+ * Filter options for users (live loader)
+ */
+export interface UserFilter {
+  id?: number;
+  slug?: string;
+  roles?: string[];
+  orderby?: 'id' | 'name' | 'slug' | 'email' | 'url' | 'registered_date';
   order?: 'asc' | 'desc';
 }

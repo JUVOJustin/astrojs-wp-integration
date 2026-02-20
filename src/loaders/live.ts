@@ -4,14 +4,17 @@ import type {
   WordPressPage,
   WordPressMedia,
   WordPressCategory,
+  WordPressAuthor,
 } from '../schemas';
 import { WordPressClient } from '../client';
+import type { BasicAuthCredentials } from '../client/auth';
 
 /**
  * Loader configuration for WordPress content
  */
 export interface WordPressLoaderConfig {
   baseUrl: string;
+  auth?: BasicAuthCredentials;
 }
 
 /**
@@ -59,6 +62,17 @@ export interface CategoryFilter {
 }
 
 /**
+ * Filter options for users (live loader)
+ */
+export interface UserFilter {
+  id?: number;
+  slug?: string;
+  roles?: string[];
+  orderby?: 'id' | 'name' | 'slug' | 'email' | 'url' | 'registered_date';
+  order?: 'asc' | 'desc';
+}
+
+/**
  * Live Loaders for WordPress content
  * Use with Astro's defineLiveCollection for server-side rendering
  */
@@ -78,7 +92,7 @@ export interface CategoryFilter {
 export function wordPressPostLoader(
   config: WordPressLoaderConfig
 ): LiveLoader<WordPressPost, PostFilter> {
-  const client = new WordPressClient({ baseUrl: config.baseUrl });
+  const client = new WordPressClient(config);
 
   return {
     name: 'wordpress-post-loader',
@@ -150,7 +164,7 @@ export function wordPressPostLoader(
 export function wordPressPageLoader(
   config: WordPressLoaderConfig
 ): LiveLoader<WordPressPage, PageFilter> {
-  const client = new WordPressClient({ baseUrl: config.baseUrl });
+  const client = new WordPressClient(config);
 
   return {
     name: 'wordpress-page-loader',
@@ -217,7 +231,7 @@ export function wordPressPageLoader(
 export function wordPressMediaLoader(
   config: WordPressLoaderConfig
 ): LiveLoader<WordPressMedia, LiveMediaFilter> {
-  const client = new WordPressClient({ baseUrl: config.baseUrl });
+  const client = new WordPressClient(config);
 
   return {
     name: 'wordpress-media-loader',
@@ -279,7 +293,7 @@ export function wordPressMediaLoader(
 export function wordPressCategoryLoader(
   config: WordPressLoaderConfig
 ): LiveLoader<WordPressCategory, CategoryFilter> {
-  const client = new WordPressClient({ baseUrl: config.baseUrl });
+  const client = new WordPressClient(config);
 
   return {
     name: 'wordpress-category-loader',
@@ -328,6 +342,74 @@ export function wordPressCategoryLoader(
       } catch (error) {
         return {
           error: error instanceof Error ? error : new Error('Failed to load category'),
+        };
+      }
+    },
+  };
+}
+
+/**
+ * Creates a live loader for WordPress users
+ *
+ * @example
+ * import { defineLiveCollection } from 'astro:content';
+ * import { wordPressUserLoader } from 'wp-astrojs-integration';
+ *
+ * const users = defineLiveCollection({
+ *   loader: wordPressUserLoader({ baseUrl: 'https://example.com' }),
+ * });
+ */
+export function wordPressUserLoader(
+  config: WordPressLoaderConfig
+): LiveLoader<WordPressAuthor, UserFilter> {
+  const client = new WordPressClient(config);
+
+  return {
+    name: 'wordpress-user-loader',
+    loadCollection: async ({ filter }) => {
+      try {
+        const userFilter = (filter as any)?.filter || (filter as UserFilter | undefined);
+
+        const users = await client.getUsers({
+          roles: userFilter?.roles,
+          orderby: userFilter?.orderby,
+          order: userFilter?.order,
+        });
+
+        return {
+          entries: users.map((user) => ({
+            id: String(user.id),
+            data: user,
+          })),
+        };
+      } catch (error) {
+        return {
+          error: error instanceof Error ? error : new Error('Failed to load users'),
+        };
+      }
+    },
+    loadEntry: async ({ filter }) => {
+      try {
+        let user: WordPressAuthor | undefined;
+
+        if (typeof filter === 'object' && 'id' in filter && filter.id) {
+          user = await client.getUser(filter.id);
+        } else if (typeof filter === 'object' && 'slug' in filter && filter.slug) {
+          const users = await client.getUsers({ search: filter.slug });
+          user = users.find((candidate) => candidate.slug === filter.slug);
+        }
+
+        if (!user) {
+          return { error: new Error('User not found') };
+        }
+
+        return {
+          id: String(user.id),
+          data: user,
+        };
+      } catch (error) {
+        return {
+          error: error instanceof Error ? error : new Error('Failed to load user'),
         };
       }
     },

@@ -11,6 +11,8 @@ export {
   wordPressPageLoader,
   wordPressMediaLoader,
   wordPressCategoryLoader,
+  wordPressUserLoader,
+  wordPressCustomPostLoader,
 } from './loaders';
 
 // Export static loaders (for defineCollection - build-time only)
@@ -20,6 +22,8 @@ export {
   wordPressMediaStaticLoader,
   wordPressCategoryStaticLoader,
   wordPressTagStaticLoader,
+  wordPressUserStaticLoader,
+  wordPressCustomPostStaticLoader,
 } from './loaders';
 
 export type {
@@ -29,6 +33,7 @@ export type {
   PageFilter,
   MediaFilter,
   CategoryFilter,
+  UserFilter,
 } from './loaders';
 
 // Export schemas
@@ -75,6 +80,19 @@ export type {
 // Export auth utilities
 export { createBasicAuthHeader } from './client/auth';
 export type { BasicAuthCredentials } from './client/auth';
+
+// Export server auth bridge helpers
+export {
+  createWordPressAuthBridge,
+  wordPressLoginInputSchema,
+} from './server';
+
+export type {
+  WordPressAuthBridge,
+  WordPressAuthBridgeConfig,
+  WordPressAuthSession,
+  WordPressLoginInput,
+} from './server';
 
 // Components are imported directly via:
 // import WPImage from 'wp-astrojs-integration/components/WPImage.astro';

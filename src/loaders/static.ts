@@ -22,7 +22,7 @@ import type { WordPressStaticLoaderConfig } from './types';
  * });
  */
 export function wordPressPostStaticLoader(config: WordPressStaticLoaderConfig): Loader {
-  const client = new WordPressClient({ baseUrl: config.baseUrl });
+  const client = new WordPressClient(config);
 
   return {
     name: 'wordpress-post-static-loader',
@@ -65,7 +65,7 @@ export function wordPressPostStaticLoader(config: WordPressStaticLoaderConfig): 
  * });
  */
 export function wordPressPageStaticLoader(config: WordPressStaticLoaderConfig): Loader {
-  const client = new WordPressClient({ baseUrl: config.baseUrl });
+  const client = new WordPressClient(config);
 
   return {
     name: 'wordpress-page-static-loader',
@@ -108,7 +108,7 @@ export function wordPressPageStaticLoader(config: WordPressStaticLoaderConfig): 
  * });
  */
 export function wordPressMediaStaticLoader(config: WordPressStaticLoaderConfig): Loader {
-  const client = new WordPressClient({ baseUrl: config.baseUrl });
+  const client = new WordPressClient(config);
 
   return {
     name: 'wordpress-media-static-loader',
@@ -150,7 +150,7 @@ export function wordPressMediaStaticLoader(config: WordPressStaticLoaderConfig):
  * });
  */
 export function wordPressCategoryStaticLoader(config: WordPressStaticLoaderConfig): Loader {
-  const client = new WordPressClient({ baseUrl: config.baseUrl });
+  const client = new WordPressClient(config);
 
   return {
     name: 'wordpress-category-static-loader',
@@ -192,7 +192,7 @@ export function wordPressCategoryStaticLoader(config: WordPressStaticLoaderConfi
  * });
  */
 export function wordPressTagStaticLoader(config: WordPressStaticLoaderConfig): Loader {
-  const client = new WordPressClient({ baseUrl: config.baseUrl });
+  const client = new WordPressClient(config);
 
   return {
     name: 'wordpress-tag-static-loader',
@@ -214,6 +214,47 @@ export function wordPressTagStaticLoader(config: WordPressStaticLoaderConfig): L
         logger.info(`Loaded ${tags.length} tags`);
       } catch (error) {
         logger.error(`Failed to load tags: ${error}`);
+        throw error;
+      }
+    },
+  };
+}
+
+/**
+ * Creates a static loader for WordPress users (build-time only)
+ * Automatically fetches all users by paginating through all pages
+ *
+ * @example
+ * import { defineCollection } from 'astro:content';
+ * import { wordPressUserStaticLoader } from 'wp-astrojs-integration';
+ *
+ * const users = defineCollection({
+ *   loader: wordPressUserStaticLoader({ baseUrl: 'https://example.com' }),
+ * });
+ */
+export function wordPressUserStaticLoader(config: WordPressStaticLoaderConfig): Loader {
+  const client = new WordPressClient(config);
+
+  return {
+    name: 'wordpress-user-static-loader',
+    load: async ({ store, logger }) => {
+      logger.info('Loading all WordPress users...');
+
+      try {
+        const users = await client.getAllUsers();
+
+        store.clear();
+
+        for (const user of users) {
+          store.set({
+            id: String(user.id),
+            data: user as unknown as Record<string, unknown>,
+          });
+        }
+
+        logger.info(`Loaded ${users.length} users`);
+      } catch (error) {
+        logger.error(`Failed to load users: ${error}`);
         throw error;
       }
     },
