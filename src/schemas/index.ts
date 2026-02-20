@@ -214,6 +214,19 @@ export interface WordPressAuthor {
 export type WordPressTag = WordPressCategory;
 
 /**
+ * Schema for WordPress REST API error responses
+ */
+export const wordPressErrorSchema = z.object({
+  code: z.string(),
+  message: z.string(),
+  data: z.object({
+    status: z.number(),
+  }).optional(),
+});
+
+export type WordPressError = z.infer<typeof wordPressErrorSchema>;
+
+/**
  * Schema for WordPress site settings (requires authentication)
  */
 export const settingsSchema = z.object({
