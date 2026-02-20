@@ -20,6 +20,13 @@ The login action uses a predefined Zod schema:
 
 Input is validated before any WordPress request is executed.
 
+```typescript
+import { z } from 'astro/zod';
+import { wordPressLoginInputSchema } from 'wp-astrojs-integration';
+
+type LoginPayload = z.infer<typeof wordPressLoginInputSchema>;
+```
+
 ## Example Setup
 
 ```typescript

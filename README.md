@@ -296,6 +296,13 @@ The bridge includes:
 - session helpers for middleware (`resolveUserBySessionId`, `clearAuthentication`)
 
 ```typescript
+import { z } from 'astro/zod';
+import { wordPressLoginInputSchema } from 'wp-astrojs-integration';
+
+type LoginPayload = z.infer<typeof wordPressLoginInputSchema>;
+```
+
+```typescript
 // src/lib/auth/bridge.ts
 import { createWordPressAuthBridge } from 'wp-astrojs-integration';
 

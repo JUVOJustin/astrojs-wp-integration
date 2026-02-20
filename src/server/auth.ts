@@ -1,4 +1,9 @@
-import { ActionError, defineAction } from 'astro/actions/runtime/server.js';
+import {
+  ActionError,
+  defineAction,
+  type ActionAPIContext,
+  type ActionClient,
+} from 'astro/actions/runtime/server.js';
 import type { APIContext } from 'astro';
 import { z } from 'astro/zod';
 import { WordPressClient } from '../client';
@@ -35,6 +40,24 @@ export const wordPressLoginInputSchema = z
 export type WordPressLoginInput = z.infer<typeof wordPressLoginInputSchema>;
 
 /**
+ * Successful login payload returned by the packaged WordPress login action.
+ */
+export interface WordPressLoginActionResult {
+  redirectTo: string;
+  userId: number;
+  userName: string;
+}
+
+/**
+ * Strongly typed login action client using the predefined Zod payload schema.
+ */
+export type WordPressLoginAction = ActionClient<
+  WordPressLoginActionResult,
+  'json',
+  typeof wordPressLoginInputSchema
+>;
+
+/**
  * Configuration options for the packaged Astro-to-WordPress authentication bridge.
  */
 export interface WordPressAuthBridgeConfig {
@@ -61,7 +84,7 @@ export interface WordPressAuthSession {
  */
 export interface WordPressAuthBridge {
   cookieName: string;
-  loginAction: ReturnType<typeof defineAction>;
+  loginAction: WordPressLoginAction;
   getSession: (sessionId: string | undefined) => WordPressAuthSession | null;
   deleteSession: (sessionId: string | undefined) => void;
   clearCookie: (cookies: APIContext['cookies']) => void;
@@ -209,10 +232,13 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
     return result.data;
   }
 
-  const loginAction = defineAction({
+  const loginAction: WordPressLoginAction = defineAction({
     accept: 'json',
     input: wordPressLoginInputSchema,
-    handler: async (input, context) => {
+    handler: async (
+      input: WordPressLoginInput,
+      context: ActionAPIContext,
+    ): Promise<WordPressLoginActionResult> => {
       const credentials: BasicAuthCredentials = {
         username: input.email,
         password: input.password,
