@@ -407,6 +407,8 @@ interface WordPressStaticLoaderConfig {
 - `createWordPressAuthBridge(config)`: Creates a packaged Astro action login bridge with cookie/session helpers
 - `wordPressLoginInputSchema`: Predefined Zod schema for login payload validation
 
+Detailed setup docs: https://github.com/JUVOJustin/astrojs-wp-integration/blob/main/docs/auth-action-bridge.md
+
 ### Schemas
 
 Default schemas for WordPress content:
