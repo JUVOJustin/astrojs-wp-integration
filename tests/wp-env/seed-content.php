@@ -9,6 +9,7 @@
  *  - 8 tags (featured, trending, tutorial, review, guide, news, opinion, update)
  *  - 150 posts ("Test Post 001" – "Test Post 150"), 30 per category
  *  - 10 pages (About, Contact, Services, FAQ, Team, Blog, Portfolio, Testimonials, Privacy Policy, Terms of Service)
+ *  - 10 books ("Test Book 001" – "Test Book 010") — custom post type registered by mu-plugin
  *
  * Deletes the default "Hello world!" post, "Sample Page", and auto-draft
  * content so the DB starts clean.
@@ -215,6 +216,42 @@ foreach ( $page_definitions as $index => $def ) {
 WP_CLI::success( "Pages created/verified: $page_count" );
 
 /* ------------------------------------------------------------------ */
+/* Books (custom post type)                                           */
+/* ------------------------------------------------------------------ */
+
+$book_count = 0;
+
+for ( $i = 1; $i <= 10; $i++ ) {
+	$padded   = str_pad( $i, 3, '0', STR_PAD_LEFT );
+	$slug     = "test-book-$padded";
+	$existing = get_page_by_path( $slug, OBJECT, 'book' );
+
+	if ( $existing ) {
+		$book_count++;
+		continue;
+	}
+
+	$book_id = wp_insert_post([
+		'post_title'   => "Test Book $padded",
+		'post_name'    => $slug,
+		'post_content' => "<!-- wp:paragraph -->\n<p>Content for test book $padded. This is deterministic seed data for CPT integration testing.</p>\n<!-- /wp:paragraph -->",
+		'post_excerpt' => "Excerpt for test book $padded",
+		'post_status'  => 'publish',
+		'post_type'    => 'book',
+		'post_date'    => gmdate( 'Y-m-d H:i:s', strtotime( "2025-01-01 +{$i} hours" ) ),
+	], true );
+
+	if ( is_wp_error( $book_id ) ) {
+		WP_CLI::warning( "Failed to create book $padded: " . $book_id->get_error_message() );
+		continue;
+	}
+
+	$book_count++;
+}
+
+WP_CLI::success( "Books created/verified: $book_count" );
+
+/* ------------------------------------------------------------------ */
 /* Summary                                                            */
 /* ------------------------------------------------------------------ */
 
@@ -223,3 +260,4 @@ WP_CLI::log( "  Categories: " . count( $category_ids ) );
 WP_CLI::log( "  Tags:       " . count( $tag_ids ) );
 WP_CLI::log( "  Posts:      $post_count" );
 WP_CLI::log( "  Pages:      $page_count" );
+WP_CLI::log( "  Books:      $book_count" );

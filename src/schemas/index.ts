@@ -3,6 +3,11 @@ import { z } from 'astro/zod';
 /**
  * Base schema shared by all WordPress content types
  * Can be extended with custom fields using .extend() or .merge()
+ *
+ * Uses .passthrough() so that unknown fields returned by WordPress plugins
+ * (e.g. ACF, custom REST fields) are preserved in the parsed output rather
+ * than being stripped.  Call .extend() on this schema – or any schema derived
+ * from it – to add typed custom fields.
  */
 export const baseWordPressSchema = z.object({
   id: z.number(),
@@ -23,11 +28,14 @@ export const baseWordPressSchema = z.object({
   author: z.number(),
   meta: z.union([z.record(z.any()), z.array(z.any())]).optional(),
   _links: z.any(),
-});
+}).passthrough();
 
 /**
  * Schema for content types (posts and pages)
  * Extend this for custom post types with content fields
+ *
+ * Inherits .passthrough() from baseWordPressSchema so plugin-added fields are
+ * preserved.  Extend with .extend() to add typed ACF or custom REST fields.
  */
 export const contentWordPressSchema = baseWordPressSchema.extend({
   content: z.object({
@@ -138,7 +146,7 @@ export const categorySchema = z.object({
   acf: z.union([z.record(z.any()), z.array(z.any())]).optional(),
   _embedded: z.any().optional(),
   _links: z.any(),
-});
+}).passthrough();
 
 /**
  * Schema for WordPress embedded media (used in _embedded field)
@@ -178,7 +186,7 @@ export const embeddedMediaSchema = z.object({
   source_url: z.string(),
   acf: z.any().optional(),
   _links: z.any().optional(),
-});
+}).passthrough();
 
 /**
  * Inferred TypeScript types from Zod schemas
@@ -212,6 +220,110 @@ export interface WordPressAuthor {
  * WordPress Tag type (alias for Category)
  */
 export type WordPressTag = WordPressCategory;
+
+/**
+ * Schema for the writable scalar fields shared between the WordPress post
+ * update action and the post response shape.  These are the core WordPress
+ * post fields that have the same meaning and compatible types in both the
+ * GET response and the POST (update) request body.
+ *
+ * All fields are optional — only the fields you want to change need to be
+ * provided when updating.
+ *
+ * Uses .passthrough() so that ACF data, custom meta keys, or other
+ * plugin-specific fields can be included in the request body without being
+ * stripped by Zod.  Extend with .extend() to add fully-typed custom fields:
+ *
+ * @example
+ * const myPostInputSchema = updatePostFieldsSchema.extend({
+ *   id: z.number().int().positive(),
+ *   acf: z.object({ hero_text: z.string().optional() }).optional(),
+ * });
+ */
+export const updatePostFieldsSchema = z.object({
+  /** ISO 8601 publish date */
+  date: z.string().optional(),
+  /** ISO 8601 publish date in GMT */
+  date_gmt: z.string().optional(),
+  /** Post slug */
+  slug: z.string().optional(),
+  /** Post status — universal across all post types */
+  status: z.enum(['publish', 'draft', 'pending', 'private', 'future']).optional(),
+  /** Password to protect access to the content and excerpt */
+  password: z.string().optional(),
+  /** Author user ID */
+  author: z.number().int().optional(),
+  /** Featured image attachment ID */
+  featured_media: z.number().int().optional(),
+  /**
+   * Comment status — type-checked only (not enum-restricted) because custom
+   * post types may define their own values or not support comments at all.
+   */
+  comment_status: z.string().optional(),
+  /**
+   * Ping status — type-checked only for the same reason as comment_status.
+   */
+  ping_status: z.string().optional(),
+  /**
+   * Post format — type-checked only because only the built-in 'post' type
+   * supports formats; pages and custom post types ignore this field.
+   */
+  format: z.string().optional(),
+  /** Post meta fields */
+  meta: z.record(z.any()).optional(),
+  /** Whether the post is sticky (post type only; ignored by pages/CPTs) */
+  sticky: z.boolean().optional(),
+  /** Page template filename */
+  template: z.string().optional(),
+  /** Array of category IDs (post type only; ignored by pages/CPTs) */
+  categories: z.array(z.number().int()).optional(),
+  /** Array of tag IDs (post type only; ignored by pages/CPTs) */
+  tags: z.array(z.number().int()).optional(),
+  /** Parent post ID — used by hierarchical types like pages */
+  parent: z.number().int().optional(),
+  /** Sort order — used by hierarchical types like pages */
+  menu_order: z.number().int().optional(),
+}).passthrough();
+
+export type WordPressPostWriteFields = z.infer<typeof updatePostFieldsSchema>;
+
+/**
+ * Shared base schema for post create and update action inputs.
+ *
+ * Extends `updatePostFieldsSchema` with the three fields whose wire format
+ * differs between reads and writes: `title`, `content`, and `excerpt` are
+ * returned as `{ rendered: string }` objects by the REST API but must be sent
+ * as plain strings on create/update.
+ *
+ * Use this as the base when extending action schemas for custom fields:
+ * @example
+ * const mySchema = postWriteBaseSchema.extend({
+ *   acf: z.object({ hero_text: z.string().optional() }).optional(),
+ * });
+ */
+export const postWriteBaseSchema = updatePostFieldsSchema.extend({
+  /** Post title (raw string) */
+  title: z.string().optional(),
+  /** Post content as raw HTML/blocks */
+  content: z.string().optional(),
+  /** Post excerpt (raw string) */
+  excerpt: z.string().optional(),
+});
+
+export type WordPressPostWriteBase = z.infer<typeof postWriteBaseSchema>;
+
+/**
+ * Schema for WordPress REST API error responses
+ */
+export const wordPressErrorSchema = z.object({
+  code: z.string(),
+  message: z.string(),
+  data: z.object({
+    status: z.number(),
+  }).optional(),
+});
+
+export type WordPressError = z.infer<typeof wordPressErrorSchema>;
 
 /**
  * Schema for WordPress site settings (requires authentication)
