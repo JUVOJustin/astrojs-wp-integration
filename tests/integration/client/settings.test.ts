@@ -2,6 +2,10 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { WordPressClient } from '../../../src/client';
 import { createPublicClient, createAuthClient } from '../../helpers/wp-client';
 
+/**
+ * Settings endpoint requires authentication. Tests verify both
+ * authenticated access and rejection of unauthenticated requests.
+ */
 describe('Client: Settings', () => {
   let publicClient: WordPressClient;
   let authClient: WordPressClient;

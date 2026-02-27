@@ -7,6 +7,10 @@ import { createMockStore } from '../../helpers/mock-store';
 import { createMockLogger } from '../../helpers/mock-logger';
 import { getBaseUrl } from '../../helpers/wp-client';
 
+/**
+ * Static loaders fetch all content at build time and write to a mock Astro DataStore.
+ * Assertions use exact counts from the deterministic seed data.
+ */
 describe('Static Loaders', () => {
   let baseUrl: string;
 
@@ -15,14 +19,14 @@ describe('Static Loaders', () => {
   });
 
   describe('wordPressPostStaticLoader', () => {
-    it('populates the store with all posts', async () => {
+    it('populates the store with all 150 posts', async () => {
       const loader = wordPressPostStaticLoader({ baseUrl });
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
       await loader.load({ store, logger } as any);
 
-      expect(entries.size).toBeGreaterThan(0);
+      expect(entries.size).toBe(150);
       expect(store.clear).toHaveBeenCalled();
       expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Loaded'));
     });
@@ -55,14 +59,14 @@ describe('Static Loaders', () => {
   });
 
   describe('wordPressPageStaticLoader', () => {
-    it('populates the store with all pages', async () => {
+    it('populates the store with all 10 pages', async () => {
       const loader = wordPressPageStaticLoader({ baseUrl });
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
       await loader.load({ store, logger } as any);
 
-      expect(entries.size).toBeGreaterThan(0);
+      expect(entries.size).toBe(10);
       expect(store.clear).toHaveBeenCalled();
     });
 
@@ -81,14 +85,14 @@ describe('Static Loaders', () => {
   });
 
   describe('wordPressCategoryStaticLoader', () => {
-    it('populates the store with all categories', async () => {
+    it('populates the store with all 6 categories', async () => {
       const loader = wordPressCategoryStaticLoader({ baseUrl });
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
       await loader.load({ store, logger } as any);
 
-      expect(entries.size).toBeGreaterThan(0);
+      expect(entries.size).toBe(6);
       expect(store.clear).toHaveBeenCalled();
     });
 
@@ -106,14 +110,14 @@ describe('Static Loaders', () => {
   });
 
   describe('wordPressTagStaticLoader', () => {
-    it('populates the store with all tags', async () => {
+    it('populates the store with all 8 tags', async () => {
       const loader = wordPressTagStaticLoader({ baseUrl });
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
       await loader.load({ store, logger } as any);
 
-      expect(entries.size).toBeGreaterThan(0);
+      expect(entries.size).toBe(8);
       expect(store.clear).toHaveBeenCalled();
     });
   });

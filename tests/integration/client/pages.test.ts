@@ -2,13 +2,15 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { WordPressClient } from '../../../src/client';
 import { createPublicClient } from '../../helpers/wp-client';
 
+/**
+ * Seed data: 10 pages (About, Contact, Services, FAQ, Team, Blog, Portfolio,
+ * Testimonials, Privacy Policy, Terms of Service).
+ */
 describe('Client: Pages', () => {
   let client: WordPressClient;
-  let seededPageIds: number[];
 
   beforeAll(() => {
     client = createPublicClient();
-    seededPageIds = (process.env.WP_SEEDED_PAGE_IDS || '').split(',').map(Number);
   });
 
   it('getPages returns an array of pages', async () => {
@@ -33,21 +35,12 @@ describe('Client: Pages', () => {
     }
   });
 
-  it('getPage fetches a single page by ID', async () => {
-    const page = await client.getPage(seededPageIds[0]);
-
-    expect(page.id).toBe(seededPageIds[0]);
-    expect(page.title.rendered).toContain('Test Page');
-  });
-
-  it('getPageBySlug fetches a page by slug', async () => {
-    const pages = await client.getPages();
-    const slug = pages[0].slug;
-
-    const page = await client.getPageBySlug(slug);
+  it('getPageBySlug fetches a known seed page', async () => {
+    const page = await client.getPageBySlug('about');
 
     expect(page).toBeDefined();
-    expect(page!.slug).toBe(slug);
+    expect(page!.slug).toBe('about');
+    expect(page!.title.rendered).toBe('About');
   });
 
   it('getPageBySlug returns undefined for non-existent slug', async () => {
@@ -56,22 +49,19 @@ describe('Client: Pages', () => {
     expect(page).toBeUndefined();
   });
 
-  it('getAllPages returns every published page', async () => {
+  it('getAllPages returns all 10 seed pages', async () => {
     const all = await client.getAllPages();
 
-    expect(all.length).toBeGreaterThanOrEqual(seededPageIds.length);
-    for (const id of seededPageIds) {
-      expect(all.some((p) => p.id === id)).toBe(true);
-    }
+    expect(all).toHaveLength(10);
   });
 
   it('getPagesPaginated returns pagination metadata', async () => {
-    const result = await client.getPagesPaginated({ perPage: 1, page: 1 });
+    const result = await client.getPagesPaginated({ perPage: 5, page: 1 });
 
-    expect(result.data).toHaveLength(1);
-    expect(result.total).toBeGreaterThan(0);
-    expect(result.totalPages).toBeGreaterThan(0);
+    expect(result.data).toHaveLength(5);
+    expect(result.total).toBe(10);
+    expect(result.totalPages).toBe(2);
     expect(result.page).toBe(1);
-    expect(result.perPage).toBe(1);
+    expect(result.perPage).toBe(5);
   });
 });

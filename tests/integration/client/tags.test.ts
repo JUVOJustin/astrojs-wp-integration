@@ -2,13 +2,14 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { WordPressClient } from '../../../src/client';
 import { createPublicClient } from '../../helpers/wp-client';
 
+/**
+ * Seed data: 8 tags (featured, trending, tutorial, review, guide, news, opinion, update).
+ */
 describe('Client: Tags', () => {
   let client: WordPressClient;
-  let seededTagIds: number[];
 
   beforeAll(() => {
     client = createPublicClient();
-    seededTagIds = (process.env.WP_SEEDED_TAG_IDS || '').split(',').map(Number);
   });
 
   it('getTags returns an array', async () => {
@@ -31,18 +32,14 @@ describe('Client: Tags', () => {
     }
   });
 
-  it('getTag fetches a single tag by ID', async () => {
-    const tag = await client.getTag(seededTagIds[0]);
-
-    expect(tag.id).toBe(seededTagIds[0]);
-    expect(tag.name).toBe('Test Tag');
-  });
-
-  it('getTagBySlug fetches by slug', async () => {
-    const tag = await client.getTagBySlug('test-tag');
+  it('getTagBySlug fetches a known seed tag', async () => {
+    const tag = await client.getTagBySlug('featured');
 
     expect(tag).toBeDefined();
-    expect(tag!.slug).toBe('test-tag');
+    expect(tag!.slug).toBe('featured');
+    expect(tag!.name).toBe('Featured');
+    // "featured" is assigned to Technology (30) + Health (30) = 60 posts
+    expect(tag!.count).toBe(60);
   });
 
   it('getTagBySlug returns undefined for non-existent slug', async () => {
@@ -51,21 +48,24 @@ describe('Client: Tags', () => {
     expect(tag).toBeUndefined();
   });
 
-  it('getAllTags returns all tags', async () => {
+  it('getAllTags returns all 8 tags', async () => {
     const all = await client.getAllTags();
 
-    expect(all.length).toBeGreaterThanOrEqual(seededTagIds.length);
-    for (const id of seededTagIds) {
-      expect(all.some((t) => t.id === id)).toBe(true);
-    }
+    expect(all).toHaveLength(8);
+
+    const slugs = all.map((t) => t.slug).sort();
+    expect(slugs).toEqual([
+      'featured', 'guide', 'news', 'opinion',
+      'review', 'trending', 'tutorial', 'update',
+    ]);
   });
 
   it('getTagsPaginated returns pagination metadata', async () => {
-    const result = await client.getTagsPaginated({ perPage: 1, page: 1 });
+    const result = await client.getTagsPaginated({ perPage: 3, page: 1 });
 
-    expect(result.data).toHaveLength(1);
-    expect(result.total).toBeGreaterThan(0);
-    expect(result.totalPages).toBeGreaterThan(0);
+    expect(result.data).toHaveLength(3);
+    expect(result.total).toBe(8);
+    expect(result.totalPages).toBe(3);
     expect(result.page).toBe(1);
   });
 });

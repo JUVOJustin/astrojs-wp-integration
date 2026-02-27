@@ -5,14 +5,6 @@ import { resolve } from 'path';
 /** Temp file used to pass env vars from globalSetup to test workers */
 const ENV_FILE = resolve(__dirname, '../../.test-env.json');
 
-/** IDs of content created during seeding, used for cleanup */
-const seededIds: { posts: number[]; pages: number[]; categories: number[]; tags: number[] } = {
-  posts: [],
-  pages: [],
-  categories: [],
-  tags: [],
-};
-
 /**
  * Runs a WP-CLI command inside the wp-env container and returns the WP-CLI
  * output only, stripping the wp-env runner log lines (ℹ/✔ prefixed)
@@ -44,37 +36,6 @@ function stripWpEnvOutput(raw: string): string {
 }
 
 /**
- * Creates WordPress content via WP-CLI so every test file has data to work with
- */
-function seedContent(): void {
-  // Category
-  const catId = wpCli('term create category "Test Category" --description="Integration test category" --porcelain');
-  seededIds.categories.push(Number(catId));
-
-  // Tag
-  const tagId = wpCli('term create post_tag "Test Tag" --description="Integration test tag" --porcelain');
-  seededIds.tags.push(Number(tagId));
-
-  // Posts (2 so pagination logic is exercisable)
-  for (let i = 1; i <= 2; i++) {
-    const postId = wpCli(
-      `post create --post_type=post --post_title="Test Post ${i}" --post_content="<p>Content for test post ${i}</p>" --post_status=publish --porcelain`
-    );
-    seededIds.posts.push(Number(postId));
-
-    // Assign category and tag
-    wpCli(`post term set ${postId} category ${catId}`);
-    wpCli(`post term set ${postId} post_tag ${tagId}`);
-  }
-
-  // Page
-  const pageId = wpCli(
-    'post create --post_type=page --post_title="Test Page" --post_content="<p>Content for test page</p>" --post_status=publish --porcelain'
-  );
-  seededIds.pages.push(Number(pageId));
-}
-
-/**
  * Generates an application password for the admin user
  */
 function createAppPassword(): string {
@@ -100,7 +61,10 @@ async function waitForApi(baseUrl: string, maxAttempts = 30): Promise<void> {
 }
 
 /**
- * Global setup: called once before all integration tests
+ * Global setup: called once before all integration tests.
+ * Content seeding is handled by wp-env's afterStart lifecycle script
+ * (see .wp-env.json), so this only needs to wait for the API and
+ * create an application password for authenticated endpoint tests.
  */
 export async function setup(): Promise<void> {
   const baseUrl = process.env.WP_BASE_URL || 'http://localhost:8888';
@@ -111,49 +75,25 @@ export async function setup(): Promise<void> {
   console.log('[global-setup] Creating application password...');
   const appPassword = createAppPassword();
 
-  console.log('[global-setup] Seeding test content...');
-  seedContent();
-
   // Persist env vars to a file so test workers can read them (globalSetup runs
   // in a separate process — process.env changes are not inherited by workers)
   const envData = {
     WP_BASE_URL: baseUrl,
     WP_APP_PASSWORD: appPassword,
-    WP_SEEDED_POST_IDS: seededIds.posts.join(','),
-    WP_SEEDED_PAGE_IDS: seededIds.pages.join(','),
-    WP_SEEDED_CATEGORY_IDS: seededIds.categories.join(','),
-    WP_SEEDED_TAG_IDS: seededIds.tags.join(','),
   };
   writeFileSync(ENV_FILE, JSON.stringify(envData), 'utf-8');
 
   // Also set in this process for convenience
   Object.assign(process.env, envData);
 
-  console.log('[global-setup] Done. Seeded IDs:', JSON.stringify(seededIds));
+  console.log('[global-setup] Done.');
 }
 
 /**
  * Global teardown: called once after all integration tests
  */
 export async function teardown(): Promise<void> {
-  console.log('[global-teardown] Cleaning up seeded content...');
-
-  try {
-    for (const id of seededIds.posts) {
-      wpCli(`post delete ${id} --force`);
-    }
-    for (const id of seededIds.pages) {
-      wpCli(`post delete ${id} --force`);
-    }
-    for (const id of seededIds.categories) {
-      wpCli(`term delete category ${id}`);
-    }
-    for (const id of seededIds.tags) {
-      wpCli(`term delete post_tag ${id}`);
-    }
-  } catch (e) {
-    console.warn('[global-teardown] Non-critical cleanup error:', e);
-  }
+  console.log('[global-teardown] Cleaning up...');
 
   // Remove the app password
   try {
@@ -162,12 +102,12 @@ export async function teardown(): Promise<void> {
     // Ignore — container may already be down
   }
 
-  console.log('[global-teardown] Done.');
-
   // Remove temp env file
   try {
     unlinkSync(ENV_FILE);
   } catch {
     // File may already be gone
   }
+
+  console.log('[global-teardown] Done.');
 }

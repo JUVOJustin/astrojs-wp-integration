@@ -2,6 +2,10 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { WordPressClient } from '../../../src/client';
 import { createPublicClient, createAuthClient } from '../../helpers/wp-client';
 
+/**
+ * The seed data has a single admin user. Tests cover both public and
+ * authenticated user endpoints.
+ */
 describe('Client: Users', () => {
   let publicClient: WordPressClient;
   let authClient: WordPressClient;
@@ -15,7 +19,7 @@ describe('Client: Users', () => {
     const users = await publicClient.getUsers();
 
     expect(Array.isArray(users)).toBe(true);
-    expect(users.length).toBeGreaterThan(0);
+    expect(users).toHaveLength(1);
   });
 
   it('every user has required fields', async () => {
@@ -35,19 +39,20 @@ describe('Client: Users', () => {
     const user = await publicClient.getUser(users[0].id);
 
     expect(user.id).toBe(users[0].id);
+    expect(user.slug).toBe('admin');
   });
 
   it('getAllUsers auto-paginates', async () => {
     const all = await publicClient.getAllUsers();
 
-    expect(all.length).toBeGreaterThan(0);
+    expect(all).toHaveLength(1);
   });
 
   it('getUsersPaginated returns pagination metadata', async () => {
     const result = await publicClient.getUsersPaginated({ perPage: 1, page: 1 });
 
     expect(result.data).toHaveLength(1);
-    expect(result.total).toBeGreaterThan(0);
+    expect(result.total).toBe(1);
     expect(result.page).toBe(1);
   });
 

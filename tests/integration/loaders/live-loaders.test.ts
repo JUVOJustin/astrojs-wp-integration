@@ -7,6 +7,10 @@ import {
 } from '../../../src/loaders/live';
 import { getBaseUrl } from '../../helpers/wp-client';
 
+/**
+ * Live loaders return data directly from the WP REST API at runtime.
+ * Assertions use known slugs and counts from the deterministic seed data.
+ */
 describe('Live Loaders', () => {
   let baseUrl: string;
 
@@ -36,22 +40,19 @@ describe('Live Loaders', () => {
       }
     });
 
-    it('loadEntry by slug returns a post with rendered HTML', async () => {
+    it('loadEntry by slug returns a known seed post with rendered HTML', async () => {
       const loader = wordPressPostLoader({ baseUrl });
-
-      // Grab a slug from the collection first
-      const collResult = await loader.loadCollection!({ filter: undefined } as any);
-      const slug = (collResult as any).entries[0].data.slug;
-
-      const result = await loader.loadEntry!({ filter: { slug } } as any);
+      const result = await loader.loadEntry!({ filter: { slug: 'test-post-001' } } as any);
 
       expect('id' in result).toBe(true);
+      expect((result as any).data.slug).toBe('test-post-001');
       expect((result as any).rendered.html).toBeTruthy();
     });
 
-    it('loadEntry by id returns a post with rendered HTML', async () => {
+    it('loadEntry by id returns the correct post', async () => {
       const loader = wordPressPostLoader({ baseUrl });
 
+      // Get a post ID from the collection first
       const collResult = await loader.loadCollection!({ filter: undefined } as any);
       const id = (collResult as any).entries[0].data.id;
 
@@ -79,15 +80,12 @@ describe('Live Loaders', () => {
       expect(entries.length).toBeGreaterThan(0);
     });
 
-    it('loadEntry by slug returns a page with rendered HTML', async () => {
+    it('loadEntry by slug returns a known seed page with rendered HTML', async () => {
       const loader = wordPressPageLoader({ baseUrl });
-
-      const collResult = await loader.loadCollection!({ filter: undefined } as any);
-      const slug = (collResult as any).entries[0].data.slug;
-
-      const result = await loader.loadEntry!({ filter: { slug } } as any);
+      const result = await loader.loadEntry!({ filter: { slug: 'about' } } as any);
 
       expect('id' in result).toBe(true);
+      expect((result as any).data.slug).toBe('about');
       expect((result as any).rendered.html).toBeTruthy();
     });
 
@@ -126,21 +124,25 @@ describe('Live Loaders', () => {
       expect(entries.length).toBeGreaterThan(0);
     });
 
-    it('loadEntry by slug returns a category', async () => {
+    it('loadEntry by slug returns a known seed category', async () => {
       const loader = wordPressCategoryLoader({ baseUrl });
-      const result = await loader.loadEntry!({ filter: { slug: 'test-category' } } as any);
+      const result = await loader.loadEntry!({ filter: { slug: 'technology' } } as any);
 
       expect('id' in result).toBe(true);
-      expect((result as any).data.slug).toBe('test-category');
+      expect((result as any).data.slug).toBe('technology');
     });
 
     it('loadEntry by id returns a category', async () => {
-      const seededCatIds = (process.env.WP_SEEDED_CATEGORY_IDS || '').split(',').map(Number);
       const loader = wordPressCategoryLoader({ baseUrl });
-      const result = await loader.loadEntry!({ filter: { id: seededCatIds[0] } } as any);
+
+      // Get a category ID from the collection first
+      const collResult = await loader.loadCollection!({ filter: undefined } as any);
+      const id = (collResult as any).entries[0].data.id;
+
+      const result = await loader.loadEntry!({ filter: { id } } as any);
 
       expect('id' in result).toBe(true);
-      expect((result as any).data.id).toBe(seededCatIds[0]);
+      expect((result as any).data.id).toBe(id);
     });
 
     it('loadEntry returns error for non-existent category', async () => {

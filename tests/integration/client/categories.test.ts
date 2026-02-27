@@ -2,13 +2,15 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { WordPressClient } from '../../../src/client';
 import { createPublicClient } from '../../helpers/wp-client';
 
+/**
+ * Seed data: 5 custom categories (Technology, Science, Travel, Food, Health)
+ * plus the default "Uncategorized" = 6 total.
+ */
 describe('Client: Categories', () => {
   let client: WordPressClient;
-  let seededCategoryIds: number[];
 
   beforeAll(() => {
     client = createPublicClient();
-    seededCategoryIds = (process.env.WP_SEEDED_CATEGORY_IDS || '').split(',').map(Number);
   });
 
   it('getCategories returns an array', async () => {
@@ -31,18 +33,13 @@ describe('Client: Categories', () => {
     }
   });
 
-  it('getCategory fetches a single category by ID', async () => {
-    const category = await client.getCategory(seededCategoryIds[0]);
-
-    expect(category.id).toBe(seededCategoryIds[0]);
-    expect(category.name).toBe('Test Category');
-  });
-
-  it('getCategoryBySlug fetches by slug', async () => {
-    const category = await client.getCategoryBySlug('test-category');
+  it('getCategoryBySlug fetches a known seed category', async () => {
+    const category = await client.getCategoryBySlug('technology');
 
     expect(category).toBeDefined();
-    expect(category!.slug).toBe('test-category');
+    expect(category!.slug).toBe('technology');
+    expect(category!.name).toBe('Technology');
+    expect(category!.count).toBe(30);
   });
 
   it('getCategoryBySlug returns undefined for non-existent slug', async () => {
@@ -51,21 +48,26 @@ describe('Client: Categories', () => {
     expect(category).toBeUndefined();
   });
 
-  it('getAllCategories returns all categories', async () => {
+  it('getAllCategories returns all 6 categories', async () => {
     const all = await client.getAllCategories();
 
-    expect(all.length).toBeGreaterThanOrEqual(seededCategoryIds.length);
-    for (const id of seededCategoryIds) {
-      expect(all.some((c) => c.id === id)).toBe(true);
-    }
+    expect(all).toHaveLength(6);
+
+    const slugs = all.map((c) => c.slug).sort();
+    expect(slugs).toContain('technology');
+    expect(slugs).toContain('science');
+    expect(slugs).toContain('travel');
+    expect(slugs).toContain('food');
+    expect(slugs).toContain('health');
+    expect(slugs).toContain('uncategorized');
   });
 
   it('getCategoriesPaginated returns pagination metadata', async () => {
-    const result = await client.getCategoriesPaginated({ perPage: 1, page: 1 });
+    const result = await client.getCategoriesPaginated({ perPage: 2, page: 1 });
 
-    expect(result.data).toHaveLength(1);
-    expect(result.total).toBeGreaterThan(0);
-    expect(result.totalPages).toBeGreaterThan(0);
+    expect(result.data).toHaveLength(2);
+    expect(result.total).toBe(6);
+    expect(result.totalPages).toBe(3);
     expect(result.page).toBe(1);
   });
 });

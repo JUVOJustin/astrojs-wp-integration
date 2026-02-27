@@ -6,9 +6,10 @@
 		"WP_ENVIRONMENT_TYPE": "development"
 	},
 	"mappings": {
-		"wp-content/mu-plugins": "./tests/wp-env/mu-plugins"
+		"wp-content/mu-plugins": "./tests/wp-env/mu-plugins",
+		"wp-content/seed-content.php": "./tests/wp-env/seed-content.php"
 	},
 	"lifecycleScripts": {
-		"afterStart": "npx wp-env run cli -- wp rewrite structure '/%postname%/' --hard"
+		"afterStart": "npx wp-env run cli -- wp rewrite structure '/%postname%/' --hard && npx wp-env run cli -- wp eval-file wp-content/seed-content.php"
 	}
 }
