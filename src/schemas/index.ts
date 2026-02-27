@@ -247,30 +247,42 @@ export const updatePostFieldsSchema = z.object({
   date_gmt: z.string().optional(),
   /** Post slug */
   slug: z.string().optional(),
-  /** Post status */
+  /** Post status — universal across all post types */
   status: z.enum(['publish', 'draft', 'pending', 'private', 'future']).optional(),
+  /** Password to protect access to the content and excerpt */
+  password: z.string().optional(),
   /** Author user ID */
   author: z.number().int().optional(),
   /** Featured image attachment ID */
   featured_media: z.number().int().optional(),
-  /** Comment status */
-  comment_status: z.enum(['open', 'closed']).optional(),
-  /** Ping status */
-  ping_status: z.enum(['open', 'closed']).optional(),
-  /** Post format */
-  format: z
-    .enum(['standard', 'aside', 'chat', 'gallery', 'link', 'image', 'quote', 'status', 'video', 'audio'])
-    .optional(),
+  /**
+   * Comment status — type-checked only (not enum-restricted) because custom
+   * post types may define their own values or not support comments at all.
+   */
+  comment_status: z.string().optional(),
+  /**
+   * Ping status — type-checked only for the same reason as comment_status.
+   */
+  ping_status: z.string().optional(),
+  /**
+   * Post format — type-checked only because only the built-in 'post' type
+   * supports formats; pages and custom post types ignore this field.
+   */
+  format: z.string().optional(),
   /** Post meta fields */
   meta: z.record(z.any()).optional(),
-  /** Whether the post is sticky */
+  /** Whether the post is sticky (post type only; ignored by pages/CPTs) */
   sticky: z.boolean().optional(),
   /** Page template filename */
   template: z.string().optional(),
-  /** Array of category IDs */
+  /** Array of category IDs (post type only; ignored by pages/CPTs) */
   categories: z.array(z.number().int()).optional(),
-  /** Array of tag IDs */
+  /** Array of tag IDs (post type only; ignored by pages/CPTs) */
   tags: z.array(z.number().int()).optional(),
+  /** Parent post ID — used by hierarchical types like pages */
+  parent: z.number().int().optional(),
+  /** Sort order — used by hierarchical types like pages */
+  menu_order: z.number().int().optional(),
 }).passthrough();
 
 export type WordPressPostWriteFields = z.infer<typeof updatePostFieldsSchema>;

@@ -5,7 +5,7 @@ import { postWriteBaseSchema, wordPressErrorSchema, postSchema } from '../../sch
 import type { WordPressPost } from '../../schemas';
 
 /**
- * Full input schema for a WordPress post update.
+ * Full input schema for updating an existing WordPress post (or page / CPT).
  *
  * Extends `postWriteBaseSchema` (the shared writable fields used by both
  * create and update) with the required `id` field.
@@ -24,7 +24,24 @@ export const updatePostInputSchema = postWriteBaseSchema.extend({
 export type UpdatePostInput = z.infer<typeof updatePostInputSchema>;
 
 /**
- * Configuration required to create the update-post action.
+ * Low-level config accepted by `executeUpdatePost`.
+ * The `resource` controls which REST endpoint is targeted (e.g. 'posts',
+ * 'pages', 'books').  The optional `responseSchema` overrides the default
+ * `postSchema` so the response can be parsed as a different type.
+ */
+export interface ExecuteUpdateConfig<T = WordPressPost> {
+  /** Base URL up to but excluding the resource (e.g. 'http://example.com/wp-json/wp/v2') */
+  apiBase: string;
+  /** Pre-built Authorization header value */
+  authHeader: string;
+  /** REST resource path appended to `apiBase` (default: 'posts') */
+  resource?: string;
+  /** Zod schema used to parse the response (default: postSchema) */
+  responseSchema?: z.ZodType<T>;
+}
+
+/**
+ * Configuration required to create the update-post action factory.
  * Authentication is mandatory because editing posts requires write access.
  */
 export interface UpdatePostActionConfig {
@@ -32,17 +49,25 @@ export interface UpdatePostActionConfig {
   baseUrl: string;
   /** Application-password credentials */
   auth: BasicAuthCredentials;
+  /** REST resource path (default: 'posts') — set to 'pages' or a CPT rest_base */
+  resource?: string;
 }
 
 /**
- * Executes a WordPress post update via the REST API.
+ * Updates an existing WordPress post (or page / CPT) via the REST API.
+ *
+ * Set `config.resource` to target a different endpoint (e.g. `'pages'`,
+ * `'books'`) and `config.responseSchema` to parse the response with a
+ * matching Zod schema.  Defaults to `'posts'` / `postSchema`.
+ *
  * Exported for direct use in integration tests without the Astro runtime.
  * Throws `ActionError` on API failure.
  */
-export async function executeUpdatePost(
-  config: { apiBase: string; authHeader: string },
+export async function executeUpdatePost<T = WordPressPost>(
+  config: ExecuteUpdateConfig<T>,
   input: UpdatePostInput & Record<string, unknown>
-): Promise<WordPressPost> {
+): Promise<T> {
+  const resource = config.resource ?? 'posts';
   const { id, ...fields } = input;
 
   // Only include fields that were explicitly provided; custom fields pass through as-is
@@ -54,7 +79,7 @@ export async function executeUpdatePost(
   }
 
   // WordPress REST API uses POST (not PUT/PATCH) for updating existing posts
-  const response = await fetch(`${config.apiBase}/posts/${id}`, {
+  const response = await fetch(`${config.apiBase}/${resource}/${id}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -73,19 +98,22 @@ export async function executeUpdatePost(
     throw new ActionError({ code: ActionError.statusToCode(response.status), message });
   }
 
-  return postSchema.parse(data) as WordPressPost;
+  const responseSchema = (config.responseSchema ?? postSchema) as z.ZodType<T>;
+  return responseSchema.parse(data);
 }
 
 /**
- * Creates a predefined Astro server action that updates a WordPress post via
- * the REST API.  All provided fields are passed through to WordPress, and any
- * error returned by WordPress is surfaced as an `ActionError`.
+ * Creates a predefined Astro server action that updates a WordPress post
+ * (or page / CPT) via the REST API.  All provided fields are passed through
+ * to WordPress, and any error returned by WordPress is surfaced as an
+ * `ActionError`.
  *
- * Pass a custom `schema` (created via `updatePostInputSchema.extend(...)`) to
+ * Set `resource` to target a different REST endpoint (e.g. `'pages'`).
+ * Pass a custom `schema` (via `updatePostInputSchema.extend(...)`) to
  * include extra fields such as ACF data or other custom plugin fields.
  *
  * @example
- * // Basic usage
+ * // Basic usage (posts)
  * export const server = {
  *   updatePost: createUpdatePostAction({
  *     baseUrl: import.meta.env.WP_URL,
@@ -94,12 +122,13 @@ export async function executeUpdatePost(
  * };
  *
  * @example
- * // With extended schema for ACF fields
- * const mySchema = updatePostInputSchema.extend({
- *   acf: z.object({ hero_text: z.string().optional() }).optional(),
- * });
+ * // Pages
  * export const server = {
- *   updatePost: createUpdatePostAction({ baseUrl, auth, schema: mySchema }),
+ *   updatePage: createUpdatePostAction({
+ *     baseUrl: import.meta.env.WP_URL,
+ *     auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
+ *     resource: 'pages',
+ *   }),
  * };
  */
 export function createUpdatePostAction<
@@ -108,6 +137,7 @@ export function createUpdatePostAction<
   const inputSchema = (config.schema ?? updatePostInputSchema) as TSchema;
   const authHeader = createBasicAuthHeader(config.auth);
   const apiBase = `${config.baseUrl.replace(/\/$/, '')}/wp-json/wp/v2`;
+  const resource = config.resource;
 
   // TypeScript defers evaluation of ActionHandler<TSchema, …> when TSchema is a
   // generic parameter — `as any` is scoped to this call site only and does not
@@ -116,6 +146,6 @@ export function createUpdatePostAction<
   return defineAction({
     input: inputSchema,
     handler: (input: z.infer<TSchema>) =>
-      executeUpdatePost({ apiBase, authHeader }, input as UpdatePostInput & Record<string, unknown>),
+      executeUpdatePost({ apiBase, authHeader, resource }, input as UpdatePostInput & Record<string, unknown>),
   } as any) as ActionClient<WordPressPost, undefined, TSchema> & string;
 }

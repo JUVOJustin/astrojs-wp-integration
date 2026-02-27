@@ -5,7 +5,7 @@ import { postWriteBaseSchema, wordPressErrorSchema, postSchema } from '../../sch
 import type { WordPressPost } from '../../schemas';
 
 /**
- * Input schema for creating a new WordPress post.
+ * Input schema for creating a new WordPress post (or page / custom post type).
  *
  * Identical to `updatePostInputSchema` minus the `id` field — WordPress
  * assigns the ID on creation.  All fields are optional; WordPress applies
@@ -22,7 +22,24 @@ export const createPostInputSchema = postWriteBaseSchema;
 export type CreatePostInput = z.infer<typeof createPostInputSchema>;
 
 /**
- * Configuration required to create the create-post action.
+ * Low-level config accepted by `executeCreatePost`.
+ * The `resource` controls which REST endpoint is targeted (e.g. 'posts',
+ * 'pages', 'books').  The optional `responseSchema` overrides the default
+ * `postSchema` so the response can be parsed as a different type.
+ */
+export interface ExecuteCreateConfig<T = WordPressPost> {
+  /** Base URL up to but excluding the resource (e.g. 'http://example.com/wp-json/wp/v2') */
+  apiBase: string;
+  /** Pre-built Authorization header value */
+  authHeader: string;
+  /** REST resource path appended to `apiBase` (default: 'posts') */
+  resource?: string;
+  /** Zod schema used to parse the response (default: postSchema) */
+  responseSchema?: z.ZodType<T>;
+}
+
+/**
+ * Configuration required to create the create-post action factory.
  * Authentication is mandatory because creating posts requires write access.
  */
 export interface CreatePostActionConfig {
@@ -30,17 +47,26 @@ export interface CreatePostActionConfig {
   baseUrl: string;
   /** Application-password credentials */
   auth: BasicAuthCredentials;
+  /** REST resource path (default: 'posts') — set to 'pages' or a CPT rest_base */
+  resource?: string;
 }
 
 /**
- * Executes a WordPress post creation via the REST API.
+ * Creates a new WordPress post (or page / CPT) via the REST API.
+ *
+ * Set `config.resource` to target a different endpoint (e.g. `'pages'`,
+ * `'books'`) and `config.responseSchema` to parse the response with a
+ * matching Zod schema.  Defaults to `'posts'` / `postSchema`.
+ *
  * Exported for direct use in integration tests without the Astro runtime.
  * Throws `ActionError` on API failure.
  */
-export async function executeCreatePost(
-  config: { apiBase: string; authHeader: string },
+export async function executeCreatePost<T = WordPressPost>(
+  config: ExecuteCreateConfig<T>,
   input: CreatePostInput & Record<string, unknown>
-): Promise<WordPressPost> {
+): Promise<T> {
+  const resource = config.resource ?? 'posts';
+
   // Only include fields that were explicitly provided
   const body: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input)) {
@@ -49,7 +75,7 @@ export async function executeCreatePost(
     }
   }
 
-  const response = await fetch(`${config.apiBase}/posts`, {
+  const response = await fetch(`${config.apiBase}/${resource}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -68,19 +94,21 @@ export async function executeCreatePost(
     throw new ActionError({ code: ActionError.statusToCode(response.status), message });
   }
 
-  return postSchema.parse(data) as WordPressPost;
+  const responseSchema = (config.responseSchema ?? postSchema) as z.ZodType<T>;
+  return responseSchema.parse(data);
 }
 
 /**
  * Creates a predefined Astro server action that creates a new WordPress post
- * via the REST API.  All provided fields are forwarded to WordPress, and any
- * error is surfaced as an `ActionError`.
+ * (or page / CPT) via the REST API.  All provided fields are forwarded to
+ * WordPress, and any error is surfaced as an `ActionError`.
  *
- * Pass a custom `schema` (created via `createPostInputSchema.extend(...)`) to
- * support custom fields such as ACF data end-to-end.
+ * Set `resource` to target a different REST endpoint (e.g. `'pages'`).
+ * Pass a custom `schema` (via `createPostInputSchema.extend(...)`) for
+ * typed custom fields such as ACF data.
  *
  * @example
- * // Basic usage
+ * // Basic usage (posts)
  * export const server = {
  *   createPost: createCreatePostAction({
  *     baseUrl: import.meta.env.WP_URL,
@@ -89,12 +117,13 @@ export async function executeCreatePost(
  * };
  *
  * @example
- * // With extended schema for ACF fields
- * const mySchema = createPostInputSchema.extend({
- *   acf: z.object({ hero_text: z.string().optional() }).optional(),
- * });
+ * // Pages
  * export const server = {
- *   createPost: createCreatePostAction({ baseUrl, auth, schema: mySchema }),
+ *   createPage: createCreatePostAction({
+ *     baseUrl: import.meta.env.WP_URL,
+ *     auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
+ *     resource: 'pages',
+ *   }),
  * };
  */
 export function createCreatePostAction<
@@ -103,11 +132,12 @@ export function createCreatePostAction<
   const inputSchema = (config.schema ?? createPostInputSchema) as TSchema;
   const authHeader = createBasicAuthHeader(config.auth);
   const apiBase = `${config.baseUrl.replace(/\/$/, '')}/wp-json/wp/v2`;
+  const resource = config.resource;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return defineAction({
     input: inputSchema,
     handler: (input: z.infer<TSchema>) =>
-      executeCreatePost({ apiBase, authHeader }, input as CreatePostInput & Record<string, unknown>),
+      executeCreatePost({ apiBase, authHeader, resource }, input as CreatePostInput & Record<string, unknown>),
   } as any) as ActionClient<WordPressPost, undefined, TSchema> & string;
 }

@@ -4,7 +4,7 @@ import { createBasicAuthHeader, type BasicAuthCredentials } from '../../client/a
 import { wordPressErrorSchema } from '../../schemas';
 
 /**
- * Input schema for deleting a WordPress post.
+ * Input schema for deleting a WordPress post (or page / custom post type).
  * When `force` is true the post is permanently deleted; otherwise it is moved to the trash.
  */
 export const deletePostInputSchema = z.object({
@@ -23,7 +23,19 @@ export type DeletePostInput = z.infer<typeof deletePostInputSchema>;
 export type DeletePostResult = { id: number; deleted: boolean };
 
 /**
- * Configuration required to create the delete-post action.
+ * Low-level config accepted by `executeDeletePost`.
+ */
+export interface ExecuteDeleteConfig {
+  /** Base URL up to but excluding the resource (e.g. 'http://example.com/wp-json/wp/v2') */
+  apiBase: string;
+  /** Pre-built Authorization header value */
+  authHeader: string;
+  /** REST resource path appended to `apiBase` (default: 'posts') */
+  resource?: string;
+}
+
+/**
+ * Configuration required to create the delete-post action factory.
  * Authentication is mandatory because deleting posts requires write access.
  */
 export interface DeletePostActionConfig {
@@ -31,22 +43,28 @@ export interface DeletePostActionConfig {
   baseUrl: string;
   /** Application-password credentials */
   auth: BasicAuthCredentials;
+  /** REST resource path (default: 'posts') — set to 'pages' or a CPT rest_base */
+  resource?: string;
 }
 
 /**
- * Executes a WordPress post deletion via the REST API.
- * Exported for direct use in integration tests without the Astro runtime.
+ * Deletes a WordPress post (or page / CPT) via the REST API.
+ *
+ * Set `config.resource` to target a different endpoint (e.g. `'pages'`,
+ * `'books'`).  Defaults to `'posts'`.
  *
  * - `force=true`  → WP returns `{ deleted: true, previous: <post> }` → result `{ id, deleted: true }`
  * - `force=false` → WP moves the post to trash and returns the trashed post → result `{ id, deleted: false }`
  *
+ * Exported for direct use in integration tests without the Astro runtime.
  * Throws `ActionError` on API failure.
  */
 export async function executeDeletePost(
-  config: { apiBase: string; authHeader: string },
+  config: ExecuteDeleteConfig,
   input: DeletePostInput
 ): Promise<DeletePostResult> {
-  const url = new URL(`${config.apiBase}/posts/${input.id}`);
+  const resource = config.resource ?? 'posts';
+  const url = new URL(`${config.apiBase}/${resource}/${input.id}`);
   if (input.force) {
     url.searchParams.set('force', 'true');
   }
@@ -83,9 +101,11 @@ export async function executeDeletePost(
 }
 
 /**
- * Creates a predefined Astro server action that deletes a WordPress post via
- * the REST API.  Pass `force: true` in the input to permanently delete the post
- * instead of moving it to the trash.
+ * Creates a predefined Astro server action that deletes a WordPress post
+ * (or page / CPT) via the REST API.  Pass `force: true` in the input to
+ * permanently delete the post instead of moving it to the trash.
+ *
+ * Set `resource` to target a different REST endpoint (e.g. `'pages'`).
  *
  * @example
  * export const server = {
@@ -100,10 +120,11 @@ export function createDeletePostAction(
 ): ActionClient<DeletePostResult, undefined, typeof deletePostInputSchema> & string {
   const authHeader = createBasicAuthHeader(config.auth);
   const apiBase = `${config.baseUrl.replace(/\/$/, '')}/wp-json/wp/v2`;
+  const resource = config.resource;
 
   return defineAction({
     input: deletePostInputSchema,
-    handler: (input: DeletePostInput) => executeDeletePost({ apiBase, authHeader }, input),
+    handler: (input: DeletePostInput) => executeDeletePost({ apiBase, authHeader, resource }, input),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any) as ActionClient<DeletePostResult, undefined, typeof deletePostInputSchema> & string;
 }

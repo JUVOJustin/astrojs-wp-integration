@@ -46,7 +46,7 @@ import { actions } from 'astro:actions';
 if (Astro.request.method === 'POST') {
   const formData = await Astro.request.formData();
 
-  const { data, error } = await Astro.callAction(actions.createPost, {
+const { data, error } = await Astro.callAction(actions.createProduct, {
     title: formData.get('title') as string,
     content: formData.get('content') as string,
     status: 'draft',
@@ -167,11 +167,38 @@ Meta keys not registered with `show_in_rest: true` are silently ignored by WordP
 
 ---
 
-## Custom post types
+## Pages and custom post types
 
-Custom post types use a different REST endpoint (`/wp-json/wp/v2/<rest_base>` instead of `/wp-json/wp/v2/posts`). Use the `execute*` functions directly to target the correct URL.
+All action factories accept a `resource` parameter that controls which REST endpoint is targeted. WordPress exposes pages at `/wp-json/wp/v2/pages` and custom post types at `/wp-json/wp/v2/<rest_base>`.
 
-### Register the post type in WordPress
+### Pages
+
+```ts
+// src/actions/index.ts
+import {
+  createCreatePostAction,
+  createUpdatePostAction,
+  createDeletePostAction,
+} from 'wp-astrojs-integration';
+
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
+};
+
+export const server = {
+  createPage: createCreatePostAction({ ...wpConfig, resource: 'pages' }),
+  updatePage: createUpdatePostAction({ ...wpConfig, resource: 'pages' }),
+  deletePage: createDeletePostAction({ ...wpConfig, resource: 'pages' }),
+};
+```
+
+### Custom post types
+
+Register the post type in WordPress with `show_in_rest` and a `rest_base`:
 
 ```php
 // functions.php or a plugin
@@ -182,42 +209,42 @@ register_post_type('product', [
 ]);
 ```
 
-### Wire up custom actions
+Then pass the `rest_base` value as the `resource`:
 
 ```ts
 // src/actions/index.ts
-import { defineAction } from 'astro/actions/runtime/server.js';
+export const server = {
+  createProduct: createCreatePostAction({ ...wpConfig, resource: 'products' }),
+  updateProduct: createUpdatePostAction({ ...wpConfig, resource: 'products' }),
+  deleteProduct: createDeletePostAction({ ...wpConfig, resource: 'products' }),
+};
+```
+
+### Using `execute*` directly for custom post types
+
+The `execute*` functions also accept `resource`. This is useful when building fully custom actions or calling from non-Astro contexts:
+
+```ts
 import {
   executeCreatePost,
   executeUpdatePost,
   executeDeletePost,
-  createPostInputSchema,
-  updatePostInputSchema,
-  deletePostInputSchema,
   createBasicAuthHeader,
 } from 'wp-astrojs-integration';
 
-const apiBase = `${import.meta.env.WP_URL.replace(/\/$/, '')}/wp-json/wp/v2/products`;
-const authHeader = createBasicAuthHeader({
-  username: import.meta.env.WP_USERNAME,
-  password: import.meta.env.WP_APP_PASSWORD,
-});
-const config = { apiBase, authHeader };
-
-export const server = {
-  createProduct: defineAction({
-    input: createPostInputSchema,
-    handler: (input) => executeCreatePost(config, input),
+const config = {
+  apiBase: `${import.meta.env.WP_URL.replace(/\/$/, '')}/wp-json/wp/v2`,
+  authHeader: createBasicAuthHeader({
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
   }),
-  updateProduct: defineAction({
-    input: updatePostInputSchema,
-    handler: (input) => executeUpdatePost(config, input),
-  }),
-  deleteProduct: defineAction({
-    input: deletePostInputSchema,
-    handler: (input) => executeDeletePost(config, input),
-  }),
+  resource: 'products',
 };
+
+const product = await executeCreatePost(config, {
+  title: 'Running Shoes',
+  status: 'publish',
+});
 ```
 
 ---
@@ -249,27 +276,30 @@ export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
 
 ### Use the extended schema with a factory
 
-For the standard `posts` endpoint the `create*Action` factories accept an optional `schema` parameter:
+The `create*Action` factories accept both `schema` (for typed input) and `resource` (for the REST endpoint). Combine them to get end-to-end type safety for a custom post type:
 
 ```ts
 import { createCreatePostAction, createUpdatePostAction } from 'wp-astrojs-integration';
 import { productCreateSchema, productUpdateSchema } from '../lib/product-schema';
 
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
+};
+
 export const server = {
-  createPost: createCreatePostAction({
-    baseUrl: import.meta.env.WP_URL,
-    auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
+  createProduct: createCreatePostAction({
+    ...wpConfig,
+    resource: 'products',
     schema: productCreateSchema,
   }),
-  updatePost: createUpdatePostAction({
-    baseUrl: import.meta.env.WP_URL,
-    auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
+  updateProduct: createUpdatePostAction({
+    ...wpConfig,
+    resource: 'products',
     schema: productUpdateSchema,
   }),
 };
 ```
-
-For a custom post type endpoint, pass the schema to `defineAction` directly (as shown in the previous section).
 
 ### Call the typed action
 

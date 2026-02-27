@@ -74,11 +74,14 @@ export {
 export type {
   UpdatePostInput,
   UpdatePostActionConfig,
+  ExecuteUpdateConfig,
   CreatePostInput,
   CreatePostActionConfig,
+  ExecuteCreateConfig,
   DeletePostInput,
   DeletePostActionConfig,
   DeletePostResult,
+  ExecuteDeleteConfig,
 } from './actions';
 
 // Export client

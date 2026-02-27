@@ -6,10 +6,10 @@
 
 // Post actions
 export { createCreatePostAction, createPostInputSchema, executeCreatePost } from './post/create';
-export type { CreatePostInput, CreatePostActionConfig } from './post/create';
+export type { CreatePostInput, CreatePostActionConfig, ExecuteCreateConfig } from './post/create';
 
 export { createUpdatePostAction, updatePostInputSchema, executeUpdatePost } from './post/update';
-export type { UpdatePostInput, UpdatePostActionConfig } from './post/update';
+export type { UpdatePostInput, UpdatePostActionConfig, ExecuteUpdateConfig } from './post/update';
 
 export { createDeletePostAction, deletePostInputSchema, executeDeletePost } from './post/delete';
-export type { DeletePostInput, DeletePostActionConfig, DeletePostResult } from './post/delete';
+export type { DeletePostInput, DeletePostActionConfig, DeletePostResult, ExecuteDeleteConfig } from './post/delete';

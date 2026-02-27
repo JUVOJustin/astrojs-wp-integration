@@ -77,14 +77,17 @@ These constraints are enforced by the Zod schema **before any request reaches Wo
 | `id` (update / delete) | Must be a positive integer |
 | `force` (delete) | Must be a boolean |
 | `status` | Must be one of `'publish'`, `'draft'`, `'pending'`, `'private'`, `'future'` |
-| `comment_status` | Must be `'open'` or `'closed'` |
-| `ping_status` | Must be `'open'` or `'closed'` |
-| `format` | Must be one of `'standard'`, `'aside'`, `'chat'`, `'gallery'`, `'link'`, `'image'`, `'quote'`, `'status'`, `'video'`, `'audio'` |
+| `comment_status` | Must be a string (type only — not all post types support comments) |
+| `ping_status` | Must be a string (type only — not all post types support pingbacks) |
+| `format` | Must be a string (type only — only the built-in `post` type supports formats) |
 | `sticky` | Must be a boolean |
+| `password` | Must be a string |
 | `author` | Must be an integer (type only — existence is not checked) |
 | `featured_media` | Must be an integer (type only — existence is not checked) |
 | `categories` | Must be an array of integers (type only — term existence is not checked) |
 | `tags` | Must be an array of integers (type only — term existence is not checked) |
+| `parent` | Must be an integer (type only — used by hierarchical types like pages) |
+| `menu_order` | Must be an integer (type only — used by hierarchical types like pages) |
 | `title`, `content`, `excerpt` | Must be strings |
 | `date`, `date_gmt` | Must be strings (format is not validated — see Layer 2) |
 | `slug`, `template` | Must be strings (content is not validated — see Layer 2) |
@@ -164,18 +167,20 @@ The `message` is taken directly from the WordPress `{ code, message, data }` err
 Every action file exports two things:
 
 - **`create*Action(config)`** — the Astro `ActionClient` factory for use in `src/actions/index.ts`.
-- **`execute*(config, input)`** — the raw async HTTP handler, useful for testing or building custom actions that target a different REST endpoint (e.g. a custom post type).
+- **`execute*(config, input)`** — the raw async HTTP handler, useful for testing or building custom actions that target a different REST resource (e.g. a custom post type).
 
 ```ts
-import { executeCreatePost } from 'wp-astrojs-integration';
-import { createBasicAuthHeader } from 'wp-astrojs-integration';
+import { executeCreatePost, createBasicAuthHeader } from 'wp-astrojs-integration';
 
 const config = {
-  apiBase: 'https://example.com/wp-json/wp/v2/products', // custom endpoint
+  apiBase: 'https://example.com/wp-json/wp/v2',
   authHeader: createBasicAuthHeader({ username, password }),
+  resource: 'products', // targets /wp-json/wp/v2/products
 };
 
-const post = await executeCreatePost(config, { title: 'My Product', status: 'publish' });
+const product = await executeCreatePost(config, { title: 'My Product', status: 'publish' });
 ```
 
-This is also how integration tests call actions directly — without needing the Astro runtime. See [Testing](#) for the full pattern.
+When `resource` is omitted it defaults to `'posts'`. See [Post actions — Pages and custom post types](./posts.mdx#pages-and-custom-post-types) for the full pattern.
+
+This is also how integration tests call actions directly — without needing the Astro runtime.
