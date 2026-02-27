@@ -1,0 +1,181 @@
+# Actions
+
+Actions are Astro server actions that wrap the WordPress REST API, providing **type-safe, authenticated write operations** from any server-side Astro context — form handlers, API routes, middleware, or server components.
+
+Every action is a factory function that binds your WordPress credentials once and returns a reusable Astro `ActionClient`. Under the hood, each action calls an `execute*` function that performs the HTTP request and maps errors to `ActionError`.
+
+---
+
+## Authentication
+
+All write operations require a WordPress **Application Password**. Application passwords are separate from the user's login password and can be scoped or revoked independently.
+
+### Generate an application password
+
+1. Log in to the WordPress admin.
+2. Go to **Users → Profile** (or **Users → All Users → Edit** for another user).
+3. Scroll to **Application Passwords**.
+4. Enter a name (e.g. `Astro Integration`) and click **Add New Application Password**.
+5. Copy the generated password — it is only shown once.
+
+Store credentials in your Astro project's `.env` file:
+
+```ini
+WP_URL=https://example.com
+WP_USERNAME=my-wp-user
+WP_APP_PASSWORD=xxxx xxxx xxxx xxxx xxxx xxxx
+```
+
+### Pass credentials to an action factory
+
+```ts
+// src/actions/index.ts
+import {
+  createCreatePostAction,
+  createUpdatePostAction,
+  createDeletePostAction,
+} from 'wp-astrojs-integration';
+
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
+};
+
+export const server = {
+  createPost: createCreatePostAction(wpConfig),
+  updatePost: createUpdatePostAction(wpConfig),
+  deletePost: createDeletePostAction(wpConfig),
+};
+```
+
+The factory calls `createBasicAuthHeader` internally — you never handle the `Authorization` header manually in normal usage. If you are building a custom action (e.g. targeting a custom post type endpoint), you can call `createBasicAuthHeader` directly:
+
+```ts
+import { createBasicAuthHeader } from 'wp-astrojs-integration';
+
+const authHeader = createBasicAuthHeader({
+  username: import.meta.env.WP_USERNAME,
+  password: import.meta.env.WP_APP_PASSWORD,
+});
+```
+
+---
+
+## Validation model
+
+Input validation happens in two distinct layers. Understanding where each field is checked helps you handle errors correctly.
+
+### Layer 1 — Zod (local, before the HTTP request)
+
+These constraints are enforced by the Zod schema **before any request reaches WordPress**. A violation throws immediately in the Astro server process and never touches the network.
+
+| Field | Constraint |
+|---|---|
+| `id` (update / delete) | Must be a positive integer |
+| `force` (delete) | Must be a boolean |
+| `status` | Must be one of `'publish'`, `'draft'`, `'pending'`, `'private'`, `'future'` |
+| `comment_status` | Must be `'open'` or `'closed'` |
+| `ping_status` | Must be `'open'` or `'closed'` |
+| `format` | Must be one of `'standard'`, `'aside'`, `'chat'`, `'gallery'`, `'link'`, `'image'`, `'quote'`, `'status'`, `'video'`, `'audio'` |
+| `sticky` | Must be a boolean |
+| `author` | Must be an integer (type only — existence is not checked) |
+| `featured_media` | Must be an integer (type only — existence is not checked) |
+| `categories` | Must be an array of integers (type only — term existence is not checked) |
+| `tags` | Must be an array of integers (type only — term existence is not checked) |
+| `title`, `content`, `excerpt` | Must be strings |
+| `date`, `date_gmt` | Must be strings (format is not validated — see Layer 2) |
+| `slug`, `template` | Must be strings (content is not validated — see Layer 2) |
+| `meta` | Must be a plain object (keys and value types are not validated) |
+
+### Layer 2 — WordPress REST API (remote, after the HTTP request)
+
+These fields are forwarded to WordPress without further local inspection. WordPress validates them server-side and returns a structured error if they are invalid. The action catches that response and surfaces it as an `ActionError`.
+
+| Field | What WordPress checks |
+|---|---|
+| `author` | The user ID must exist and the authenticated user must be allowed to assign that author |
+| `featured_media` | The attachment ID must exist and be of media type `image` |
+| `categories` | Each ID must correspond to a published category term |
+| `tags` | Each ID must correspond to a published tag term |
+| `date` / `date_gmt` | The string must be a valid ISO 8601 date-time |
+| `slug` | Accepted as-is; WordPress appends a suffix (e.g. `-2`) if it conflicts with an existing post |
+| `template` | The filename must match a template registered by the active theme |
+| `meta` keys | Only keys registered with `show_in_rest: true` are accepted; unregistered keys are silently ignored |
+
+### Extra fields via `.passthrough()`
+
+The base schema uses `.passthrough()`, meaning **any extra key you include is forwarded to WordPress without Zod touching it**. This is intentional — it allows ACF fields, custom REST fields, and other plugin data to pass through end-to-end.
+
+Extend the schema with `.extend()` if you want Zod to validate those extra fields locally too:
+
+```ts
+import { createPostInputSchema } from 'wp-astrojs-integration';
+import { z } from 'astro/zod';
+
+const mySchema = createPostInputSchema.extend({
+  acf: z.object({
+    price: z.number().positive(),
+    sku: z.string(),
+  }).optional(),
+});
+```
+
+---
+
+## Error handling
+
+All actions surface failures as `ActionError`. Use the `error` field returned by `Astro.callAction`:
+
+```ts
+const { data, error } = await Astro.callAction(actions.createPost, {
+  title: 'My Post',
+  status: 'publish',
+});
+
+if (error) {
+  // error.code  — HTTP status mapped to an Astro error code string
+  // error.message — original WordPress error message, passed through verbatim
+  console.error(error.code, error.message);
+}
+```
+
+The `message` is taken directly from the WordPress `{ code, message, data }` error response and not modified. This means it reflects exactly what WordPress rejected and why.
+
+### Common error codes
+
+| `error.code` | HTTP status | Typical cause |
+|---|---|---|
+| `UNAUTHORIZED` | 401 | Missing, wrong, or expired application password |
+| `FORBIDDEN` | 403 | Authenticated user lacks capability for the operation |
+| `NOT_FOUND` | 404 | Post / term / attachment ID does not exist |
+| `UNPROCESSABLE_CONTENT` | 422 | Invalid field value (bad date format, unknown template, etc.) |
+| `BAD_REQUEST` | 400 | Malformed request body |
+| `INTERNAL_SERVER_ERROR` | 500 | WordPress or PHP error on the server |
+
+> Zod validation failures (Layer 1) are surfaced as `BAD_REQUEST` before the request is sent.
+
+---
+
+## The `execute*` pattern
+
+Every action file exports two things:
+
+- **`create*Action(config)`** — the Astro `ActionClient` factory for use in `src/actions/index.ts`.
+- **`execute*(config, input)`** — the raw async HTTP handler, useful for testing or building custom actions that target a different REST endpoint (e.g. a custom post type).
+
+```ts
+import { executeCreatePost } from 'wp-astrojs-integration';
+import { createBasicAuthHeader } from 'wp-astrojs-integration';
+
+const config = {
+  apiBase: 'https://example.com/wp-json/wp/v2/products', // custom endpoint
+  authHeader: createBasicAuthHeader({ username, password }),
+};
+
+const post = await executeCreatePost(config, { title: 'My Product', status: 'publish' });
+```
+
+This is also how integration tests call actions directly — without needing the Astro runtime. See [Testing](#) for the full pattern.
