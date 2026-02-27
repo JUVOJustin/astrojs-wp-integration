@@ -11,6 +11,7 @@ export {
   wordPressPageLoader,
   wordPressMediaLoader,
   wordPressCategoryLoader,
+  wordPressUserLoader,
 } from './loaders';
 
 // Export static loaders (for defineCollection - build-time only)
@@ -20,6 +21,7 @@ export {
   wordPressMediaStaticLoader,
   wordPressCategoryStaticLoader,
   wordPressTagStaticLoader,
+  wordPressUserStaticLoader,
 } from './loaders';
 
 export type {
@@ -29,6 +31,7 @@ export type {
   PageFilter,
   MediaFilter,
   CategoryFilter,
+  UserFilter,
 } from './loaders';
 
 // Export schemas
