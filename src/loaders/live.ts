@@ -223,7 +223,7 @@ export function wordPressMediaLoader(
     name: 'wordpress-media-loader',
     loadCollection: async () => {
       try {
-        const media = await client.getMedia({ perPage: 1000 });
+        const media = await client.getAllMedia();
 
         return {
           entries: media.map((item) => ({

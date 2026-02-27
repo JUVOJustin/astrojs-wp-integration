@@ -31,7 +31,12 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "wp:start": "wp-env start",
+    "wp:stop": "wp-env stop",
+    "wp:clean": "wp-env clean all"
   },
   "keywords": [
     "astro",
@@ -55,10 +60,10 @@
   "peerDependencies": {
     "astro": "^5.0.0"
   },
-  "dependencies": {
-    "astro": "^5.16.6"
-  },
   "devDependencies": {
-    "typescript": "^5.7.2"
+    "@wordpress/env": "^11.0.0",
+    "astro": "^5.0.0",
+    "typescript": "^5.7.2",
+    "vitest": "^4.0.18"
   }
 }
