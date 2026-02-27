@@ -93,9 +93,9 @@ Server actions expose two layers:
 Always test via the `execute*` functions:
 
 ```ts
-import { executeCreatePost } from '../../../src/actions/createPost';
-import { executeUpdatePost } from '../../../src/actions/updatePost';
-import { executeDeletePost } from '../../../src/actions/deletePost';
+import { executeCreatePost } from '../../../src/actions/post/create';
+import { executeUpdatePost } from '../../../src/actions/post/update';
+import { executeDeletePost } from '../../../src/actions/post/delete';
 import { createBasicAuthHeader } from '../../../src/client/auth';
 import { getBaseUrl } from '../../helpers/wp-client';
 
@@ -116,8 +116,8 @@ Key patterns for action tests:
 - **New client method**: Add tests to the appropriate file in `tests/integration/client/`. Cover: returns data, required fields present, pagination, slug lookup, error cases.
 - **New static loader**: Add tests to `tests/integration/loaders/static-loaders.test.ts`. Cover: populates store, correct keys, rendered HTML presence (for content types).
 - **New live loader**: Add tests to `tests/integration/loaders/live-loaders.test.ts`. Cover: `loadCollection` returns entries, `loadEntry` by slug, `loadEntry` by id, error for non-existent entry.
-- **New server action**: Add tests to `tests/integration/actions/actions.test.ts`. Cover: success path, field values, auth enforcement (`ActionError`), and non-existent resource error.
-- **New WP entity/resource**: Create a new test file in `tests/integration/client/`, add seed content to `tests/wp-env/seed-content.php`.
+- **New server action**: Add tests to the entity-specific file in `tests/integration/actions/` (e.g. `posts.test.ts`). Cover: success path, field values, auth enforcement (`ActionError`), and non-existent resource error.
+- **New WP entity/resource (actions)**: Create a new file `src/actions/<entity>/` with `create.ts`, `update.ts`, `delete.ts`, and an `index.ts` barrel. Add a matching `tests/integration/actions/<entity>.test.ts`.
 
 ### wp-env lifecycle
 

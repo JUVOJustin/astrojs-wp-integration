@@ -1,8 +1,8 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { ActionError } from 'astro/actions/runtime/server.js';
-import { executeCreatePost } from '../../../src/actions/createPost';
-import { executeUpdatePost } from '../../../src/actions/updatePost';
-import { executeDeletePost } from '../../../src/actions/deletePost';
+import { executeCreatePost } from '../../../src/actions/post/create';
+import { executeUpdatePost } from '../../../src/actions/post/update';
+import { executeDeletePost } from '../../../src/actions/post/delete';
 import { createBasicAuthHeader } from '../../../src/client/auth';
 import { getBaseUrl } from '../../helpers/wp-client';
 

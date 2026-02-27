@@ -1,8 +1,8 @@
 import { defineAction, ActionError, type ActionClient } from 'astro/actions/runtime/server.js';
 import { z } from 'astro/zod';
-import { createBasicAuthHeader, type BasicAuthCredentials } from '../client/auth';
-import { postWriteBaseSchema, wordPressErrorSchema, postSchema } from '../schemas';
-import type { WordPressPost } from '../schemas';
+import { createBasicAuthHeader, type BasicAuthCredentials } from '../../client/auth';
+import { postWriteBaseSchema, wordPressErrorSchema, postSchema } from '../../schemas';
+import type { WordPressPost } from '../../schemas';
 
 /**
  * Full input schema for a WordPress post update.
