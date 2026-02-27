@@ -56,11 +56,9 @@
   "peerDependencies": {
     "astro": "^5.0.0"
   },
-  "dependencies": {
-    "astro": "^5.0.0"
-  },
   "devDependencies": {
     "@wordpress/env": "^11.0.0",
+    "astro": "^5.0.0",
     "typescript": "^5.7.2",
     "vitest": "^4.0.18"
   }

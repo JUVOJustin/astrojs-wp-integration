@@ -1,9 +1,10 @@
 import { execSync } from 'child_process';
 import { writeFileSync, unlinkSync } from 'fs';
-import { resolve } from 'path';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
 
 /** Temp file used to pass env vars from globalSetup to test workers */
-const ENV_FILE = resolve(__dirname, '../../.test-env.json');
+const ENV_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../.test-env.json');
 
 /**
  * Runs a WP-CLI command inside the wp-env container and returns the WP-CLI

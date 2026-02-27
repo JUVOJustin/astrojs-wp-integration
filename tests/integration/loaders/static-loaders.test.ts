@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { wordPressPostStaticLoader } from '../../../src/loaders/static';
 import { wordPressPageStaticLoader } from '../../../src/loaders/static';
 import { wordPressCategoryStaticLoader } from '../../../src/loaders/static';
