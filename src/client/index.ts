@@ -193,7 +193,6 @@ export class WordPressClient {
    * @returns Object with data and pagination headers
    */
   async fetchAPIPaginated<T>(endpoint: string, params: Record<string, string> = {}): Promise<FetchResult<T>> {
-    const startTime = performance.now();
     const url = new URL(`${this.apiBase}${endpoint}`);
     Object.entries(params).forEach(([key, value]) => url.searchParams.append(key, value));
 
@@ -212,8 +211,6 @@ export class WordPressClient {
     }
 
     const data = await response.json();
-    const duration = Math.round(performance.now() - startTime);
-    console.log(`[WP API] ${endpoint} - ${duration}ms - params:`, JSON.stringify(params));
 
     // Extract pagination headers
     const total = parseInt(response.headers.get('X-WP-Total') || '0', 10);
