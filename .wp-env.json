@@ -1,0 +1,8 @@
+{
+  "core": null,
+  "phpVersion": "8.2",
+  "plugins": [],
+  "config": {
+    "WP_ENVIRONMENT_TYPE": "development"
+  }
+}
