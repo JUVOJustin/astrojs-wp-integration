@@ -27,18 +27,6 @@ function wpCli(command: string): string {
 }
 
 /**
- * Runs an arbitrary shell command inside the wp-env cli container
- */
-function wpEnvShell(command: string): string {
-  const raw = execSync(`npx wp-env run cli -- bash -c "${command.replace(/"/g, '\\"')}"`, {
-    encoding: 'utf-8',
-    stdio: ['pipe', 'pipe', 'pipe'],
-  });
-
-  return stripWpEnvOutput(raw);
-}
-
-/**
  * Strips wp-env status/info lines (ℹ/✔) from command output, returning
  * only the actual command stdout
  */
@@ -96,17 +84,6 @@ function createAppPassword(): string {
 }
 
 /**
- * Installs a must-use plugin that force-enables application passwords over HTTP.
- * WordPress 6.x requires HTTPS for app passwords by default — this filter
- * overrides that for local development/testing.
- */
-function enableAppPasswords(): void {
-  wpEnvShell(
-    'mkdir -p /var/www/html/wp-content/mu-plugins && echo \'<?php add_filter("wp_is_application_passwords_available", "__return_true");\' > /var/www/html/wp-content/mu-plugins/enable-app-passwords.php'
-  );
-}
-
-/**
  * Waits for the WordPress REST API to respond before running tests
  */
 async function waitForApi(baseUrl: string, maxAttempts = 30): Promise<void> {
@@ -130,9 +107,6 @@ export async function setup(): Promise<void> {
 
   console.log('[global-setup] Waiting for WordPress API...');
   await waitForApi(baseUrl);
-
-  console.log('[global-setup] Enabling application passwords over HTTP...');
-  enableAppPasswords();
 
   console.log('[global-setup] Creating application password...');
   const appPassword = createAppPassword();

@@ -1,8 +1,14 @@
 {
-  "core": null,
-  "phpVersion": "8.2",
-  "plugins": [],
-  "config": {
-    "WP_ENVIRONMENT_TYPE": "development"
-  }
+	"core": null,
+	"phpVersion": "8.2",
+	"plugins": [],
+	"config": {
+		"WP_ENVIRONMENT_TYPE": "development"
+	},
+	"mappings": {
+		"wp-content/mu-plugins": "./tests/wp-env/mu-plugins"
+	},
+	"lifecycleScripts": {
+		"afterStart": "npx wp-env run cli -- wp rewrite structure '/%postname%/' --hard"
+	}
 }

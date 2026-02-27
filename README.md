@@ -421,6 +421,18 @@ TypeScript types inferred from schemas:
 - **Modern Workflow**: Works seamlessly with Astro's content collections
 - **Optimized**: Responsive images, efficient caching, and minimal overhead
 
+## Development & Testing
+
+This project uses integration tests that run against a real WordPress instance via [`@wordpress/env`](https://developer.wordpress.org/block-editor/reference-guides/packages/packages-env/) (Docker). See [AGENTS.md](./AGENTS.md) for detailed testing guidelines.
+
+```bash
+npm run wp:start   # Start WordPress Docker container (required once)
+npm test           # Run all integration tests
+npm run test:watch # Run in watch mode
+npm run wp:stop    # Stop the container
+npm run wp:clean   # Destroy container and volumes
+```
+
 ## License
 
 MIT
