@@ -73,7 +73,7 @@ npm run wp:clean   # Destroy container and volumes
 ### How to write new tests
 
 1. **Always write integration tests**, not unit tests. Test against the real WP REST API.
-2. Place tests in `tests/integration/client/` for `WordPressClient` methods, or `tests/integration/loaders/` for loader functions.
+2. Place tests in `tests/integration/client/` for `WordPressClient` methods, `tests/integration/loaders/` for loader functions, or `tests/integration/actions/` for server actions.
 3. Use the helpers in `tests/helpers/`:
    - `createPublicClient()` / `createAuthClient()` from `wp-client.ts` for API access
    - `createMockStore()` from `mock-store.ts` for static loader tests
@@ -84,11 +84,39 @@ npm run wp:clean   # Destroy container and volumes
 7. Static loaders need a mock `store` (with `clear` and `set` methods) and a mock `logger` (with `info`, `error`, `warn`). They write to the store; assert on the store contents.
 8. Live loaders return plain objects from `loadCollection()` / `loadEntry()`. Assert on the returned data directly.
 
+### Testing server actions
+
+Server actions expose two layers:
+- `createXxxAction(config)` — returns an Astro `ActionClient` for use at runtime (requires the Astro framework).
+- `executeXxx(config, input)` — the raw async handler, exported separately for direct use in integration tests without the Astro runtime.
+
+Always test via the `execute*` functions:
+
+```ts
+import { executeCreatePost } from '../../../src/actions/createPost';
+import { executeUpdatePost } from '../../../src/actions/updatePost';
+import { executeDeletePost } from '../../../src/actions/deletePost';
+import { createBasicAuthHeader } from '../../../src/client/auth';
+import { getBaseUrl } from '../../helpers/wp-client';
+
+const config = {
+  apiBase: `${getBaseUrl()}/wp-json/wp/v2`,
+  authHeader: createBasicAuthHeader({ username: 'admin', password: process.env.WP_APP_PASSWORD! }),
+};
+```
+
+Key patterns for action tests:
+- Track created post IDs in a shared array and clean up in `afterAll` using `executeDeletePost({ force: true })` to avoid polluting the environment.
+- Verify that unauthenticated calls throw `ActionError` (import from `astro/actions/runtime/server.js`).
+- `deletePostInputSchema` accepts an optional `force` field — `true` = permanent delete, omit/`false` = trash.
+- Test both trash (`deleted: false`) and permanent delete (`deleted: true`) paths.
+
 ### What to test when adding new features
 
 - **New client method**: Add tests to the appropriate file in `tests/integration/client/`. Cover: returns data, required fields present, pagination, slug lookup, error cases.
 - **New static loader**: Add tests to `tests/integration/loaders/static-loaders.test.ts`. Cover: populates store, correct keys, rendered HTML presence (for content types).
 - **New live loader**: Add tests to `tests/integration/loaders/live-loaders.test.ts`. Cover: `loadCollection` returns entries, `loadEntry` by slug, `loadEntry` by id, error for non-existent entry.
+- **New server action**: Add tests to `tests/integration/actions/actions.test.ts`. Cover: success path, field values, auth enforcement (`ActionError`), and non-existent resource error.
 - **New WP entity/resource**: Create a new test file in `tests/integration/client/`, add seed content to `tests/wp-env/seed-content.php`.
 
 ### wp-env lifecycle

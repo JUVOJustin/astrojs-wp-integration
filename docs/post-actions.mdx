@@ -1,0 +1,355 @@
+# Post Actions
+
+Post actions let you **create, update, and delete WordPress posts** from Astro server-side code — form actions, API routes, middleware, or any server context.
+
+Each action is a factory function that binds your WordPress credentials once and returns a reusable Astro `ActionClient`.
+
+---
+
+## Setup
+
+Register the actions in your Astro project's `src/actions/index.ts`:
+
+```ts
+import { defineAction } from 'astro/actions/runtime/server.js';
+import {
+  createCreatePostAction,
+  createUpdatePostAction,
+  createDeletePostAction,
+} from 'wp-astrojs-integration';
+
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,           // e.g. 'https://example.com'
+  auth: {
+    username: import.meta.env.WP_USERNAME,   // WordPress user login
+    password: import.meta.env.WP_APP_PASSWORD, // Application password
+  },
+};
+
+export const server = {
+  createPost: createCreatePostAction(wpConfig),
+  updatePost: createUpdatePostAction(wpConfig),
+  deletePost: createDeletePostAction(wpConfig),
+};
+```
+
+> Application passwords are generated in **WordPress admin → Users → Profile → Application Passwords**.
+
+---
+
+## Creating a post
+
+### Draft post
+
+```astro
+---
+// src/pages/new-post.astro
+import { actions } from 'astro:actions';
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+
+  const { data, error } = await Astro.callAction(actions.createPost, {
+    title: formData.get('title') as string,
+    content: formData.get('content') as string,
+    status: 'draft',
+  });
+
+  if (data) {
+    return Astro.redirect(`/posts/${data.slug}`);
+  }
+}
+---
+
+<form method="POST">
+  <input name="title" placeholder="Post title" required />
+  <textarea name="content" placeholder="Post content"></textarea>
+  <button type="submit">Save draft</button>
+</form>
+```
+
+### Published post
+
+Pass `status: 'publish'` to make the post live immediately:
+
+```ts
+const { data } = await Astro.callAction(actions.createPost, {
+  title: 'Hello World',
+  content: '<p>My first post.</p>',
+  excerpt: 'A short summary.',
+  status: 'publish',
+  categories: [3],   // category IDs
+  tags: [12, 15],    // tag IDs
+});
+```
+
+### All available fields
+
+```ts
+const { data } = await Astro.callAction(actions.createPost, {
+  title: 'Full Example',
+  content: '<p>Post body as raw HTML.</p>',
+  excerpt: 'Short summary shown in listings.',
+  status: 'publish',       // 'publish' | 'draft' | 'pending' | 'private' | 'future'
+  slug: 'full-example',
+  date: '2026-03-01T10:00:00',  // ISO 8601, used for scheduled posts
+  author: 1,
+  featured_media: 42,      // attachment ID
+  categories: [3, 7],
+  tags: [12],
+  sticky: false,
+  format: 'standard',      // 'standard' | 'aside' | 'gallery' | 'video' | …
+  comment_status: 'open',
+  ping_status: 'closed',
+});
+```
+
+---
+
+## Updating a post
+
+`updatePost` accepts the same fields as `createPost` plus the required `id`:
+
+```ts
+const { data } = await Astro.callAction(actions.updatePost, {
+  id: 101,
+  title: 'Updated title',
+  status: 'publish',
+});
+```
+
+Only the fields you provide are sent to WordPress — everything else is left unchanged.
+
+---
+
+## Deleting a post
+
+### Move to trash
+
+Omit `force` (or set it to `false`) to move the post to the WordPress trash:
+
+```ts
+const { data } = await Astro.callAction(actions.deletePost, {
+  id: 101,
+});
+// data → { id: 101, deleted: false }
+```
+
+### Permanent delete
+
+Pass `force: true` to bypass the trash and permanently remove the post:
+
+```ts
+const { data } = await Astro.callAction(actions.deletePost, {
+  id: 101,
+  force: true,
+});
+// data → { id: 101, deleted: true }
+```
+
+---
+
+## Saving post meta
+
+WordPress exposes registered meta fields through the REST API. Include them under the `meta` key:
+
+```ts
+// First, register the meta field in WordPress (functions.php or a plugin):
+// register_post_meta('post', 'reading_time', [
+//   'show_in_rest' => true,
+//   'single'       => true,
+//   'type'         => 'integer',
+// ]);
+
+const { data } = await Astro.callAction(actions.createPost, {
+  title: 'Post with meta',
+  content: '<p>Body.</p>',
+  status: 'publish',
+  meta: {
+    reading_time: 5,
+    source_url: 'https://example.com/original',
+  },
+});
+```
+
+> Only meta fields registered with `show_in_rest: true` are accessible via the REST API. See the [WordPress docs](https://developer.wordpress.org/rest-api/extending-the-rest-api/modifying-responses/#working-with-registered-meta-in-the-rest-api) for details.
+
+---
+
+## Custom post types
+
+Custom post types require their own action factories that target the correct REST API endpoint. The `baseUrl` passed to each factory includes a `namespace` and `rest_base` that must match the registration in WordPress.
+
+### Register the custom post type in WordPress
+
+```php
+// functions.php or a plugin
+register_post_type('product', [
+    'public'       => true,
+    'show_in_rest' => true,      // required for REST API access
+    'rest_base'    => 'products',
+    // …
+]);
+```
+
+### Create a custom action factory
+
+Because the REST endpoint differs (`/wp-json/wp/v2/products` instead of `/wp-json/wp/v2/posts`), you build a thin wrapper around `executeCreatePost` / `executeUpdatePost` / `executeDeletePost`:
+
+```ts
+// src/actions/wp-products.ts
+import {
+  executeCreatePost,
+  executeUpdatePost,
+  executeDeletePost,
+  createPostInputSchema,
+  updatePostInputSchema,
+  deletePostInputSchema,
+} from 'wp-astrojs-integration';
+import { defineAction } from 'astro/actions/runtime/server.js';
+import { createBasicAuthHeader } from 'wp-astrojs-integration';
+
+const apiBase = `${import.meta.env.WP_URL.replace(/\/$/, '')}/wp-json/wp/v2/products`;
+const authHeader = createBasicAuthHeader({
+  username: import.meta.env.WP_USERNAME,
+  password: import.meta.env.WP_APP_PASSWORD,
+});
+const config = { apiBase, authHeader };
+
+export const createProduct = defineAction({
+  input: createPostInputSchema,
+  handler: (input) => executeCreatePost(config, input),
+});
+
+export const updateProduct = defineAction({
+  input: updatePostInputSchema,
+  handler: (input) => executeUpdatePost(config, input),
+});
+
+export const deleteProduct = defineAction({
+  input: deletePostInputSchema,
+  handler: (input) => executeDeletePost(config, input),
+});
+```
+
+Register in `src/actions/index.ts`:
+
+```ts
+export const server = {
+  createProduct,
+  updateProduct,
+  deleteProduct,
+};
+```
+
+Use like any other action:
+
+```ts
+const { data } = await Astro.callAction(actions.createProduct, {
+  title: 'Running Shoes',
+  status: 'publish',
+});
+```
+
+---
+
+## Custom post types with typed ACF fields
+
+When your custom post type uses Advanced Custom Fields (ACF) or any other plugin that exposes fields via the REST API, extend the input schema to get end-to-end type safety.
+
+### Extended schema
+
+```ts
+// src/lib/product-schema.ts
+import { createPostInputSchema } from 'wp-astrojs-integration';
+import { z } from 'astro/zod';
+
+export const productInputSchema = createPostInputSchema.extend({
+  /** ACF field group exposed at /wp-json/wp/v2/products as 'acf' */
+  acf: z
+    .object({
+      price: z.number().positive().optional(),
+      sku: z.string().optional(),
+      in_stock: z.boolean().optional(),
+      gallery: z.array(z.number().int()).optional(), // attachment IDs
+    })
+    .optional(),
+});
+
+export type ProductInput = z.infer<typeof productInputSchema>;
+```
+
+### Typed action factory
+
+Pass the extended schema to `createCreatePostAction` via the `schema` option:
+
+```ts
+// src/actions/index.ts
+import { createCreatePostAction, createUpdatePostAction } from 'wp-astrojs-integration';
+import { productInputSchema } from '../lib/product-schema';
+
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
+};
+
+export const server = {
+  // The action input is now fully typed against productInputSchema
+  createProduct: createCreatePostAction({ ...wpConfig, schema: productInputSchema }),
+  updateProduct: createUpdatePostAction({ ...wpConfig, schema: productInputSchema.extend({
+    id: z.number().int().positive(),
+  }) }),
+};
+```
+
+> `createCreatePostAction` and `createUpdatePostAction` are generic — they infer the `ActionClient` type from the schema you pass, so callers get full autocomplete and type checking.
+
+### Calling the typed action
+
+```ts
+const { data, error } = await Astro.callAction(actions.createProduct, {
+  title: 'Running Shoes',
+  status: 'publish',
+  acf: {
+    price: 129.99,
+    sku: 'RS-42-BLK',
+    in_stock: true,
+    gallery: [55, 56, 57],
+  },
+});
+
+if (data) {
+  console.log(data.id); // WordPress-assigned post ID
+}
+```
+
+---
+
+## Error handling
+
+All actions throw `ActionError` on failure. Use the `error` field returned by `callAction`:
+
+```ts
+const { data, error } = await Astro.callAction(actions.createPost, {
+  title: 'My Post',
+  status: 'publish',
+});
+
+if (error) {
+  // error.code is an HTTP status code string, e.g. 'UNAUTHORIZED', 'NOT_FOUND'
+  // error.message is the WordPress error message
+  console.error(error.code, error.message);
+}
+```
+
+Common error codes:
+
+| Code | Cause |
+|---|---|
+| `UNAUTHORIZED` | Missing or invalid application password |
+| `FORBIDDEN` | User lacks permission to create/edit posts |
+| `NOT_FOUND` | Post ID does not exist |
+| `BAD_REQUEST` | Invalid field value sent to WordPress |

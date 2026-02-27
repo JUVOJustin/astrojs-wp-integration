@@ -276,6 +276,31 @@ export const updatePostFieldsSchema = z.object({
 export type WordPressPostWriteFields = z.infer<typeof updatePostFieldsSchema>;
 
 /**
+ * Shared base schema for post create and update action inputs.
+ *
+ * Extends `updatePostFieldsSchema` with the three fields whose wire format
+ * differs between reads and writes: `title`, `content`, and `excerpt` are
+ * returned as `{ rendered: string }` objects by the REST API but must be sent
+ * as plain strings on create/update.
+ *
+ * Use this as the base when extending action schemas for custom fields:
+ * @example
+ * const mySchema = postWriteBaseSchema.extend({
+ *   acf: z.object({ hero_text: z.string().optional() }).optional(),
+ * });
+ */
+export const postWriteBaseSchema = updatePostFieldsSchema.extend({
+  /** Post title (raw string) */
+  title: z.string().optional(),
+  /** Post content as raw HTML/blocks */
+  content: z.string().optional(),
+  /** Post excerpt (raw string) */
+  excerpt: z.string().optional(),
+});
+
+export type WordPressPostWriteBase = z.infer<typeof postWriteBaseSchema>;
+
+/**
  * Schema for WordPress REST API error responses
  */
 export const wordPressErrorSchema = z.object({

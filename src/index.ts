@@ -43,6 +43,7 @@ export {
   settingsSchema,
   wordPressErrorSchema,
   updatePostFieldsSchema,
+  postWriteBaseSchema,
 } from './schemas';
 
 export type {
@@ -58,11 +59,27 @@ export type {
   WordPressSettings,
   WordPressError,
   WordPressPostWriteFields,
+  WordPressPostWriteBase,
 } from './schemas';
 
 // Export predefined server actions
-export { createUpdatePostAction, updatePostInputSchema } from './actions';
-export type { UpdatePostInput, UpdatePostActionConfig } from './actions';
+export {
+  createUpdatePostAction,
+  updatePostInputSchema,
+  createCreatePostAction,
+  createPostInputSchema,
+  createDeletePostAction,
+  deletePostInputSchema,
+} from './actions';
+export type {
+  UpdatePostInput,
+  UpdatePostActionConfig,
+  CreatePostInput,
+  CreatePostActionConfig,
+  DeletePostInput,
+  DeletePostActionConfig,
+  DeletePostResult,
+} from './actions';
 
 // Export client
 export { WordPressClient } from './client';
