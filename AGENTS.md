@@ -117,7 +117,7 @@ Key patterns for action tests:
 - **New static loader**: Add tests to `tests/integration/loaders/static-loaders.test.ts`. Cover: populates store, correct keys, rendered HTML presence (for content types).
 - **New live loader**: Add tests to `tests/integration/loaders/live-loaders.test.ts`. Cover: `loadCollection` returns entries, `loadEntry` by slug, `loadEntry` by id, error for non-existent entry.
 - **New server action**: Add tests to the entity-specific file in `tests/integration/actions/` (e.g. `posts.test.ts`). Cover: success path, field values, auth enforcement (`ActionError`), and non-existent resource error.
-- **New WP entity/resource (actions)**: Create a new file `src/actions/<entity>/` with `create.ts`, `update.ts`, `delete.ts`, and an `index.ts` barrel. Add a matching `tests/integration/actions/<entity>.test.ts`.
+- **New WP entity/resource (actions)**: Create `src/actions/<entity>/create.ts`, `update.ts`, `delete.ts`. Register all exports in `src/actions/index.ts`. Add a matching `tests/integration/actions/<entity>.test.ts`.
 
 ### wp-env lifecycle
 
