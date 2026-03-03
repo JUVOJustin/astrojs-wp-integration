@@ -10,6 +10,6 @@
 		"wp-content/seed-content.php": "./tests/wp-env/seed-content.php"
 	},
 	"lifecycleScripts": {
-		"afterStart": "npx wp-env run cli -- wp rewrite structure '/%postname%/' --hard && npx wp-env run cli -- wp eval-file wp-content/seed-content.php"
+		"afterStart": "npx wp-env run cli -- wp rewrite structure '/%postname%/' --hard && npx wp-env run cli -- wp plugin install --activate https://advancedcustomfields.com/latest/ && npx wp-env run cli -- wp eval-file wp-content/seed-content.php"
 	}
 }

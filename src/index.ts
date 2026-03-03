@@ -41,6 +41,9 @@ export {
   categorySchema,
   embeddedMediaSchema,
   settingsSchema,
+  wordPressErrorSchema,
+  updatePostFieldsSchema,
+  postWriteBaseSchema,
 } from './schemas';
 
 export type {
@@ -54,7 +57,32 @@ export type {
   WordPressAuthor,
   WordPressEmbeddedMedia,
   WordPressSettings,
+  WordPressError,
+  WordPressPostWriteFields,
+  WordPressPostWriteBase,
 } from './schemas';
+
+// Export predefined server actions
+export {
+  createUpdatePostAction,
+  updatePostInputSchema,
+  createCreatePostAction,
+  createPostInputSchema,
+  createDeletePostAction,
+  deletePostInputSchema,
+} from './actions';
+export type {
+  UpdatePostInput,
+  UpdatePostActionConfig,
+  ExecuteUpdateConfig,
+  CreatePostInput,
+  CreatePostActionConfig,
+  ExecuteCreateConfig,
+  DeletePostInput,
+  DeletePostActionConfig,
+  DeletePostResult,
+  ExecuteDeleteConfig,
+} from './actions';
 
 // Export client
 export { WordPressClient } from './client';

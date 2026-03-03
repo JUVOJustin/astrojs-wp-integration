@@ -40,13 +40,18 @@ describe('Live Loaders', () => {
       }
     });
 
-    it('loadEntry by slug returns a known seed post with rendered HTML', async () => {
+    it('loadEntry by slug returns a known seed post with rendered HTML and native meta', async () => {
       const loader = wordPressPostLoader({ baseUrl });
       const result = await loader.loadEntry!({ filter: { slug: 'test-post-001' } } as any);
 
       expect('id' in result).toBe(true);
       expect((result as any).data.slug).toBe('test-post-001');
       expect((result as any).rendered.html).toBeTruthy();
+      expect((result as any).data.meta).toEqual(expect.objectContaining({
+        test_string_meta: 'Seed string meta for test-post-001',
+        test_number_meta: 11.5,
+        test_array_meta: ['seed-post-001-a', 'seed-post-001-b'],
+      }));
     });
 
     it('loadEntry by id returns the correct post', async () => {
@@ -80,13 +85,18 @@ describe('Live Loaders', () => {
       expect(entries.length).toBeGreaterThan(0);
     });
 
-    it('loadEntry by slug returns a known seed page with rendered HTML', async () => {
+    it('loadEntry by slug returns a known seed page with rendered HTML and native meta', async () => {
       const loader = wordPressPageLoader({ baseUrl });
       const result = await loader.loadEntry!({ filter: { slug: 'about' } } as any);
 
       expect('id' in result).toBe(true);
       expect((result as any).data.slug).toBe('about');
       expect((result as any).rendered.html).toBeTruthy();
+      expect((result as any).data.meta).toEqual(expect.objectContaining({
+        test_string_meta: 'Seed string meta for about-page',
+        test_number_meta: 21.5,
+        test_array_meta: ['seed-about-a', 'seed-about-b'],
+      }));
     });
 
     it('loadEntry returns error for non-existent page', async () => {
