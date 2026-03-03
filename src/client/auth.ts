@@ -48,6 +48,27 @@ export type ResolvableWordPressAuth<TContext = void> =
   | WordPressAuthResolver<TContext>;
 
 /**
+ * Normalized request details passed to advanced auth header providers.
+ */
+export interface WordPressAuthRequest {
+  method: string;
+  url: URL;
+  body?: string;
+}
+
+/**
+ * Generic HTTP headers map used by advanced authentication flows.
+ */
+export type WordPressAuthHeaders = Record<string, string>;
+
+/**
+ * Request-aware auth header provider for signature-based auth methods.
+ */
+export type WordPressAuthHeadersProvider = (
+  request: WordPressAuthRequest
+) => WordPressAuthHeaders | Promise<WordPressAuthHeaders>;
+
+/**
  * Checks whether the given auth config uses basic credentials.
  */
 function isBasicAuthCredentials(auth: WordPressAuthConfig): auth is BasicAuthCredentials {
@@ -66,6 +87,35 @@ function isJwtAuthCredentials(auth: WordPressAuthConfig): auth is JwtAuthCredent
  */
 function normalizeJwtToken(token: string): string {
   return token.trim().replace(/^Bearer\s+/i, '');
+}
+
+/**
+ * Validates and normalizes custom headers returned by auth providers.
+ */
+function normalizeAuthHeaders(headers: WordPressAuthHeaders): WordPressAuthHeaders {
+  const normalizedHeaders: WordPressAuthHeaders = {};
+
+  for (const [rawHeaderName, rawHeaderValue] of Object.entries(headers)) {
+    const headerName = rawHeaderName.trim();
+
+    if (!headerName) {
+      throw new Error('Auth header name must not be empty.');
+    }
+
+    if (typeof rawHeaderValue !== 'string') {
+      throw new Error(`Auth header '${headerName}' must be a string.`);
+    }
+
+    const headerValue = rawHeaderValue.trim();
+
+    if (!headerValue) {
+      continue;
+    }
+
+    normalizedHeaders[headerName] = headerValue;
+  }
+
+  return normalizedHeaders;
 }
 
 /**
@@ -144,4 +194,32 @@ export async function resolveWordPressAuth<TContext>(
   }
 
   return resolvedAuth;
+}
+
+/**
+ * Resolves final request headers from static auth and request-aware auth providers.
+ */
+export async function resolveWordPressRequestHeaders(config: {
+  auth?: WordPressAuthInput | null;
+  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider | null;
+  request: WordPressAuthRequest;
+}): Promise<WordPressAuthHeaders> {
+  const resolvedHeaders: WordPressAuthHeaders = {};
+
+  if (config.auth) {
+    resolvedHeaders.Authorization = createWordPressAuthHeader(config.auth);
+  }
+
+  if (!config.authHeaders) {
+    return resolvedHeaders;
+  }
+
+  const providedHeaders = typeof config.authHeaders === 'function'
+    ? await config.authHeaders(config.request)
+    : config.authHeaders;
+
+  return {
+    ...resolvedHeaders,
+    ...normalizeAuthHeaders(providedHeaders),
+  };
 }

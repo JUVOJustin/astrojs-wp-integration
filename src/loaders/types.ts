@@ -2,7 +2,11 @@
  * Type definitions for WordPress loaders
  */
 
-import type { WordPressAuthConfig } from '../client/auth';
+import type {
+  WordPressAuthConfig,
+  WordPressAuthHeaders,
+  WordPressAuthHeadersProvider,
+} from '../client/auth';
 
 /**
  * Configuration for WordPress loaders
@@ -11,6 +15,7 @@ export interface WordPressLoaderConfig {
   baseUrl: string;
   auth?: WordPressAuthConfig;
   authHeader?: string;
+  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
   cookies?: string;
 }
 

@@ -8,11 +8,12 @@ Every action is a factory function that binds a WordPress auth config (static cr
 
 ## Authentication
 
-All write operations need an `Authorization` header. The action factories support three auth styles:
+All write operations need auth headers. The action factories support four auth styles:
 
 - **Basic auth** (`{ username, password }`) for app-password workflows
 - **JWT auth** (`{ token }`) for user-scoped SSR requests
 - **Resolver auth** (`(context) => ...`) for per-request middleware/session integration
+- **Request-aware auth headers** (`authHeaders`) for signature-based methods like OAuth 1.0
 
 ### Basic auth (existing behavior)
 
@@ -45,6 +46,44 @@ import { wordPressAuthBridge } from '../lib/auth/bridge';
 const wpConfig = {
   baseUrl: import.meta.env.WP_URL,
   auth: (context) => wordPressAuthBridge.getActionAuth(context),
+};
+```
+
+### Request-aware auth headers (OAuth-style signatures)
+
+```ts
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  authHeaders: ({ method, url, body }) => {
+    // Replace with your signer implementation
+    const signature = signWordPressRequest({ method, url: url.toString(), body });
+
+    return {
+      Authorization: signature,
+    };
+  },
+};
+```
+
+If your signer needs Astro action context (for example, per-user tokens), resolve it via `fromContext`:
+
+```ts
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  authHeaders: {
+    fromContext: (context) => ({ method, url, body }) => {
+      const signature = signWordPressRequest({
+        method,
+        url: url.toString(),
+        body,
+        token: context.locals.oauthToken,
+      });
+
+      return {
+        Authorization: signature,
+      };
+    },
+  },
 };
 ```
 

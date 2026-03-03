@@ -1,4 +1,10 @@
-import { createWordPressAuthHeader, type WordPressAuthConfig } from './auth';
+import {
+  resolveWordPressRequestHeaders,
+  type WordPressAuthConfig,
+  type WordPressAuthHeaders,
+  type WordPressAuthHeadersProvider,
+  type WordPressAuthInput,
+} from './auth';
 import { createPostsMethods } from './posts';
 import { createPagesMethods } from './pages';
 import { createMediaMethods } from './media';
@@ -24,6 +30,8 @@ export interface WordPressClientConfig {
   auth?: WordPressAuthConfig;
   /** Prebuilt Authorization header value for advanced auth flows */
   authHeader?: string;
+  /** Request-aware auth headers for signature-based authentication flows */
+  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
   /** Cookie header string for WordPress session-based authentication */
   cookies?: string;
 }
@@ -60,7 +68,8 @@ export interface FetchResult<T> {
 export class WordPressClient {
   private baseUrl: string;
   private apiBase: string;
-  private authHeader: string | undefined;
+  private auth: WordPressAuthInput | undefined;
+  private authHeaders: WordPressAuthHeaders | WordPressAuthHeadersProvider | undefined;
   private cookieHeader: string | undefined;
 
   // Posts methods
@@ -111,11 +120,10 @@ export class WordPressClient {
 
   constructor(config: WordPressClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, ''); // Remove trailing slash
-    this.authHeader = config.authHeader
-      ? createWordPressAuthHeader(config.authHeader)
-      : config.auth
-        ? createWordPressAuthHeader(config.auth)
-        : undefined;
+    this.auth = config.authHeader
+      ? config.authHeader
+      : config.auth;
+    this.authHeaders = config.authHeaders;
     this.cookieHeader = config.cookies;
     
     // Use WordPress REST API pretty permalinks format
@@ -179,7 +187,7 @@ export class WordPressClient {
    * Checks if authentication is configured
    */
   hasAuth(): boolean {
-    return this.authHeader !== undefined || this.cookieHeader !== undefined;
+    return this.auth !== undefined || this.authHeaders !== undefined || this.cookieHeader !== undefined;
   }
 
   /**
@@ -210,9 +218,17 @@ export class WordPressClient {
       'Content-Type': 'application/json',
     };
 
-    if (this.authHeader) {
-      headers['Authorization'] = this.authHeader;
-    }
+    Object.assign(
+      headers,
+      await resolveWordPressRequestHeaders({
+        auth: this.auth,
+        authHeaders: this.authHeaders,
+        request: {
+          method: 'GET',
+          url,
+        },
+      }),
+    );
 
     if (this.cookieHeader) {
       headers['Cookie'] = this.cookieHeader;

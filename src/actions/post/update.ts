@@ -1,8 +1,18 @@
 import { defineAction, ActionError, type ActionAPIContext, type ActionClient } from 'astro/actions/runtime/server.js';
 import { z } from 'astro/zod';
+import {
+  resolveWordPressRequestHeaders,
+  type WordPressAuthHeaders,
+  type WordPressAuthHeadersProvider,
+  type WordPressAuthInput,
+} from '../../client/auth';
 import { postWriteBaseSchema, wordPressErrorSchema, postSchema, pageSchema, contentWordPressSchema } from '../../schemas';
 import type { WordPressPost, WordPressPage, WordPressContent } from '../../schemas';
-import { resolveActionAuthHeader, type ActionAuthConfig } from '../auth';
+import {
+  resolveActionRequestAuth,
+  type ActionAuthConfig,
+  type ResolvableActionAuthHeaders,
+} from '../auth';
 
 /**
  * Full input schema for updating an existing WordPress post (or page / CPT).
@@ -32,8 +42,12 @@ export type UpdatePostInput = z.infer<typeof updatePostInputSchema>;
 export interface ExecuteUpdateConfig<T = WordPressPost> {
   /** Base URL up to but excluding the resource (e.g. 'http://example.com/wp-json/wp/v2') */
   apiBase: string;
-  /** Pre-built Authorization header value */
-  authHeader: string;
+  /** Legacy pre-built Authorization header value */
+  authHeader?: string;
+  /** Normalized auth input that resolves into an Authorization header */
+  auth?: WordPressAuthInput;
+  /** Request-aware auth headers for signature-based auth strategies */
+  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
   /** REST resource path appended to `apiBase` (default: 'posts') */
   resource?: string;
   /** Zod schema used to parse the response (default: postSchema) */
@@ -42,13 +56,15 @@ export interface ExecuteUpdateConfig<T = WordPressPost> {
 
 /**
  * Configuration required to create the update-post action factory.
- * Authentication is mandatory because editing posts requires write access.
+ * At least one auth strategy is required because editing posts needs write access.
  */
 export interface UpdatePostActionConfig<T = WordPressPost> {
   /** WordPress site URL (e.g. 'https://example.com') */
   baseUrl: string;
   /** Static or request-scoped auth config (basic, JWT, or prebuilt header) */
-  auth: ActionAuthConfig;
+  auth?: ActionAuthConfig;
+  /** Advanced request-aware auth headers for OAuth-like signature methods */
+  authHeaders?: ResolvableActionAuthHeaders;
   /** REST resource path (default: 'posts') — set to 'pages' or a CPT rest_base */
   resource?: string;
   /** Optional parser override for the action response */
@@ -98,14 +114,26 @@ export async function executeUpdatePost<T = WordPressPost>(
     }
   }
 
+  const bodyJson = JSON.stringify(body);
+  const url = new URL(`${config.apiBase}/${resource}/${id}`);
+  const authHeaders = await resolveWordPressRequestHeaders({
+    auth: config.auth ?? config.authHeader,
+    authHeaders: config.authHeaders,
+    request: {
+      method: 'POST',
+      url,
+      body: bodyJson,
+    },
+  });
+
   // WordPress REST API uses POST (not PUT/PATCH) for updating existing posts
-  const response = await fetch(`${config.apiBase}/${resource}/${id}`, {
+  const response = await fetch(url.toString(), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: config.authHeader,
+      ...authHeaders,
     },
-    body: JSON.stringify(body),
+    body: bodyJson,
   });
 
   const data: unknown = await response.json();
@@ -167,10 +195,13 @@ export function createUpdatePostAction<
   return defineAction({
     input: inputSchema,
     handler: async (input: z.infer<TSchema>, context: ActionAPIContext) => {
-      const authHeader = await resolveActionAuthHeader(config.auth, context);
+      const requestAuth = await resolveActionRequestAuth({
+        auth: config.auth,
+        authHeaders: config.authHeaders,
+      }, context);
 
       return executeUpdatePost<TResponse>(
-        { apiBase, authHeader, resource, responseSchema },
+        { apiBase, ...requestAuth, resource, responseSchema },
         input as UpdatePostInput & Record<string, unknown>,
       );
     },

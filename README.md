@@ -289,6 +289,25 @@ const currentUser = await jwtClient.getCurrentUser();
 console.log(currentUser.name, currentUser.email);
 ```
 
+For signature-based methods (for example OAuth 1.0 style flows), use request-aware auth headers:
+
+```typescript
+const signedClient = new WordPressClient({
+  baseUrl: 'https://your-wordpress-site.com',
+  authHeaders: ({ method, url, body }) => {
+    const authorization = signWordPressRequest({
+      method,
+      url: url.toString(),
+      body,
+    });
+
+    return {
+      Authorization: authorization,
+    };
+  },
+});
+```
+
 ### Astro Actions Authentication Bridge (Pre-Shipped)
 
 Use the packaged bridge to get a ready-to-use JWT login server action with Zod validation and middleware/action helpers.
@@ -344,6 +363,28 @@ export const server = {
     baseUrl: import.meta.env.WP_URL,
     auth: (context) => wordPressAuthBridge.getActionAuth(context),
   }),
+};
+```
+
+For OAuth-style signatures, action factories also support request-aware `authHeaders`:
+
+```typescript
+const signedActionConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  authHeaders: {
+    fromContext: (context) => ({ method, url, body }) => {
+      const authorization = signWordPressRequest({
+        method,
+        url: url.toString(),
+        body,
+        token: context.locals.oauthToken,
+      });
+
+      return {
+        Authorization: authorization,
+      };
+    },
+  },
 };
 ```
 
@@ -473,6 +514,7 @@ interface WordPressStaticLoaderConfig {
   baseUrl: string;
   auth?: WordPressAuthConfig;
   authHeader?: string;
+  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
   cookies?: string;
   perPage?: number;  // Items per page (default: 100)
   params?: Record<string, string>;  // Additional query params
@@ -489,6 +531,7 @@ interface WordPressStaticLoaderConfig {
 - `createBasicAuthHeader(credentials)`: Build a Basic Authorization header
 - `createJwtAuthHeader(token)`: Build a Bearer Authorization header for JWT tokens
 - `createWordPressAuthHeader(auth)`: Build Authorization header from basic/JWT/prebuilt auth config
+- `resolveWordPressRequestHeaders(config)`: Build final request headers from static auth and request-aware auth providers
 
 Detailed setup docs: https://github.com/JUVOJustin/astrojs-wp-integration/blob/main/docs/auth-action-bridge.md
 

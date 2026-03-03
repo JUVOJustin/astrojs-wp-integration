@@ -1,7 +1,17 @@
 import { defineAction, ActionError, type ActionAPIContext, type ActionClient } from 'astro/actions/runtime/server.js';
 import { z } from 'astro/zod';
+import {
+  resolveWordPressRequestHeaders,
+  type WordPressAuthHeaders,
+  type WordPressAuthHeadersProvider,
+  type WordPressAuthInput,
+} from '../../client/auth';
 import { wordPressErrorSchema } from '../../schemas';
-import { resolveActionAuthHeader, type ActionAuthConfig } from '../auth';
+import {
+  resolveActionRequestAuth,
+  type ActionAuthConfig,
+  type ResolvableActionAuthHeaders,
+} from '../auth';
 
 /**
  * Input schema for deleting a WordPress post (or page / custom post type).
@@ -28,21 +38,27 @@ export type DeletePostResult = { id: number; deleted: boolean };
 export interface ExecuteDeleteConfig {
   /** Base URL up to but excluding the resource (e.g. 'http://example.com/wp-json/wp/v2') */
   apiBase: string;
-  /** Pre-built Authorization header value */
-  authHeader: string;
+  /** Legacy pre-built Authorization header value */
+  authHeader?: string;
+  /** Normalized auth input that resolves into an Authorization header */
+  auth?: WordPressAuthInput;
+  /** Request-aware auth headers for signature-based auth strategies */
+  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
   /** REST resource path appended to `apiBase` (default: 'posts') */
   resource?: string;
 }
 
 /**
  * Configuration required to create the delete-post action factory.
- * Authentication is mandatory because deleting posts requires write access.
+ * At least one auth strategy is required because deleting posts needs write access.
  */
 export interface DeletePostActionConfig {
   /** WordPress site URL (e.g. 'https://example.com') */
   baseUrl: string;
   /** Static or request-scoped auth config (basic, JWT, or prebuilt header) */
-  auth: ActionAuthConfig;
+  auth?: ActionAuthConfig;
+  /** Advanced request-aware auth headers for OAuth-like signature methods */
+  authHeaders?: ResolvableActionAuthHeaders;
   /** REST resource path (default: 'posts') — set to 'pages' or a CPT rest_base */
   resource?: string;
 }
@@ -69,11 +85,18 @@ export async function executeDeletePost(
     url.searchParams.set('force', 'true');
   }
 
+  const authHeaders = await resolveWordPressRequestHeaders({
+    auth: config.auth ?? config.authHeader,
+    authHeaders: config.authHeaders,
+    request: {
+      method: 'DELETE',
+      url,
+    },
+  });
+
   const response = await fetch(url.toString(), {
     method: 'DELETE',
-    headers: {
-      Authorization: config.authHeader,
-    },
+    headers: authHeaders,
   });
 
   const data: unknown = await response.json();
@@ -124,9 +147,12 @@ export function createDeletePostAction(
   return defineAction({
     input: deletePostInputSchema,
     handler: async (input: DeletePostInput, context: ActionAPIContext) => {
-      const authHeader = await resolveActionAuthHeader(config.auth, context);
+      const requestAuth = await resolveActionRequestAuth({
+        auth: config.auth,
+        authHeaders: config.authHeaders,
+      }, context);
 
-      return executeDeletePost({ apiBase, authHeader, resource }, input);
+      return executeDeletePost({ apiBase, ...requestAuth, resource }, input);
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any) as ActionClient<DeletePostResult, undefined, typeof deletePostInputSchema> & string;

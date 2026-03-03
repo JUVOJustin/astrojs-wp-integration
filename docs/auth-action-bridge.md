@@ -72,6 +72,28 @@ export const server = {
 };
 ```
 
+If you need non-JWT signing (for example OAuth-style signatures), action factories also accept request-aware `authHeaders`:
+
+```typescript
+const signedActionsConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  authHeaders: {
+    fromContext: (context) => ({ method, url, body }) => {
+      const authorization = signWordPressRequest({
+        method,
+        url: url.toString(),
+        body,
+        token: context.locals.oauthToken,
+      });
+
+      return {
+        Authorization: authorization,
+      };
+    },
+  },
+};
+```
+
 ## Middleware Example
 
 ```typescript

@@ -76,6 +76,9 @@ export {
 } from './actions';
 export type {
   ActionAuthConfig,
+  ActionAuthHeadersConfig,
+  ActionAuthHeadersFromContext,
+  ResolvableActionAuthHeaders,
   UpdatePostInput,
   UpdatePostActionConfig,
   ExecuteUpdateConfig,
@@ -110,11 +113,15 @@ export {
   createJwtAuthHeader,
   createWordPressAuthHeader,
   resolveWordPressAuth,
+  resolveWordPressRequestHeaders,
 } from './client/auth';
 export type {
   BasicAuthCredentials,
   JwtAuthCredentials,
   HeaderAuthCredentials,
+  WordPressAuthRequest,
+  WordPressAuthHeaders,
+  WordPressAuthHeadersProvider,
   WordPressAuthConfig,
   WordPressAuthInput,
   WordPressAuthResolver,

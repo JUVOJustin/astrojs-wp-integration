@@ -30,6 +30,24 @@ describe('Actions: CRUD', () => {
     authHeader: createJwtAuthHeader(process.env.WP_JWT_TOKEN!),
   };
 
+  // Request-aware auth config for signature-like auth strategies
+  const requestAwareAuthConfig = {
+    apiBase,
+    authHeaders: ({ method, url }: { method: string; url: URL }) => {
+      if (method !== 'POST') {
+        throw new Error('Expected POST for create post auth provider test.');
+      }
+
+      if (!url.pathname.endsWith('/wp-json/wp/v2/posts')) {
+        throw new Error('Expected posts endpoint for create post auth provider test.');
+      }
+
+      return {
+        Authorization: createJwtAuthHeader(process.env.WP_JWT_TOKEN!),
+      };
+    },
+  };
+
   // Unauthenticated config — used to verify auth enforcement
   const anonConfig = {
     apiBase,
@@ -101,6 +119,18 @@ describe('Actions: CRUD', () => {
 
       expect(post.id).toBeGreaterThan(0);
       expect(post.title.rendered).toBe('Action Test: JWT Auth');
+    });
+
+    it('creates a post with request-aware auth headers', async () => {
+      const post = await executeCreatePost(requestAwareAuthConfig, {
+        title: 'Action Test: Request-Aware Auth',
+        status: 'draft',
+      });
+
+      createdIds.push(post.id);
+
+      expect(post.id).toBeGreaterThan(0);
+      expect(post.title.rendered).toBe('Action Test: Request-Aware Auth');
     });
 
     it('throws ActionError when not authenticated', async () => {

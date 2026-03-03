@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { WordPressClient } from '../../../src/client';
+import { createJwtAuthHeader } from '../../../src/client/auth';
 import { createPublicClient, createAuthClient, createJwtAuthClient } from '../../helpers/wp-client';
 
 /**
@@ -10,11 +11,28 @@ describe('Client: Users', () => {
   let publicClient: WordPressClient;
   let authClient: WordPressClient;
   let jwtClient: WordPressClient;
+  let requestSignedClient: WordPressClient;
 
   beforeAll(() => {
     publicClient = createPublicClient();
     authClient = createAuthClient();
     jwtClient = createJwtAuthClient();
+    requestSignedClient = new WordPressClient({
+      baseUrl: process.env.WP_BASE_URL!,
+      authHeaders: ({ method, url }) => {
+        if (method !== 'GET') {
+          throw new Error('Expected GET for users endpoint test.');
+        }
+
+        if (!url.pathname.endsWith('/wp-json/wp/v2/users/me')) {
+          throw new Error('Expected /users/me endpoint for auth header provider test.');
+        }
+
+        return {
+          Authorization: createJwtAuthHeader(process.env.WP_JWT_TOKEN!),
+        };
+      },
+    });
   });
 
   it('getUsers returns an array of users', async () => {
@@ -67,6 +85,13 @@ describe('Client: Users', () => {
 
   it('getCurrentUser also works with JWT auth config', async () => {
     const me = await jwtClient.getCurrentUser();
+
+    expect(me).toHaveProperty('id');
+    expect(me.slug).toBe('admin');
+  });
+
+  it('getCurrentUser also works with request-aware auth header provider', async () => {
+    const me = await requestSignedClient.getCurrentUser();
 
     expect(me).toHaveProperty('id');
     expect(me.slug).toBe('admin');

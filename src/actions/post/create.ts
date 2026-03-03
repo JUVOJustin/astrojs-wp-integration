@@ -1,8 +1,18 @@
 import { defineAction, ActionError, type ActionAPIContext, type ActionClient } from 'astro/actions/runtime/server.js';
 import { z } from 'astro/zod';
+import {
+  resolveWordPressRequestHeaders,
+  type WordPressAuthHeaders,
+  type WordPressAuthHeadersProvider,
+  type WordPressAuthInput,
+} from '../../client/auth';
 import { postWriteBaseSchema, wordPressErrorSchema, postSchema, pageSchema, contentWordPressSchema } from '../../schemas';
 import type { WordPressPost, WordPressPage, WordPressContent } from '../../schemas';
-import { resolveActionAuthHeader, type ActionAuthConfig } from '../auth';
+import {
+  resolveActionRequestAuth,
+  type ActionAuthConfig,
+  type ResolvableActionAuthHeaders,
+} from '../auth';
 
 /**
  * Input schema for creating a new WordPress post (or page / custom post type).
@@ -30,8 +40,12 @@ export type CreatePostInput = z.infer<typeof createPostInputSchema>;
 export interface ExecuteCreateConfig<T = WordPressPost> {
   /** Base URL up to but excluding the resource (e.g. 'http://example.com/wp-json/wp/v2') */
   apiBase: string;
-  /** Pre-built Authorization header value */
-  authHeader: string;
+  /** Legacy pre-built Authorization header value */
+  authHeader?: string;
+  /** Normalized auth input that resolves into an Authorization header */
+  auth?: WordPressAuthInput;
+  /** Request-aware auth headers for signature-based auth strategies */
+  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
   /** REST resource path appended to `apiBase` (default: 'posts') */
   resource?: string;
   /** Zod schema used to parse the response (default: postSchema) */
@@ -40,13 +54,15 @@ export interface ExecuteCreateConfig<T = WordPressPost> {
 
 /**
  * Configuration required to create the create-post action factory.
- * Authentication is mandatory because creating posts requires write access.
+ * At least one auth strategy is required because creating posts needs write access.
  */
 export interface CreatePostActionConfig<T = WordPressPost> {
   /** WordPress site URL (e.g. 'https://example.com') */
   baseUrl: string;
   /** Static or request-scoped auth config (basic, JWT, or prebuilt header) */
-  auth: ActionAuthConfig;
+  auth?: ActionAuthConfig;
+  /** Advanced request-aware auth headers for OAuth-like signature methods */
+  authHeaders?: ResolvableActionAuthHeaders;
   /** REST resource path (default: 'posts') — set to 'pages' or a CPT rest_base */
   resource?: string;
   /** Optional parser override for the action response */
@@ -95,13 +111,25 @@ export async function executeCreatePost<T = WordPressPost>(
     }
   }
 
-  const response = await fetch(`${config.apiBase}/${resource}`, {
+  const bodyJson = JSON.stringify(body);
+  const url = new URL(`${config.apiBase}/${resource}`);
+  const authHeaders = await resolveWordPressRequestHeaders({
+    auth: config.auth ?? config.authHeader,
+    authHeaders: config.authHeaders,
+    request: {
+      method: 'POST',
+      url,
+      body: bodyJson,
+    },
+  });
+
+  const response = await fetch(url.toString(), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: config.authHeader,
+      ...authHeaders,
     },
-    body: JSON.stringify(body),
+    body: bodyJson,
   });
 
   const data: unknown = await response.json();
@@ -159,10 +187,13 @@ export function createCreatePostAction<
   return defineAction({
     input: inputSchema,
     handler: async (input: z.infer<TSchema>, context: ActionAPIContext) => {
-      const authHeader = await resolveActionAuthHeader(config.auth, context);
+      const requestAuth = await resolveActionRequestAuth({
+        auth: config.auth,
+        authHeaders: config.authHeaders,
+      }, context);
 
       return executeCreatePost<TResponse>(
-        { apiBase, authHeader, resource, responseSchema },
+        { apiBase, ...requestAuth, resource, responseSchema },
         input as CreatePostInput & Record<string, unknown>,
       );
     },

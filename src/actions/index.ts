@@ -4,7 +4,12 @@
  * (e.g. terms).  Per-operation files live under src/actions/<entity>/<operation>.ts.
  */
 
-export type { ActionAuthConfig } from './auth';
+export type {
+  ActionAuthConfig,
+  ActionAuthHeadersConfig,
+  ActionAuthHeadersFromContext,
+  ResolvableActionAuthHeaders,
+} from './auth';
 
 // Post actions
 export { createCreatePostAction, createPostInputSchema, executeCreatePost } from './post/create';

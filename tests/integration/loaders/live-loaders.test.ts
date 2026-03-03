@@ -119,6 +119,29 @@ describe('Live Loaders', () => {
       expect('entries' in result).toBe(true);
       expect(Array.isArray((result as any).entries)).toBe(true);
     });
+
+    it('supports request-aware auth headers when querying draft posts', async () => {
+      const loader = wordPressPostLoader({
+        baseUrl,
+        authHeaders: ({ method, url }) => {
+          if (method !== 'GET') {
+            throw new Error('Expected GET for live loader auth provider test.');
+          }
+
+          if (!url.pathname.endsWith('/wp-json/wp/v2/posts')) {
+            throw new Error('Expected posts endpoint for live loader auth provider test.');
+          }
+
+          return {
+            Authorization: createJwtAuthHeader(process.env.WP_JWT_TOKEN!),
+          };
+        },
+      });
+      const result = (await loader.loadCollection!({ filter: { status: 'draft' } } as any)) as any;
+
+      expect('entries' in result).toBe(true);
+      expect(Array.isArray((result as any).entries)).toBe(true);
+    });
   });
 
   describe('wordPressPageLoader', () => {

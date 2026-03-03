@@ -7,7 +7,11 @@ import type {
   WordPressAuthor,
 } from '../schemas';
 import { WordPressClient } from '../client';
-import type { WordPressAuthConfig } from '../client/auth';
+import type {
+  WordPressAuthConfig,
+  WordPressAuthHeaders,
+  WordPressAuthHeadersProvider,
+} from '../client/auth';
 
 /**
  * Loader configuration for WordPress content
@@ -16,6 +20,7 @@ export interface WordPressLoaderConfig {
   baseUrl: string;
   auth?: WordPressAuthConfig;
   authHeader?: string;
+  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
   cookies?: string;
 }
 
