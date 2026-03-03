@@ -48,42 +48,18 @@ describe('Actions: Pages CRUD', () => {
     }
   });
 
-  // ---------------------------------------------------------------------------
-  // Create
-  // ---------------------------------------------------------------------------
+  const updateConfig = {
+    apiBase,
+    authHeader: authConfig.authHeader,
+    resource: 'pages' as const,
+    responseSchema: pageSchema,
+  };
 
-  describe('executeCreatePost (pages)', () => {
-    it('creates a draft page with the given title', async () => {
-      const page = await executeCreatePost(authConfig, {
-        title: 'Action Test: Draft Page',
-        status: 'draft',
-      });
-
-      createdIds.push(page.id);
-
-      expect(page.id).toBeGreaterThan(0);
-      expect(page.title.rendered).toBe('Action Test: Draft Page');
-      expect(page.status).toBe('draft');
-      expect(page.type).toBe('page');
-    });
-
-    it('creates a published page', async () => {
-      const page = await executeCreatePost(authConfig, {
-        title: 'Action Test: Published Page',
-        status: 'publish',
-      });
-
-      createdIds.push(page.id);
-
-      expect(page.status).toBe('publish');
-      expect(page.type).toBe('page');
-    });
-
-    it('creates a page with content, excerpt, and parent', async () => {
-      // Create a parent page first
+  describe('resource-specific behavior', () => {
+    it('creates a hierarchical page with parent and menu_order fields', async () => {
       const parent = await executeCreatePost(authConfig, {
         title: 'Action Test: Parent Page',
-        status: 'publish',
+        status: 'draft',
       });
       createdIds.push(parent.id);
 
@@ -93,117 +69,65 @@ describe('Actions: Pages CRUD', () => {
         excerpt: 'Child excerpt',
         parent: parent.id,
         menu_order: 5,
-        status: 'publish',
+        status: 'draft',
       });
       createdIds.push(child.id);
 
-      expect(child.content.rendered).toContain('Child page content.');
-      expect(child.excerpt.rendered).toContain('Child excerpt');
+      expect(child.type).toBe('page');
       expect(child.parent).toBe(parent.id);
       expect(child.menu_order).toBe(5);
+      expect(child.content.rendered).toContain('Child page content.');
+      expect(child.excerpt.rendered).toContain('Child excerpt');
     });
 
+    it('updates page-specific hierarchical fields', async () => {
+      const parent = await executeCreatePost(authConfig, {
+        title: 'Action Test: Update Parent',
+        status: 'draft',
+      });
+      createdIds.push(parent.id);
+
+      const child = await executeCreatePost(authConfig, {
+        title: 'Action Test: Update Child',
+        status: 'draft',
+      });
+      createdIds.push(child.id);
+
+      const updated = await executeUpdatePost(updateConfig, {
+        id: child.id,
+        parent: parent.id,
+        menu_order: 42,
+      });
+
+      expect(updated.type).toBe('page');
+      expect(updated.parent).toBe(parent.id);
+      expect(updated.menu_order).toBe(42);
+    });
+
+    it('permanently deletes a page through the pages endpoint', async () => {
+      const page = await executeCreatePost(authConfig, {
+        title: 'Action Test: Delete Page',
+        status: 'draft',
+      });
+      createdIds.push(page.id);
+
+      const deleted = await executeDeletePost(deleteConfig, { id: page.id, force: true });
+
+      expect(deleted.id).toBe(page.id);
+      expect(deleted.deleted).toBe(true);
+    });
+  });
+
+  describe('error behavior', () => {
     it('throws ActionError when not authenticated', async () => {
       await expect(
         executeCreatePost(anonConfig, { title: 'Should Fail', status: 'draft' })
       ).rejects.toThrow(ActionError);
     });
-  });
 
-  // ---------------------------------------------------------------------------
-  // Update
-  // ---------------------------------------------------------------------------
-
-  describe('executeUpdatePost (pages)', () => {
-    it('updates the title of an existing page', async () => {
-      const created = await executeCreatePost(authConfig, {
-        title: 'Action Test: Page Before Update',
-        status: 'draft',
-      });
-      createdIds.push(created.id);
-
-      const updated = await executeUpdatePost(
-        { apiBase, authHeader: authConfig.authHeader, resource: 'pages', responseSchema: pageSchema },
-        { id: created.id, title: 'Action Test: Page After Update' }
-      );
-
-      expect(updated.id).toBe(created.id);
-      expect(updated.title.rendered).toBe('Action Test: Page After Update');
-    });
-
-    it('updates the status of a page', async () => {
-      const created = await executeCreatePost(authConfig, {
-        title: 'Action Test: Page Status Change',
-        status: 'draft',
-      });
-      createdIds.push(created.id);
-
-      const updated = await executeUpdatePost(
-        { apiBase, authHeader: authConfig.authHeader, resource: 'pages', responseSchema: pageSchema },
-        { id: created.id, status: 'publish' }
-      );
-
-      expect(updated.status).toBe('publish');
-    });
-
-    it('updates the menu_order of a page', async () => {
-      const created = await executeCreatePost(authConfig, {
-        title: 'Action Test: Page Order',
-        status: 'draft',
-      });
-      createdIds.push(created.id);
-
-      const updated = await executeUpdatePost(
-        { apiBase, authHeader: authConfig.authHeader, resource: 'pages', responseSchema: pageSchema },
-        { id: created.id, menu_order: 42 }
-      );
-
-      expect(updated.menu_order).toBe(42);
-    });
-
-    it('throws ActionError for a non-existent page ID', async () => {
+    it('throws ActionError for a non-existent page ID on update', async () => {
       await expect(
-        executeUpdatePost(
-          { apiBase, authHeader: authConfig.authHeader, resource: 'pages', responseSchema: pageSchema },
-          { id: 999999, title: 'Ghost Page' }
-        )
-      ).rejects.toThrow(ActionError);
-    });
-  });
-
-  // ---------------------------------------------------------------------------
-  // Delete
-  // ---------------------------------------------------------------------------
-
-  describe('executeDeletePost (pages)', () => {
-    it('moves a page to trash (no force)', async () => {
-      const created = await executeCreatePost(authConfig, {
-        title: 'Action Test: Trash Page',
-        status: 'draft',
-      });
-      createdIds.push(created.id);
-
-      const result = await executeDeletePost(deleteConfig, { id: created.id });
-
-      expect(result.id).toBe(created.id);
-      expect(result.deleted).toBe(false);
-    });
-
-    it('permanently deletes a page (force=true)', async () => {
-      const created = await executeCreatePost(authConfig, {
-        title: 'Action Test: Destroy Page',
-        status: 'draft',
-      });
-
-      const result = await executeDeletePost(deleteConfig, { id: created.id, force: true });
-
-      expect(result.id).toBe(created.id);
-      expect(result.deleted).toBe(true);
-    });
-
-    it('throws ActionError for a non-existent page ID', async () => {
-      await expect(
-        executeDeletePost(deleteConfig, { id: 999999, force: true })
+        executeUpdatePost(updateConfig, { id: 999999, title: 'Ghost Page' })
       ).rejects.toThrow(ActionError);
     });
   });

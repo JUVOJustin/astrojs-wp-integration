@@ -50,12 +50,15 @@ describe('Actions: Books (CPT) CRUD', () => {
     }
   });
 
-  // ---------------------------------------------------------------------------
-  // Create
-  // ---------------------------------------------------------------------------
+  const updateConfig = {
+    apiBase,
+    authHeader: authConfig.authHeader,
+    resource: 'books' as const,
+    responseSchema: contentWordPressSchema,
+  };
 
-  describe('executeCreatePost (books)', () => {
-    it('creates a draft book with the given title', async () => {
+  describe('resource-specific behavior', () => {
+    it('creates a book through the books endpoint', async () => {
       const book = await executeCreatePost(authConfig, {
         title: 'Action Test: Draft Book',
         status: 'draft',
@@ -69,118 +72,49 @@ describe('Actions: Books (CPT) CRUD', () => {
       expect(book.type).toBe('book');
     });
 
-    it('creates a published book', async () => {
-      const book = await executeCreatePost(authConfig, {
-        title: 'Action Test: Published Book',
-        status: 'publish',
-      });
-
-      createdIds.push(book.id);
-
-      expect(book.status).toBe('publish');
-      expect(book.type).toBe('book');
-    });
-
-    it('creates a book with content and excerpt', async () => {
-      const book = await executeCreatePost(authConfig, {
-        title: 'Action Test: Book With Content',
-        content: '<p>A fascinating book about testing.</p>',
-        excerpt: 'Book test excerpt',
-        status: 'draft',
-      });
-
-      createdIds.push(book.id);
-
-      expect(book.content.rendered).toContain('A fascinating book about testing.');
-      expect(book.excerpt.rendered).toContain('Book test excerpt');
-    });
-
-    it('throws ActionError when not authenticated', async () => {
-      await expect(
-        executeCreatePost(anonConfig, { title: 'Should Fail', status: 'draft' })
-      ).rejects.toThrow(ActionError);
-    });
-  });
-
-  // ---------------------------------------------------------------------------
-  // Update
-  // ---------------------------------------------------------------------------
-
-  describe('executeUpdatePost (books)', () => {
-    it('updates the title of an existing book', async () => {
+    it('updates an existing book through the books endpoint', async () => {
       const created = await executeCreatePost(authConfig, {
         title: 'Action Test: Book Before Update',
         status: 'draft',
       });
       createdIds.push(created.id);
 
-      const updated = await executeUpdatePost(
-        { apiBase, authHeader: authConfig.authHeader, resource: 'books', responseSchema: contentWordPressSchema },
-        { id: created.id, title: 'Action Test: Book After Update' }
-      );
+      const updated = await executeUpdatePost(updateConfig, {
+        id: created.id,
+        title: 'Action Test: Book After Update',
+        status: 'publish',
+      });
 
       expect(updated.id).toBe(created.id);
+      expect(updated.type).toBe('book');
       expect(updated.title.rendered).toBe('Action Test: Book After Update');
-    });
-
-    it('updates the status of a book', async () => {
-      const created = await executeCreatePost(authConfig, {
-        title: 'Action Test: Book Status Change',
-        status: 'draft',
-      });
-      createdIds.push(created.id);
-
-      const updated = await executeUpdatePost(
-        { apiBase, authHeader: authConfig.authHeader, resource: 'books', responseSchema: contentWordPressSchema },
-        { id: created.id, status: 'publish' }
-      );
-
       expect(updated.status).toBe('publish');
     });
 
-    it('throws ActionError for a non-existent book ID', async () => {
-      await expect(
-        executeUpdatePost(
-          { apiBase, authHeader: authConfig.authHeader, resource: 'books', responseSchema: contentWordPressSchema },
-          { id: 999999, title: 'Ghost Book' }
-        )
-      ).rejects.toThrow(ActionError);
-    });
-  });
-
-  // ---------------------------------------------------------------------------
-  // Delete
-  // ---------------------------------------------------------------------------
-
-  describe('executeDeletePost (books)', () => {
-    it('moves a book to trash (no force)', async () => {
-      const created = await executeCreatePost(authConfig, {
-        title: 'Action Test: Trash Book',
-        status: 'draft',
-      });
-      createdIds.push(created.id);
-
-      const result = await executeDeletePost(deleteConfig, { id: created.id });
-
-      expect(result.id).toBe(created.id);
-      expect(result.deleted).toBe(false);
-    });
-
-    it('permanently deletes a book (force=true)', async () => {
+    it('permanently deletes a book through the books endpoint', async () => {
       const created = await executeCreatePost(authConfig, {
         title: 'Action Test: Destroy Book',
         status: 'draft',
       });
+      createdIds.push(created.id);
 
-      const result = await executeDeletePost(deleteConfig, { id: created.id, force: true });
+      const deleted = await executeDeletePost(deleteConfig, { id: created.id, force: true });
 
-      expect(result.id).toBe(created.id);
-      expect(result.deleted).toBe(true);
+      expect(deleted.id).toBe(created.id);
+      expect(deleted.deleted).toBe(true);
+    });
+  });
+
+  describe('error behavior', () => {
+    it('throws ActionError when not authenticated', async () => {
+      await expect(
+        executeCreatePost(anonConfig, { title: 'Should Fail', status: 'draft' })
+      ).rejects.toThrow(ActionError);
     });
 
-    it('throws ActionError for a non-existent book ID', async () => {
+    it('throws ActionError for a non-existent book ID on update', async () => {
       await expect(
-        executeDeletePost(deleteConfig, { id: 999999, force: true })
+        executeUpdatePost(updateConfig, { id: 999999, title: 'Ghost Book' })
       ).rejects.toThrow(ActionError);
     });
   });

@@ -44,6 +44,28 @@ describe('Static Loaders', () => {
       }
     });
 
+    it('stores seeded native meta for a known post', async () => {
+      const loader = wordPressPostStaticLoader({ baseUrl });
+      const { store, entries } = createMockStore();
+      const logger = createMockLogger();
+
+      await loader.load({ store, logger } as any);
+
+      const seeded = Array.from(entries.values()).find((entry) => {
+        const data = entry.data as { slug?: string };
+        return data.slug === 'test-post-001';
+      });
+
+      expect(seeded).toBeDefined();
+
+      const meta = (seeded!.data as { meta?: Record<string, unknown> | unknown[] }).meta;
+      expect(meta).toEqual(expect.objectContaining({
+        test_string_meta: 'Seed string meta for test-post-001',
+        test_number_meta: 11.5,
+        test_array_meta: ['seed-post-001-a', 'seed-post-001-b'],
+      }));
+    });
+
     it('uses string IDs as store keys', async () => {
       const loader = wordPressPostStaticLoader({ baseUrl });
       const { store, entries } = createMockStore();
@@ -81,6 +103,28 @@ describe('Static Loaders', () => {
         expect(entry.rendered).toBeDefined();
         expect(entry.rendered!.html).toBeTruthy();
       }
+    });
+
+    it('stores seeded native meta for a known page', async () => {
+      const loader = wordPressPageStaticLoader({ baseUrl });
+      const { store, entries } = createMockStore();
+      const logger = createMockLogger();
+
+      await loader.load({ store, logger } as any);
+
+      const seeded = Array.from(entries.values()).find((entry) => {
+        const data = entry.data as { slug?: string };
+        return data.slug === 'about';
+      });
+
+      expect(seeded).toBeDefined();
+
+      const meta = (seeded!.data as { meta?: Record<string, unknown> | unknown[] }).meta;
+      expect(meta).toEqual(expect.objectContaining({
+        test_string_meta: 'Seed string meta for about-page',
+        test_number_meta: 21.5,
+        test_array_meta: ['seed-about-a', 'seed-about-b'],
+      }));
     });
   });
 

@@ -423,7 +423,17 @@ TypeScript types inferred from schemas:
 
 ## Development & Testing
 
-This project uses integration tests that run against a real WordPress instance via [`@wordpress/env`](https://developer.wordpress.org/block-editor/reference-guides/packages/packages-env/) (Docker). Test content (150 posts, 10 pages, categories, tags) is automatically seeded on every `wp-env start` via a lifecycle script. See [AGENTS.md](./AGENTS.md) for detailed testing guidelines.
+This project uses integration tests that run against a real WordPress instance via [`@wordpress/env`](https://developer.wordpress.org/block-editor/reference-guides/packages/packages-env/) (Docker). Test content (150 posts, 10 pages, categories, tags) is automatically seeded on every `wp-env start` via a lifecycle script. Native REST meta is also seeded for known entries (`test-post-001`, `about`, `test-book-001`) so loader suites can verify meta passthrough behavior.
+
+ACF-based integration tests rely on the free ACF plugin, which is installed automatically during `npm run wp:start`.
+
+Reference suites for full CRUD examples:
+
+- `tests/integration/actions/posts.test.ts` — core post CRUD
+- `tests/integration/actions/pages.test.ts` — core page CRUD
+- `tests/integration/actions/books.test.ts` — core CPT (`book`) CRUD
+- `tests/integration/actions/acf.test.ts` — ACF CRUD with simple (text/number/url) and complex relation fields; relation values are validated as IDs and with `_links['acf:post']`/`_embedded['acf:post']` on `_embed=1` fetches
+- `tests/integration/actions/meta.test.ts` — core meta CRUD with simple, complex, and subtype-specific custom fields
 
 ```bash
 npm run wp:start   # Start WordPress Docker container (seeds data automatically)
