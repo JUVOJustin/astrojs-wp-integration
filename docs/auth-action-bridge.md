@@ -95,3 +95,47 @@ export const onRequest = defineMiddleware(async (context, next) => {
   return next();
 });
 ```
+
+## Protected Update Flow (Middleware + Action)
+
+This flow reuses the same JWT cookie across middleware and actions:
+
+1. Middleware checks authentication and sets `context.locals.user`.
+2. `createUpdatePostAction` reads JWT auth from the same request cookie via `getActionAuth(context)`.
+3. `Astro.callAction(actions.updatePost, ...)` automatically sends the correct `Authorization: Bearer ...` header to WordPress.
+
+```astro
+---
+// src/pages/admin/edit-post.astro
+import { actions } from 'astro:actions';
+
+const user = Astro.locals.user;
+
+if (!user) {
+  return Astro.redirect('/login');
+}
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const id = Number(formData.get('id'));
+  const title = String(formData.get('title') ?? '').trim();
+
+  const { data, error } = await Astro.callAction(actions.updatePost, {
+    id,
+    title,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return Astro.redirect(`/admin/posts/${data.id}`);
+}
+---
+
+<form method="POST">
+  <input type="hidden" name="id" value="123" />
+  <input type="text" name="title" value="Updated from Astro" required />
+  <button type="submit">Update post</button>
+</form>
+```

@@ -399,6 +399,41 @@ export const onRequest = defineMiddleware(async (context, next) => {
 });
 ```
 
+### Protected update action (JWT reused automatically)
+
+After middleware authenticates the request, action calls can reuse the same JWT cookie without manually forwarding headers:
+
+```astro
+---
+// src/pages/admin/edit-post.astro
+import { actions } from 'astro:actions';
+
+if (!Astro.locals.user) {
+  return Astro.redirect('/login');
+}
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const id = Number(formData.get('id'));
+  const title = String(formData.get('title') ?? '').trim();
+
+  const { data, error } = await Astro.callAction(actions.updatePost, { id, title });
+
+  if (error) {
+    throw error;
+  }
+
+  return Astro.redirect(`/admin/posts/${data.id}`);
+}
+---
+
+<form method="POST">
+  <input type="hidden" name="id" value="123" />
+  <input type="text" name="title" value="Updated from Astro" required />
+  <button type="submit">Update post</button>
+</form>
+```
+
 Then access the authenticated user in your protected routes:
 
 ```astro
