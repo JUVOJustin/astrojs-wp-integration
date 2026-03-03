@@ -83,7 +83,7 @@ ACF fields are seeded for a subset of content. The mu-plugin `register-acf-field
 
 ### Plugin requirements
 
-The test environment installs the free ACF plugin during `wp-env start` via `wp plugin install --activate https://advancedcustomfields.com/latest/`.
+The test environment ensures the free ACF plugin is available during `wp-env start` by activating it when installed or installing+activating `advanced-custom-fields` when missing.
 
 The test environment also installs `jwt-authentication-for-wp-rest-api` during `wp-env start` and sets `JWT_AUTH_SECRET_KEY` in `.wp-env.json` for JWT endpoint tests.
 

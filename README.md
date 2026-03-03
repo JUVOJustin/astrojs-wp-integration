@@ -539,9 +539,9 @@ TypeScript types inferred from schemas:
 
 This project uses integration tests that run against a real WordPress instance via [`@wordpress/env`](https://developer.wordpress.org/block-editor/reference-guides/packages/packages-env/) (Docker). Test content (150 posts, 10 pages, categories, tags) is automatically seeded on every `wp-env start` via a lifecycle script. Native REST meta is also seeded for known entries (`test-post-001`, `about`, `test-book-001`) so loader suites can verify meta passthrough behavior.
 
-ACF-based integration tests rely on the free ACF plugin, which is installed automatically during `npm run wp:start`.
+ACF-based integration tests rely on the free ACF plugin, which is auto-activated when already installed or installed+activated when missing during `npm run wp:start`.
 
-JWT auth integration tests rely on `jwt-authentication-for-wp-rest-api`, which is also installed automatically during `npm run wp:start`.
+JWT auth integration tests rely on `jwt-authentication-for-wp-rest-api`, which follows the same activate-or-install flow during `npm run wp:start`.
 
 Reference suites for full CRUD examples:
 
