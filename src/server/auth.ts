@@ -7,26 +7,27 @@ import {
 import type { APIContext } from 'astro';
 import { z } from 'astro/zod';
 import { WordPressClient } from '../client';
-import { wordPressUserLoader } from '../loaders/live';
+import { createJwtAuthHeader, type JwtAuthCredentials } from '../client/auth';
 import type { WordPressAuthor } from '../schemas';
 
 const DEFAULT_COOKIE_NAME = 'wp_astro_auth';
 const DEFAULT_COOKIE_PATH = '/';
 const DEFAULT_COOKIE_SAME_SITE: 'lax' = 'lax';
 const DEFAULT_SESSION_DURATION_SECONDS = 60 * 60 * 12;
-const WORDPRESS_LOGIN_PATH = '/wp-login.php';
-const WORDPRESS_ADMIN_PATH = '/wp-admin/';
-const WORDPRESS_TEST_COOKIE_NAME = 'wordpress_test_cookie';
-const WORDPRESS_TEST_COOKIE_VALUE = 'WP Cookie check';
+const DEFAULT_JWT_TOKEN_PATH = '/wp-json/jwt-auth/v1/token';
 
 const loginUsernameOrEmailSchema = z.string().trim().min(1).max(320);
 
-type UserLoaderEntryInput = Parameters<ReturnType<typeof wordPressUserLoader>['loadEntry']>[0];
+const jwtAuthTokenResponseSchema = z.object({
+  token: z.string().trim().min(1),
+  user_email: z.string().optional(),
+  user_nicename: z.string().optional(),
+  user_display_name: z.string().optional(),
+});
 
-type UserLoaderResult = {
-  data?: WordPressAuthor;
-  error?: Error;
-};
+const jwtAuthErrorSchema = z.object({
+  message: z.string().trim().min(1),
+});
 
 /**
  * Input schema for WordPress login requests handled by Astro server actions.
@@ -72,6 +73,7 @@ export type WordPressLoginAction = ActionClient<
  */
 export interface WordPressAuthBridgeConfig {
   baseUrl: string;
+  jwtTokenPath?: string;
   cookieName?: string;
   cookiePath?: string;
   cookieSameSite?: 'lax' | 'strict' | 'none';
@@ -80,14 +82,14 @@ export interface WordPressAuthBridgeConfig {
 }
 
 /**
- * In-memory authentication session for one logged-in WordPress user.
- * Stores the WordPress session cookies used for REST API requests.
+ * Decoded authentication session represented by the JWT token stored in a cookie.
  */
 export interface WordPressAuthSession {
   id: string;
-  userId: number;
-  cookies: string;
-  expiresAt: number;
+  token: string;
+  authHeader: string;
+  userId: number | null;
+  expiresAt: number | null;
 }
 
 /**
@@ -99,8 +101,11 @@ export interface WordPressAuthBridge {
   getSession: (sessionId: string | undefined) => WordPressAuthSession | null;
   deleteSession: (sessionId: string | undefined) => void;
   clearCookie: (cookies: APIContext['cookies']) => void;
-  clearAuthentication: (cookies: APIContext['cookies'], sessionId: string | undefined) => void;
+  clearAuthentication: (cookies: APIContext['cookies'], sessionId?: string | undefined) => void;
   resolveUserBySessionId: (sessionId: string | undefined) => Promise<WordPressAuthor | null>;
+  getActionAuth: (context: Pick<ActionAPIContext, 'cookies'>) => JwtAuthCredentials | null;
+  resolveUser: (context: Pick<APIContext, 'cookies'>) => Promise<WordPressAuthor | null>;
+  isAuthenticated: (context: Pick<APIContext, 'cookies'>) => Promise<boolean>;
 }
 
 /**
@@ -127,13 +132,6 @@ function sanitizeRedirectPath(candidate: string | null | undefined): string {
 }
 
 /**
- * Validates a session timestamp and ensures expired sessions are treated as invalid.
- */
-function isSessionExpired(session: WordPressAuthSession): boolean {
-  return session.expiresAt <= Date.now();
-}
-
-/**
  * Builds a WordPress URL by appending a suffix to the configured base URL.
  */
 function buildWordPressURL(baseUrl: string, suffix: string): string {
@@ -141,142 +139,186 @@ function buildWordPressURL(baseUrl: string, suffix: string): string {
 }
 
 /**
- * Splits a combined Set-Cookie header into individual cookie strings.
+ * Decodes the JWT payload to inspect expiration and user metadata claims.
  */
-function splitSetCookieHeader(headerValue: string): string[] {
-  return headerValue
-    .split(/,(?=[^;]+?=)/)
-    .map((value) => value.trim())
-    .filter(Boolean);
-}
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  const tokenParts = token.split('.');
 
-/**
- * Extracts Set-Cookie header values from a fetch response.
- */
-function extractSetCookieHeaders(response: Response): string[] {
-  const headers = response.headers as unknown as { getSetCookie?: () => string[] };
-
-  if (typeof headers.getSetCookie === 'function') {
-    return headers.getSetCookie();
+  if (tokenParts.length < 2) {
+    return null;
   }
 
-  const setCookieHeader = response.headers.get('set-cookie');
+  try {
+    const decodedPayload = Buffer.from(tokenParts[1], 'base64url').toString('utf-8');
+    const parsedPayload: unknown = JSON.parse(decodedPayload);
 
-  if (!setCookieHeader) {
-    return [];
-  }
-
-  return splitSetCookieHeader(setCookieHeader);
-}
-
-/**
- * Converts Set-Cookie header values into a Cookie header string.
- */
-function toCookieHeader(setCookieHeaders: string[]): string {
-  return setCookieHeaders
-    .map((cookie) => cookie.split(';')[0]?.trim())
-    .filter(Boolean)
-    .join('; ');
-}
-
-/**
- * Merges multiple Cookie header strings into a single normalized header value.
- */
-function mergeCookieHeaders(...headers: Array<string | undefined>): string {
-  const cookieMap = new Map<string, string>();
-
-  for (const header of headers) {
-    if (!header) {
-      continue;
+    if (typeof parsedPayload !== 'object' || parsedPayload === null) {
+      return null;
     }
 
-    const parts = header.split(';');
+    return parsedPayload as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
 
-    for (const part of parts) {
-      const trimmed = part.trim();
+/**
+ * Reads the `exp` claim in seconds and converts it to a Unix timestamp in ms.
+ */
+function getJwtExpiry(token: string): number | null {
+  const payload = decodeJwtPayload(token);
 
-      if (!trimmed) {
-        continue;
-      }
-
-      const separatorIndex = trimmed.indexOf('=');
-
-      if (separatorIndex <= 0) {
-        continue;
-      }
-
-      const name = trimmed.slice(0, separatorIndex).trim();
-      const value = trimmed.slice(separatorIndex + 1).trim();
-
-      if (!name) {
-        continue;
-      }
-
-      cookieMap.set(name, value);
-    }
+  if (!payload) {
+    return null;
   }
 
-  return Array.from(cookieMap.entries())
-    .map(([name, value]) => `${name}=${value}`)
-    .join('; ');
+  const expiresAtSeconds = payload.exp;
+
+  if (typeof expiresAtSeconds !== 'number' || !Number.isFinite(expiresAtSeconds)) {
+    return null;
+  }
+
+  return expiresAtSeconds * 1000;
 }
 
 /**
- * Checks whether the cookie header contains a WordPress logged-in cookie.
+ * Reads the WordPress user ID claim from JWT payload metadata when available.
  */
-function hasWordPressLoginCookie(cookieHeader: string): boolean {
-  return cookieHeader
-    .split(';')
-    .map((part) => part.trim())
-    .some((part) => part.startsWith('wordpress_logged_in_') || part.startsWith('wordpress_sec_'));
+function getJwtUserId(token: string): number | null {
+  const payload = decodeJwtPayload(token);
+
+  if (!payload || typeof payload.data !== 'object' || payload.data === null) {
+    return null;
+  }
+
+  const userValue = (payload.data as { user?: { id?: unknown } }).user?.id;
+
+  if (typeof userValue === 'number' && Number.isFinite(userValue)) {
+    return userValue;
+  }
+
+  if (typeof userValue !== 'string') {
+    return null;
+  }
+
+  const parsedUserId = Number.parseInt(userValue, 10);
+
+  if (!Number.isFinite(parsedUserId)) {
+    return null;
+  }
+
+  return parsedUserId;
 }
 
 /**
- * Authenticates against the WordPress login form and returns the session cookies.
+ * Builds a normalized auth session object from one JWT token string.
  */
-async function loginWithWordPressForm(
+function createSessionFromToken(token: string): WordPressAuthSession {
+  const trimmedToken = token.trim();
+
+  return {
+    id: trimmedToken,
+    token: trimmedToken,
+    authHeader: createJwtAuthHeader(trimmedToken),
+    userId: getJwtUserId(trimmedToken),
+    expiresAt: getJwtExpiry(trimmedToken),
+  };
+}
+
+/**
+ * Checks whether a decoded JWT session is already expired.
+ */
+function isSessionExpired(session: WordPressAuthSession): boolean {
+  if (!session.expiresAt) {
+    return false;
+  }
+
+  return session.expiresAt <= Date.now();
+}
+
+/**
+ * Calculates the cookie lifetime while respecting both local config and JWT expiry.
+ */
+function getCookieMaxAge(defaultSeconds: number, expiresAt: number | null): number {
+  if (!expiresAt) {
+    return defaultSeconds;
+  }
+
+  const remainingSeconds = Math.floor((expiresAt - Date.now()) / 1000);
+
+  if (remainingSeconds <= 0) {
+    return 0;
+  }
+
+  return Math.min(defaultSeconds, remainingSeconds);
+}
+
+/**
+ * Authenticates with the JWT plugin endpoint and returns one signed token.
+ */
+async function loginWithWordPressJwt(
   baseUrl: string,
+  jwtTokenPath: string,
   usernameOrEmail: string,
   password: string,
 ): Promise<string> {
-  const loginUrl = buildWordPressURL(baseUrl, WORDPRESS_LOGIN_PATH);
-  const adminUrl = buildWordPressURL(baseUrl, WORDPRESS_ADMIN_PATH);
+  const loginUrl = buildWordPressURL(baseUrl, jwtTokenPath);
 
-  const initialResponse = await fetch(loginUrl, { redirect: 'manual' });
-  const initialCookies = toCookieHeader(extractSetCookieHeaders(initialResponse));
-  const testCookieHeader = `${WORDPRESS_TEST_COOKIE_NAME}=${WORDPRESS_TEST_COOKIE_VALUE}`;
-  const initialCookieHeader = mergeCookieHeaders(testCookieHeader, initialCookies);
-
-  const body = new URLSearchParams({
-    log: usernameOrEmail,
-    pwd: password,
-    redirect_to: adminUrl,
-    rememberme: 'forever',
-    'wp-submit': 'Log In',
-    testcookie: '1',
-  });
-
-  const loginResponse = await fetch(loginUrl, {
+  const response = await fetch(loginUrl, {
     method: 'POST',
-    redirect: 'manual',
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      ...(initialCookieHeader ? { Cookie: initialCookieHeader } : {}),
+      'Content-Type': 'application/json',
     },
-    body: body.toString(),
+    body: JSON.stringify({
+      username: usernameOrEmail,
+      password,
+    }),
   });
 
-  const loginCookies = toCookieHeader(extractSetCookieHeaders(loginResponse));
-  const mergedCookieHeader = mergeCookieHeaders(initialCookieHeader, loginCookies);
+  const data: unknown = await response.json().catch(() => null);
 
-  if (!mergedCookieHeader || !hasWordPressLoginCookie(mergedCookieHeader)) {
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new ActionError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: 'WordPress JWT endpoint is missing. Activate the jwt-authentication-for-wp-rest-api plugin.',
+      });
+    }
+
+    const jwtError = jwtAuthErrorSchema.safeParse(data);
+
     throw new ActionError({
       code: 'UNAUTHORIZED',
-      message: 'WordPress rejected these credentials.',
+      message: jwtError.success ? jwtError.data.message : 'WordPress rejected these credentials.',
     });
   }
 
-  return mergedCookieHeader;
+  const tokenResponse = jwtAuthTokenResponseSchema.safeParse(data);
+
+  if (!tokenResponse.success) {
+    throw new ActionError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: 'WordPress JWT endpoint returned an invalid token payload.',
+    });
+  }
+
+  return tokenResponse.data.token;
+}
+
+/**
+ * Resolves the authenticated WordPress user associated with one JWT token.
+ */
+async function resolveUserByToken(baseUrl: string, token: string): Promise<WordPressAuthor | null> {
+  const client = new WordPressClient({
+    baseUrl,
+    auth: { token },
+  });
+
+  try {
+    return await client.getCurrentUser();
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -285,62 +327,41 @@ async function loginWithWordPressForm(
 export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): WordPressAuthBridge {
   const normalizedConfig = {
     ...config,
+    jwtTokenPath: config.jwtTokenPath || DEFAULT_JWT_TOKEN_PATH,
     cookieName: config.cookieName || DEFAULT_COOKIE_NAME,
     cookiePath: config.cookiePath || DEFAULT_COOKIE_PATH,
     cookieSameSite: config.cookieSameSite || DEFAULT_COOKIE_SAME_SITE,
     sessionDurationSeconds: config.sessionDurationSeconds || DEFAULT_SESSION_DURATION_SECONDS,
   };
 
-  const sessionStore = new Map<string, WordPressAuthSession>();
-
   /**
-   * Creates one in-memory session record and returns its generated token details.
-   */
-  function createSession(userId: number, cookies: string): WordPressAuthSession {
-    const session: WordPressAuthSession = {
-      id: crypto.randomUUID(),
-      userId,
-      cookies,
-      expiresAt: Date.now() + normalizedConfig.sessionDurationSeconds * 1000,
-    };
-
-    sessionStore.set(session.id, session);
-
-    return session;
-  }
-
-  /**
-   * Reads one session from memory and drops it immediately when the session is expired.
+   * Reads one JWT session from cookie value and returns null when missing/invalid.
    */
   function getSession(sessionId: string | undefined): WordPressAuthSession | null {
     if (!sessionId) {
       return null;
     }
 
-    const session = sessionStore.get(sessionId);
+    const token = sessionId.trim();
 
-    if (!session) {
+    if (!token) {
       return null;
     }
+
+    const session = createSessionFromToken(token);
 
     if (!isSessionExpired(session)) {
       return session;
     }
 
-    sessionStore.delete(sessionId);
-
     return null;
   }
 
   /**
-   * Removes a session token from memory when a user signs out or a session becomes invalid.
+   * JWT sessions are stateless, so explicit server-side deletion is a no-op.
    */
-  function deleteSession(sessionId: string | undefined): void {
-    if (!sessionId) {
-      return;
-    }
-
-    sessionStore.delete(sessionId);
+  function deleteSession(_sessionId: string | undefined): void {
+    return;
   }
 
   /**
@@ -353,15 +374,14 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
   }
 
   /**
-   * Clears both in-memory session state and browser cookie for one authentication context.
+   * Clears browser cookie state for one authentication context.
    */
-  function clearAuthentication(cookies: APIContext['cookies'], sessionId: string | undefined): void {
-    deleteSession(sessionId);
+  function clearAuthentication(cookies: APIContext['cookies'], _sessionId?: string | undefined): void {
     clearCookie(cookies);
   }
 
   /**
-   * Resolves the authenticated WordPress user by session token via the dynamic user loader.
+   * Resolves one WordPress user from a cookie-provided JWT token.
    */
   async function resolveUserBySessionId(sessionId: string | undefined): Promise<WordPressAuthor | null> {
     const session = getSession(sessionId);
@@ -370,23 +390,39 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
       return null;
     }
 
-    const loader = wordPressUserLoader({
-      baseUrl: normalizedConfig.baseUrl,
-      cookies: session.cookies,
-    });
+    return resolveUserByToken(normalizedConfig.baseUrl, session.token);
+  }
 
-    const result = (await loader.loadEntry({
-      filter: {
-        id: session.userId,
-      },
-    } as UserLoaderEntryInput)) as UserLoaderResult;
+  /**
+   * Creates JWT action auth config from the current request cookie value.
+   */
+  function getActionAuth(context: Pick<ActionAPIContext, 'cookies'>): JwtAuthCredentials | null {
+    const sessionId = context.cookies.get(normalizedConfig.cookieName)?.value;
+    const session = getSession(sessionId);
 
-    if (result.error || !result.data) {
-      deleteSession(session.id);
+    if (!session) {
       return null;
     }
 
-    return result.data;
+    return {
+      token: session.token,
+    };
+  }
+
+  /**
+   * Resolves the authenticated user directly from middleware context.
+   */
+  async function resolveUser(context: Pick<APIContext, 'cookies'>): Promise<WordPressAuthor | null> {
+    const sessionId = context.cookies.get(normalizedConfig.cookieName)?.value;
+    return resolveUserBySessionId(sessionId);
+  }
+
+  /**
+   * Checks whether the incoming request has one valid, usable user session.
+   */
+  async function isAuthenticated(context: Pick<APIContext, 'cookies'>): Promise<boolean> {
+    const user = await resolveUser(context);
+    return user !== null;
   }
 
   const loginAction: WordPressLoginAction = defineAction({
@@ -396,36 +432,37 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
       input: WordPressLoginInput,
       context: ActionAPIContext,
     ): Promise<WordPressLoginActionResult> => {
-      const cookieHeader = await loginWithWordPressForm(
+      const token = await loginWithWordPressJwt(
         normalizedConfig.baseUrl,
+        normalizedConfig.jwtTokenPath,
         input.usernameOrEmail,
         input.password,
       );
 
-      const client = new WordPressClient({
-        baseUrl: normalizedConfig.baseUrl,
-        cookies: cookieHeader,
-      });
+      const session = getSession(token);
 
-      let user: WordPressAuthor;
+      if (!session) {
+        throw new ActionError({
+          code: 'UNAUTHORIZED',
+          message: 'WordPress returned an expired or invalid JWT session.',
+        });
+      }
 
-      try {
-        user = await client.getCurrentUser();
-      } catch {
+      const user = await resolveUserByToken(normalizedConfig.baseUrl, session.token);
+
+      if (!user) {
         throw new ActionError({
           code: 'UNAUTHORIZED',
           message: 'WordPress rejected these credentials.',
         });
       }
 
-      const session = createSession(user.id, cookieHeader);
-
-      context.cookies.set(normalizedConfig.cookieName, session.id, {
+      context.cookies.set(normalizedConfig.cookieName, session.token, {
         path: normalizedConfig.cookiePath,
         httpOnly: true,
         sameSite: normalizedConfig.cookieSameSite,
         secure: normalizedConfig.secureCookies ?? context.url.protocol === 'https:',
-        maxAge: normalizedConfig.sessionDurationSeconds,
+        maxAge: getCookieMaxAge(normalizedConfig.sessionDurationSeconds, session.expiresAt),
       });
 
       return {
@@ -444,5 +481,8 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
     clearCookie,
     clearAuthentication,
     resolveUserBySessionId,
+    getActionAuth,
+    resolveUser,
+    isAuthenticated,
   };
 }

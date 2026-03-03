@@ -1,4 +1,4 @@
-import { createBasicAuthHeader, type BasicAuthCredentials } from './auth';
+import { createWordPressAuthHeader, type WordPressAuthConfig } from './auth';
 import { createPostsMethods } from './posts';
 import { createPagesMethods } from './pages';
 import { createMediaMethods } from './media';
@@ -21,7 +21,9 @@ export interface WordPressClientConfig {
    */
   baseUrl: string;
   /** Authentication credentials for all API requests */
-  auth?: BasicAuthCredentials;
+  auth?: WordPressAuthConfig;
+  /** Prebuilt Authorization header value for advanced auth flows */
+  authHeader?: string;
   /** Cookie header string for WordPress session-based authentication */
   cookies?: string;
 }
@@ -109,7 +111,11 @@ export class WordPressClient {
 
   constructor(config: WordPressClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, ''); // Remove trailing slash
-    this.authHeader = config.auth ? createBasicAuthHeader(config.auth) : undefined;
+    this.authHeader = config.authHeader
+      ? createWordPressAuthHeader(config.authHeader)
+      : config.auth
+        ? createWordPressAuthHeader(config.auth)
+        : undefined;
     this.cookieHeader = config.cookies;
     
     // Use WordPress REST API pretty permalinks format
@@ -197,7 +203,6 @@ export class WordPressClient {
    * @returns Object with data and pagination headers
    */
   async fetchAPIPaginated<T>(endpoint: string, params: Record<string, string> = {}): Promise<FetchResult<T>> {
-    const startTime = performance.now();
     const url = new URL(`${this.apiBase}${endpoint}`);
     Object.entries(params).forEach(([key, value]) => url.searchParams.append(key, value));
 
@@ -220,8 +225,6 @@ export class WordPressClient {
     }
 
     const data = await response.json();
-    const duration = Math.round(performance.now() - startTime);
-    console.log(`[WP API] ${endpoint} - ${duration}ms - params:`, JSON.stringify(params));
 
     // Extract pagination headers
     const total = parseInt(response.headers.get('X-WP-Total') || '0', 10);

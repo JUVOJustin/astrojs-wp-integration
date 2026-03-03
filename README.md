@@ -7,7 +7,7 @@ Ready to use WordPress integration for Astro.js with live loaders, static loader
 - **Live Loaders**: Real-time data fetching from WordPress REST API (server-side rendering)
 - **Static Loaders**: Build-time data fetching for static site generation
 - **WordPress Client**: Direct runtime API access for dynamic content
-- **Auth Action Bridge**: Pre-shipped Astro server action with Zod-validated WordPress login
+- **Auth Action Bridge**: Pre-shipped Astro server action bridge with JWT login and middleware helpers
 - **Gutenberg Support**: Automatic block styles loading for proper rendering
 - **TypeScript First**: Fully typed with extensible schemas
 - **Easy Extension**: Simple API for adding custom ACF fields, post types, and taxonomies
@@ -263,12 +263,13 @@ const tags = await wp.getTags();
 
 ### With Authentication
 
-For endpoints requiring authentication (e.g., `/settings`, `/users/me`):
+For endpoints requiring authentication (e.g., `/settings`, `/users/me`) you can use basic auth or JWT auth:
 
 ```typescript
 import { WordPressClient } from 'wp-astrojs-integration';
 
-const wp = new WordPressClient({
+// Basic auth (application password)
+const basicClient = new WordPressClient({
   baseUrl: 'https://your-wordpress-site.com',
   auth: {
     username: 'your-username',
@@ -276,27 +277,32 @@ const wp = new WordPressClient({
   }
 });
 
-// Get WordPress site settings (requires auth)
-const settings = await wp.getSettings();
-console.log(settings.title, settings.description);
+// JWT auth (user-scoped SSR/session flows)
+const jwtClient = new WordPressClient({
+  baseUrl: 'https://your-wordpress-site.com',
+  auth: {
+    token: 'eyJ0eXAiOiJKV1QiLCJhbGciOi...'
+  }
+});
 
-// Get current authenticated user
-const currentUser = await wp.getCurrentUser();
+const currentUser = await jwtClient.getCurrentUser();
 console.log(currentUser.name, currentUser.email);
 ```
 
 ### Astro Actions Authentication Bridge (Pre-Shipped)
 
-Use the packaged bridge to get a ready-to-use login server action with Zod validation and automatic cookie handling.
+Use the packaged bridge to get a ready-to-use JWT login server action with Zod validation and middleware/action helpers.
 
 The bridge includes:
 
 - `wordPressLoginInputSchema` for predefined Zod validation (`usernameOrEmail`, `password`, `redirectTo`)
 - `loginAction` for Astro Actions
-- session helpers for middleware (`resolveUserBySessionId`, `clearAuthentication`)
+- middleware helpers (`resolveUser`, `isAuthenticated`, `clearAuthentication`)
+- action auth helper (`getActionAuth`) for request-scoped JWT auth in `create*PostAction`
 
-The packaged bridge submits a form POST to `/wp-login.php`, stores the WordPress
-session cookies, and reuses those cookies for authenticated REST API calls.
+The packaged bridge authenticates against `jwt-authentication-for-wp-rest-api`, stores the JWT in an HTTP-only cookie, and reuses that token for authenticated REST API calls.
+
+WordPress must have the JWT plugin enabled and `JWT_AUTH_SECRET_KEY` configured.
 
 ```typescript
 import { z } from 'astro/zod';
@@ -318,9 +324,26 @@ export const wordPressAuthBridge = createWordPressAuthBridge({
 ```typescript
 // src/actions/index.ts
 import { wordPressAuthBridge } from '../lib/auth/bridge';
+import {
+  createCreatePostAction,
+  createUpdatePostAction,
+  createDeletePostAction,
+} from 'wp-astrojs-integration';
 
 export const server = {
   login: wordPressAuthBridge.loginAction,
+  createPost: createCreatePostAction({
+    baseUrl: import.meta.env.WP_URL,
+    auth: (context) => wordPressAuthBridge.getActionAuth(context),
+  }),
+  updatePost: createUpdatePostAction({
+    baseUrl: import.meta.env.WP_URL,
+    auth: (context) => wordPressAuthBridge.getActionAuth(context),
+  }),
+  deletePost: createDeletePostAction({
+    baseUrl: import.meta.env.WP_URL,
+    auth: (context) => wordPressAuthBridge.getActionAuth(context),
+  }),
 };
 ```
 
@@ -351,7 +374,7 @@ const inputErrors = isInputError(result?.error) ? result.error.fields : {};
 
 ### Astro Middleware Authentication Example
 
-Protect routes by resolving the authenticated user through the dynamic user loader and bridge session:
+Protect routes by resolving the authenticated user from the JWT bridge cookie:
 
 ```typescript
 // src/middleware.ts
@@ -363,11 +386,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return next();
   }
 
-  const sessionId = context.cookies.get(wordPressAuthBridge.cookieName)?.value;
-  const user = await wordPressAuthBridge.resolveUserBySessionId(sessionId);
+  const user = await wordPressAuthBridge.resolveUser(context);
 
   if (!user) {
-    wordPressAuthBridge.clearAuthentication(context.cookies, sessionId);
+    wordPressAuthBridge.clearAuthentication(context.cookies);
     return Response.redirect(new URL('/login', context.url), 302);
   }
 
@@ -414,7 +436,8 @@ Use these for static site generation (build-time only):
 ```typescript
 interface WordPressStaticLoaderConfig {
   baseUrl: string;
-  auth?: BasicAuthCredentials;
+  auth?: WordPressAuthConfig;
+  authHeader?: string;
   cookies?: string;
   perPage?: number;  // Items per page (default: 100)
   params?: Record<string, string>;  // Additional query params
@@ -423,8 +446,14 @@ interface WordPressStaticLoaderConfig {
 
 ### Server Authentication Bridge
 
-- `createWordPressAuthBridge(config)`: Creates a packaged Astro action login bridge with cookie/session helpers
+- `createWordPressAuthBridge(config)`: Creates a packaged Astro JWT login bridge with middleware/action helpers
 - `wordPressLoginInputSchema`: Predefined Zod schema for login payload validation
+
+### Auth Utilities
+
+- `createBasicAuthHeader(credentials)`: Build a Basic Authorization header
+- `createJwtAuthHeader(token)`: Build a Bearer Authorization header for JWT tokens
+- `createWordPressAuthHeader(auth)`: Build Authorization header from basic/JWT/prebuilt auth config
 
 Detailed setup docs: https://github.com/JUVOJustin/astrojs-wp-integration/blob/main/docs/auth-action-bridge.md
 
@@ -470,6 +499,33 @@ TypeScript types inferred from schemas:
 - **Easy Extension**: Simple API for custom fields and post types
 - **Modern Workflow**: Works seamlessly with Astro's content collections
 - **Optimized**: Responsive images, efficient caching, and minimal overhead
+
+## Development & Testing
+
+This project uses integration tests that run against a real WordPress instance via [`@wordpress/env`](https://developer.wordpress.org/block-editor/reference-guides/packages/packages-env/) (Docker). Test content (150 posts, 10 pages, categories, tags) is automatically seeded on every `wp-env start` via a lifecycle script. Native REST meta is also seeded for known entries (`test-post-001`, `about`, `test-book-001`) so loader suites can verify meta passthrough behavior.
+
+ACF-based integration tests rely on the free ACF plugin, which is installed automatically during `npm run wp:start`.
+
+JWT auth integration tests rely on `jwt-authentication-for-wp-rest-api`, which is also installed automatically during `npm run wp:start`.
+
+Reference suites for full CRUD examples:
+
+- `tests/integration/actions/posts.test.ts` — core post CRUD
+- `tests/integration/actions/auth-bridge.test.ts` — JWT auth bridge middleware/action helper coverage
+- `tests/integration/actions/pages.test.ts` — core page CRUD
+- `tests/integration/actions/books.test.ts` — core CPT (`book`) CRUD
+- `tests/integration/actions/acf.test.ts` — ACF CRUD with simple (text/number/url) and complex relation fields; relation values are validated as IDs and with `_links['acf:post']`/`_embedded['acf:post']` on `_embed=1` fetches
+- `tests/integration/actions/meta.test.ts` — core meta CRUD with simple, complex, and subtype-specific custom fields
+
+```bash
+npm run wp:start   # Start WordPress Docker container (seeds data automatically)
+npm test           # Run all integration tests
+npm run test:watch # Run in watch mode
+npm run wp:stop    # Stop the container
+npm run wp:clean   # Destroy container and volumes
+```
+
+Tests also run automatically via GitHub Actions on pull requests and pushes to `main`.
 
 ## License
 

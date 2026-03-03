@@ -7,14 +7,15 @@ import type {
   WordPressAuthor,
 } from '../schemas';
 import { WordPressClient } from '../client';
-import type { BasicAuthCredentials } from '../client/auth';
+import type { WordPressAuthConfig } from '../client/auth';
 
 /**
  * Loader configuration for WordPress content
  */
 export interface WordPressLoaderConfig {
   baseUrl: string;
-  auth?: BasicAuthCredentials;
+  auth?: WordPressAuthConfig;
+  authHeader?: string;
   cookies?: string;
 }
 
@@ -238,7 +239,7 @@ export function wordPressMediaLoader(
     name: 'wordpress-media-loader',
     loadCollection: async () => {
       try {
-        const media = await client.getMedia({ perPage: 1000 });
+        const media = await client.getAllMedia();
 
         return {
           entries: media.map((item) => ({

@@ -2,14 +2,15 @@
  * Type definitions for WordPress loaders
  */
 
-import type { BasicAuthCredentials } from '../client/auth';
+import type { WordPressAuthConfig } from '../client/auth';
 
 /**
  * Configuration for WordPress loaders
  */
 export interface WordPressLoaderConfig {
   baseUrl: string;
-  auth?: BasicAuthCredentials;
+  auth?: WordPressAuthConfig;
+  authHeader?: string;
   cookies?: string;
 }
 

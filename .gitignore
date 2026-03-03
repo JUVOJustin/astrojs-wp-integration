@@ -1,2 +1,8 @@
 node_modules
 dist
+
+# wp-env local data
+.wp-env-home
+
+# Temporary env file created by test global-setup
+.test-env.json

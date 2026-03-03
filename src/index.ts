@@ -44,6 +44,9 @@ export {
   categorySchema,
   embeddedMediaSchema,
   settingsSchema,
+  wordPressErrorSchema,
+  updatePostFieldsSchema,
+  postWriteBaseSchema,
 } from './schemas';
 
 export type {
@@ -57,7 +60,33 @@ export type {
   WordPressAuthor,
   WordPressEmbeddedMedia,
   WordPressSettings,
+  WordPressError,
+  WordPressPostWriteFields,
+  WordPressPostWriteBase,
 } from './schemas';
+
+// Export predefined server actions
+export {
+  createUpdatePostAction,
+  updatePostInputSchema,
+  createCreatePostAction,
+  createPostInputSchema,
+  createDeletePostAction,
+  deletePostInputSchema,
+} from './actions';
+export type {
+  ActionAuthConfig,
+  UpdatePostInput,
+  UpdatePostActionConfig,
+  ExecuteUpdateConfig,
+  CreatePostInput,
+  CreatePostActionConfig,
+  ExecuteCreateConfig,
+  DeletePostInput,
+  DeletePostActionConfig,
+  DeletePostResult,
+  ExecuteDeleteConfig,
+} from './actions';
 
 // Export client
 export { WordPressClient } from './client';
@@ -76,8 +105,21 @@ export type {
 } from './client/types';
 
 // Export auth utilities
-export { createBasicAuthHeader } from './client/auth';
-export type { BasicAuthCredentials } from './client/auth';
+export {
+  createBasicAuthHeader,
+  createJwtAuthHeader,
+  createWordPressAuthHeader,
+  resolveWordPressAuth,
+} from './client/auth';
+export type {
+  BasicAuthCredentials,
+  JwtAuthCredentials,
+  HeaderAuthCredentials,
+  WordPressAuthConfig,
+  WordPressAuthInput,
+  WordPressAuthResolver,
+  ResolvableWordPressAuth,
+} from './client/auth';
 
 // Export server auth bridge helpers
 export {
