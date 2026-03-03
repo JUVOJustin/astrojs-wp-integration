@@ -170,7 +170,8 @@ Every action file exports two things:
 - **`execute*(config, input)`** — the raw async HTTP handler, useful for testing or building custom actions that target a different REST resource (e.g. a custom post type).
 
 ```ts
-import { executeCreatePost, createBasicAuthHeader } from 'wp-astrojs-integration';
+import { executeCreatePost } from 'wp-astrojs-integration/actions';
+import { createBasicAuthHeader } from 'wp-astrojs-integration';
 
 const config = {
   apiBase: 'https://example.com/wp-json/wp/v2',

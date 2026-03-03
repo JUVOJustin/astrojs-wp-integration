@@ -1,8 +1,8 @@
 import { defineAction, ActionError, type ActionClient } from 'astro/actions/runtime/server.js';
 import { z } from 'astro/zod';
 import { createBasicAuthHeader, type BasicAuthCredentials } from '../../client/auth';
-import { postWriteBaseSchema, wordPressErrorSchema, postSchema } from '../../schemas';
-import type { WordPressPost } from '../../schemas';
+import { postWriteBaseSchema, wordPressErrorSchema, postSchema, pageSchema, contentWordPressSchema } from '../../schemas';
+import type { WordPressPost, WordPressPage, WordPressContent } from '../../schemas';
 
 /**
  * Full input schema for updating an existing WordPress post (or page / CPT).
@@ -44,13 +44,33 @@ export interface ExecuteUpdateConfig<T = WordPressPost> {
  * Configuration required to create the update-post action factory.
  * Authentication is mandatory because editing posts requires write access.
  */
-export interface UpdatePostActionConfig {
+export interface UpdatePostActionConfig<T = WordPressPost> {
   /** WordPress site URL (e.g. 'https://example.com') */
   baseUrl: string;
   /** Application-password credentials */
   auth: BasicAuthCredentials;
   /** REST resource path (default: 'posts') — set to 'pages' or a CPT rest_base */
   resource?: string;
+  /** Optional parser override for the action response */
+  responseSchema?: z.ZodType<T>;
+}
+
+/**
+ * Resolves the default response schema for a given resource endpoint.
+ *
+ * Posts map to `postSchema`, pages map to `pageSchema`, and other post-like
+ * resources (CPTs) fall back to `contentWordPressSchema`.
+ */
+function getDefaultResponseSchema(resource: string): z.ZodType<WordPressPost | WordPressPage | WordPressContent> {
+  if (resource === 'posts') {
+    return postSchema;
+  }
+
+  if (resource === 'pages') {
+    return pageSchema;
+  }
+
+  return contentWordPressSchema;
 }
 
 /**
@@ -98,7 +118,7 @@ export async function executeUpdatePost<T = WordPressPost>(
     throw new ActionError({ code: ActionError.statusToCode(response.status), message });
   }
 
-  const responseSchema = (config.responseSchema ?? postSchema) as z.ZodType<T>;
+  const responseSchema = (config.responseSchema ?? getDefaultResponseSchema(resource)) as z.ZodType<T>;
   return responseSchema.parse(data);
 }
 
@@ -132,12 +152,14 @@ export async function executeUpdatePost<T = WordPressPost>(
  * };
  */
 export function createUpdatePostAction<
+  TResponse = WordPressPost,
   TSchema extends typeof updatePostInputSchema = typeof updatePostInputSchema
->(config: UpdatePostActionConfig & { schema?: TSchema }): ActionClient<WordPressPost, undefined, TSchema> & string {
+>(config: UpdatePostActionConfig<TResponse> & { schema?: TSchema }): ActionClient<TResponse, undefined, TSchema> & string {
   const inputSchema = (config.schema ?? updatePostInputSchema) as TSchema;
   const authHeader = createBasicAuthHeader(config.auth);
   const apiBase = `${config.baseUrl.replace(/\/$/, '')}/wp-json/wp/v2`;
   const resource = config.resource;
+  const responseSchema = config.responseSchema;
 
   // TypeScript defers evaluation of ActionHandler<TSchema, …> when TSchema is a
   // generic parameter — `as any` is scoped to this call site only and does not
@@ -146,6 +168,6 @@ export function createUpdatePostAction<
   return defineAction({
     input: inputSchema,
     handler: (input: z.infer<TSchema>) =>
-      executeUpdatePost({ apiBase, authHeader, resource }, input as UpdatePostInput & Record<string, unknown>),
-  } as any) as ActionClient<WordPressPost, undefined, TSchema> & string;
+      executeUpdatePost<TResponse>({ apiBase, authHeader, resource, responseSchema }, input as UpdatePostInput & Record<string, unknown>),
+  } as any) as ActionClient<TResponse, undefined, TSchema> & string;
 }

@@ -46,7 +46,7 @@ import { actions } from 'astro:actions';
 if (Astro.request.method === 'POST') {
   const formData = await Astro.request.formData();
 
-const { data, error } = await Astro.callAction(actions.createProduct, {
+  const { data, error } = await Astro.callAction(actions.createPost, {
     title: formData.get('title') as string,
     content: formData.get('content') as string,
     status: 'draft',
@@ -229,8 +229,8 @@ import {
   executeCreatePost,
   executeUpdatePost,
   executeDeletePost,
-  createBasicAuthHeader,
-} from 'wp-astrojs-integration';
+} from 'wp-astrojs-integration/actions';
+import { createBasicAuthHeader } from 'wp-astrojs-integration';
 
 const config = {
   apiBase: `${import.meta.env.WP_URL.replace(/\/$/, '')}/wp-json/wp/v2`,
