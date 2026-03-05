@@ -13,6 +13,7 @@ export type {
   PageFilter,
   MediaFilter,
   CategoryFilter,
+  UserFilter,
 } from './types';
 
 // Re-export live loaders
@@ -21,6 +22,7 @@ export {
   wordPressPageLoader,
   wordPressMediaLoader,
   wordPressCategoryLoader,
+  wordPressUserLoader,
 } from './live';
 
 // Re-export static loaders
@@ -30,4 +32,5 @@ export {
   wordPressMediaStaticLoader,
   wordPressCategoryStaticLoader,
   wordPressTagStaticLoader,
+  wordPressUserStaticLoader,
 } from './static';

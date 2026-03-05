@@ -1,4 +1,10 @@
-import { createBasicAuthHeader, type BasicAuthCredentials } from './auth';
+import {
+  resolveWordPressRequestHeaders,
+  type WordPressAuthConfig,
+  type WordPressAuthHeaders,
+  type WordPressAuthHeadersProvider,
+  type WordPressAuthInput,
+} from './auth';
 import { createPostsMethods } from './posts';
 import { createPagesMethods } from './pages';
 import { createMediaMethods } from './media';
@@ -21,7 +27,13 @@ export interface WordPressClientConfig {
    */
   baseUrl: string;
   /** Authentication credentials for all API requests */
-  auth?: BasicAuthCredentials;
+  auth?: WordPressAuthConfig;
+  /** Prebuilt Authorization header value for advanced auth flows */
+  authHeader?: string;
+  /** Request-aware auth headers for signature-based authentication flows */
+  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
+  /** Cookie header string for WordPress session-based authentication */
+  cookies?: string;
 }
 
 /**
@@ -31,6 +43,36 @@ export interface FetchResult<T> {
   data: T;
   total: number;
   totalPages: number;
+}
+
+/**
+ * Low-level request options for direct calls to the WordPress REST API.
+ */
+export interface WordPressRequestOptions {
+  /** API endpoint path (relative to `/wp-json/wp/v2`, `/wp-json/...`, or same-origin absolute URL) */
+  endpoint: string;
+  /** HTTP method used for the request (default: GET) */
+  method?: string;
+  /** Query parameters appended to the URL */
+  params?: Record<string, string>;
+  /** JSON-serializable body or pre-serialized body string */
+  body?: unknown;
+  /** Additional headers merged after auth/cookie headers */
+  headers?: Record<string, string>;
+  /** Per-request auth override (basic/JWT/header) */
+  auth?: WordPressAuthInput;
+  /** Per-request request-aware auth headers override */
+  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
+  /** Per-request cookie header override */
+  cookies?: string;
+}
+
+/**
+ * Low-level request result with parsed payload and original response metadata.
+ */
+export interface WordPressRequestResult<T> {
+  data: T;
+  response: Response;
 }
 
 /**
@@ -55,8 +97,11 @@ export interface FetchResult<T> {
  */
 export class WordPressClient {
   private baseUrl: string;
+  private baseOrigin: string;
   private apiBase: string;
-  private authHeader: string | undefined;
+  private auth: WordPressAuthInput | undefined;
+  private authHeaders: WordPressAuthHeaders | WordPressAuthHeadersProvider | undefined;
+  private cookieHeader: string | undefined;
 
   // Posts methods
   public getPosts: ReturnType<typeof createPostsMethods>['getPosts'];
@@ -106,7 +151,12 @@ export class WordPressClient {
 
   constructor(config: WordPressClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, ''); // Remove trailing slash
-    this.authHeader = config.auth ? createBasicAuthHeader(config.auth) : undefined;
+    this.baseOrigin = new URL(this.baseUrl).origin;
+    this.auth = config.authHeader
+      ? config.authHeader
+      : config.auth;
+    this.authHeaders = config.authHeaders;
+    this.cookieHeader = config.cookies;
     
     // Use WordPress REST API pretty permalinks format
     // Supports base URLs with path prefixes (e.g., https://example.com/en)
@@ -166,10 +216,141 @@ export class WordPressClient {
   }
 
   /**
+   * Rejects absolute URLs that do not target the configured WordPress origin.
+   */
+  private createAbsoluteApiUrl(endpoint: string): URL {
+    const url = new URL(endpoint);
+
+    if (url.origin !== this.baseOrigin) {
+      throw new Error(
+        `Cross-origin absolute URLs are not allowed. Expected origin '${this.baseOrigin}' but received '${url.origin}'.`
+      );
+    }
+
+    return url;
+  }
+
+  /**
+   * Builds one REST URL from endpoint and query params.
+   */
+  private createApiUrl(endpoint: string, params: Record<string, string> = {}): URL {
+    const url = /^https?:\/\//i.test(endpoint)
+      ? this.createAbsoluteApiUrl(endpoint)
+      : endpoint.startsWith('/wp-json/')
+        ? new URL(`${this.baseUrl}${endpoint}`)
+        : new URL(`${this.apiBase}${endpoint}`);
+
+    for (const [key, value] of Object.entries(params)) {
+      url.searchParams.append(key, value);
+    }
+
+    return url;
+  }
+
+  /**
+   * Converts unknown body input into one request payload string.
+   */
+  private serializeBody(body: unknown): string | undefined {
+    if (body === undefined || body === null) {
+      return undefined;
+    }
+
+    if (typeof body === 'string') {
+      return body;
+    }
+
+    return JSON.stringify(body);
+  }
+
+  /**
+   * Resolves final request headers from auth, cookies, and caller-provided headers.
+   */
+  private async resolveRequestHeaders(config: {
+    method: string;
+    url: URL;
+    body?: string;
+    auth?: WordPressAuthInput;
+    authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
+    cookies?: string;
+    headers?: Record<string, string>;
+  }): Promise<Record<string, string>> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    Object.assign(
+      headers,
+      await resolveWordPressRequestHeaders({
+        auth: config.auth,
+        authHeaders: config.authHeaders,
+        request: {
+          method: config.method,
+          url: config.url,
+          body: config.body,
+        },
+      }),
+    );
+
+    if (config.cookies) {
+      headers.Cookie = config.cookies;
+    }
+
+    if (config.headers) {
+      Object.assign(headers, config.headers);
+    }
+
+    return headers;
+  }
+
+  /**
+   * Parses one REST response payload based on returned content type.
+   */
+  private async parseResponseBody(response: Response): Promise<unknown> {
+    const contentType = response.headers.get('Content-Type')?.toLowerCase() || '';
+
+    if (contentType.includes('application/json')) {
+      return response.json();
+    }
+
+    return response.text();
+  }
+
+  /**
    * Checks if authentication is configured
    */
   hasAuth(): boolean {
-    return this.authHeader !== undefined;
+    return this.auth !== undefined || this.authHeaders !== undefined || this.cookieHeader !== undefined;
+  }
+
+  /**
+   * Executes a low-level WordPress REST request and returns parsed response data.
+   */
+  async request<T = unknown>(options: WordPressRequestOptions): Promise<WordPressRequestResult<T>> {
+    const method = options.method ?? 'GET';
+    const url = this.createApiUrl(options.endpoint, options.params);
+    const body = this.serializeBody(options.body);
+    const headers = await this.resolveRequestHeaders({
+      method,
+      url,
+      body,
+      auth: options.auth ?? this.auth,
+      authHeaders: options.authHeaders ?? this.authHeaders,
+      cookies: options.cookies ?? this.cookieHeader,
+      headers: options.headers,
+    });
+
+    const response = await fetch(url.toString(), {
+      method,
+      headers,
+      body,
+    });
+
+    const data = await this.parseResponseBody(response) as T;
+
+    return {
+      data,
+      response,
+    };
   }
 
   /**
@@ -193,24 +374,15 @@ export class WordPressClient {
    * @returns Object with data and pagination headers
    */
   async fetchAPIPaginated<T>(endpoint: string, params: Record<string, string> = {}): Promise<FetchResult<T>> {
-    const url = new URL(`${this.apiBase}${endpoint}`);
-    Object.entries(params).forEach(([key, value]) => url.searchParams.append(key, value));
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    if (this.authHeader) {
-      headers['Authorization'] = this.authHeader;
-    }
-
-    const response = await fetch(url.toString(), { headers });
+    const { data, response } = await this.request<T>({
+      endpoint,
+      method: 'GET',
+      params,
+    });
 
     if (!response.ok) {
       throw new Error(`WordPress API error: ${response.status} ${response.statusText}`);
     }
-
-    const data = await response.json();
 
     // Extract pagination headers
     const total = parseInt(response.headers.get('X-WP-Total') || '0', 10);

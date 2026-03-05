@@ -2,11 +2,21 @@
  * Type definitions for WordPress loaders
  */
 
+import type {
+  WordPressAuthConfig,
+  WordPressAuthHeaders,
+  WordPressAuthHeadersProvider,
+} from '../client/auth';
+
 /**
  * Configuration for WordPress loaders
  */
 export interface WordPressLoaderConfig {
   baseUrl: string;
+  auth?: WordPressAuthConfig;
+  authHeader?: string;
+  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
+  cookies?: string;
 }
 
 /**
@@ -61,5 +71,16 @@ export interface CategoryFilter {
   hide_empty?: boolean;
   parent?: number;
   orderby?: 'id' | 'name' | 'slug' | 'count' | 'term_group';
+  order?: 'asc' | 'desc';
+}
+
+/**
+ * Filter options for users (live loader)
+ */
+export interface UserFilter {
+  id?: number;
+  slug?: string;
+  roles?: string[];
+  orderby?: 'id' | 'name' | 'slug' | 'email' | 'url' | 'registered_date';
   order?: 'asc' | 'desc';
 }

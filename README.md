@@ -4,13 +4,21 @@ Ready to use WordPress integration for Astro.js with live loaders, static loader
 
 ## Features
 
+- **Client-First Core**: `WordPressClient` is the base layer; loaders, actions, and bridges build on top of stable client behavior
 - **Live Loaders**: Real-time data fetching from WordPress REST API (server-side rendering)
 - **Static Loaders**: Build-time data fetching for static site generation
 - **WordPress Client**: Direct runtime API access for dynamic content
+- **Auth Action Bridge**: Pre-shipped Astro server action bridge with JWT login and middleware helpers
 - **Gutenberg Support**: Automatic block styles loading for proper rendering
 - **TypeScript First**: Fully typed with extensible schemas
-- **Easy Extension**: Simple API for adding custom ACF fields, post types, and taxonomies
+- **Easy Extension**: Simple API for adding custom ACF fields, post types, taxonomies, and plugin data
 - **Optimized Images**: Responsive image component with srcset support
+
+## Architecture Principles
+
+- Start with `WordPressClient` when adding new WordPress support. Higher-level APIs should only be added after the underlying client behavior exists and is validated.
+- Assume and validate the minimum required data for each feature. Keep custom fields, meta, taxonomies, post types, actions, and plugin endpoints extensible instead of forcing a narrow core-data shape.
+- Prefer WordPress-native flexibility over package-specific constraints so custom REST resources can reuse the same patterns as core entities.
 
 ## Installation
 
@@ -27,7 +35,7 @@ npm install wp-astrojs-integration
 | Media | `mediaSchema` | `wordPressMediaLoader` | `wordPressMediaStaticLoader` | |
 | Categories | `categorySchema` | `wordPressCategoryLoader` | `wordPressCategoryStaticLoader` | |
 | Tags | `categorySchema` | - | `wordPressTagStaticLoader` | |
-| Users | `WordPressAuthor` | - | - | Client-only, no loaders |
+| Users | `WordPressAuthor` | `wordPressUserLoader` | `wordPressUserStaticLoader` | |
 | Settings | `settingsSchema` | - | - | Client-only, requires auth |
 
 ## Quick Start
@@ -262,12 +270,13 @@ const tags = await wp.getTags();
 
 ### With Authentication
 
-For endpoints requiring authentication (e.g., `/settings`, `/users/me`):
+For endpoints requiring authentication (e.g., `/settings`, `/users/me`) the client supports these direct auth patterns:
 
 ```typescript
 import { WordPressClient } from 'wp-astrojs-integration';
 
-const wp = new WordPressClient({
+// Basic auth (application password)
+const basicClient = new WordPressClient({
   baseUrl: 'https://your-wordpress-site.com',
   auth: {
     username: 'your-username',
@@ -275,67 +284,220 @@ const wp = new WordPressClient({
   }
 });
 
-// Get WordPress site settings (requires auth)
-const settings = await wp.getSettings();
-console.log(settings.title, settings.description);
+// JWT auth (user-scoped SSR/session flows)
+const jwtClient = new WordPressClient({
+  baseUrl: 'https://your-wordpress-site.com',
+  auth: {
+    token: 'eyJ0eXAiOiJKV1QiLCJhbGciOi...'
+  }
+});
 
-// Get current authenticated user
-const currentUser = await wp.getCurrentUser();
+// Prebuilt authorization header
+const headerClient = new WordPressClient({
+  baseUrl: 'https://your-wordpress-site.com',
+  authHeader: 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOi...'
+});
+
+// WordPress session cookies
+const cookieClient = new WordPressClient({
+  baseUrl: 'https://your-wordpress-site.com',
+  cookies: 'wordpress_logged_in_xxx=...; wordpress_sec_xxx=...'
+});
+
+const currentUser = await headerClient.getCurrentUser();
 console.log(currentUser.name, currentUser.email);
+```
 
-// Check if credentials are valid
-const isValid = await wp.isAuthenticated();
+For signature-based methods (for example OAuth 1.0 style flows), use request-aware auth headers:
+
+```typescript
+const signedClient = new WordPressClient({
+  baseUrl: 'https://your-wordpress-site.com',
+  authHeaders: ({ method, url, body }) => {
+    const authorization = createSignedAuthHeader({
+      method,
+      url: url.toString(),
+      body,
+    });
+
+    return {
+      Authorization: authorization,
+    };
+  },
+});
+```
+
+`createSignedAuthHeader` is your own app function for custom auth integrations (for example OAuth 1.0). It just returns a header string; it is not a sub-request and is not provided by this package.
+
+### Astro Actions Authentication Bridge (Pre-Shipped)
+
+Use the packaged bridge to get a ready-to-use JWT login server action with Zod validation and middleware/action helpers.
+
+The bridge uses web-standard runtime APIs so the same flow works in Node and non-Node Astro adapters.
+
+The bridge includes:
+
+- `wordPressLoginInputSchema` for predefined Zod validation (`usernameOrEmail`, `password`, `redirectTo`)
+- `loginAction` for Astro Actions
+- middleware helpers (`resolveUser`, `isAuthenticated`, `clearAuthentication`)
+- action auth helper (`getActionAuth`) for request-scoped JWT auth in `create*PostAction`
+
+The packaged bridge authenticates against `jwt-authentication-for-wp-rest-api`, stores the JWT in an HTTP-only cookie, and reuses that token for authenticated REST API calls.
+
+WordPress must have the JWT plugin enabled and `JWT_AUTH_SECRET_KEY` configured.
+
+```typescript
+import { z } from 'astro/zod';
+import { wordPressLoginInputSchema } from 'wp-astrojs-integration';
+
+type LoginPayload = z.input<typeof wordPressLoginInputSchema>;
+```
+
+```typescript
+// src/lib/auth/bridge.ts
+import { createWordPressAuthBridge } from 'wp-astrojs-integration';
+
+export const wordPressAuthBridge = createWordPressAuthBridge({
+  baseUrl: 'https://your-wordpress-site.com',
+  cookieName: 'collabfinder_session',
+});
+```
+
+```typescript
+// src/actions/index.ts
+import { wordPressAuthBridge } from '../lib/auth/bridge';
+import {
+  createCreatePostAction,
+  createUpdatePostAction,
+  createDeletePostAction,
+} from 'wp-astrojs-integration';
+
+export const server = {
+  login: wordPressAuthBridge.loginAction,
+  createPost: createCreatePostAction({
+    baseUrl: import.meta.env.WP_URL,
+    auth: (context) => wordPressAuthBridge.getActionAuth(context),
+  }),
+  updatePost: createUpdatePostAction({
+    baseUrl: import.meta.env.WP_URL,
+    auth: (context) => wordPressAuthBridge.getActionAuth(context),
+  }),
+  deletePost: createDeletePostAction({
+    baseUrl: import.meta.env.WP_URL,
+    auth: (context) => wordPressAuthBridge.getActionAuth(context),
+  }),
+};
+```
+
+For OAuth-style signatures, action factories also support request-aware `authHeaders`:
+
+```typescript
+const signedActionConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  authHeaders: {
+    fromContext: (context) => ({ method, url, body }) => {
+      const authorization = createSignedAuthHeader({
+        method,
+        url: url.toString(),
+        body,
+        token: context.locals.oauthToken,
+      });
+
+      return {
+        Authorization: authorization,
+      };
+    },
+  },
+};
+```
+
+This pattern is meant for custom auth integrations. The package passes request metadata (`method`, `url`, `body`) into your signer, then forwards the returned headers to WordPress.
+
+```astro
+---
+// src/pages/login.astro
+import { isInputError } from 'astro:actions';
+import { actions } from 'astro:actions';
+
+const result = Astro.getActionResult(actions.login);
+
+if (result && !result.error) {
+  return Astro.redirect(result.data.redirectTo);
+}
+
+const inputErrors = isInputError(result?.error) ? result.error.fields : {};
+---
+
+{inputErrors.usernameOrEmail && <p>{inputErrors.usernameOrEmail.join(', ')}</p>}
+
+<form method="POST" action={actions.login}>
+  <input type="hidden" name="redirectTo" value="/" />
+  <input type="text" name="usernameOrEmail" autocomplete="username" required />
+  <input type="password" name="password" autocomplete="current-password" required />
+  <button type="submit">Sign in</button>
+</form>
 ```
 
 ### Astro Middleware Authentication Example
 
-Use the WordPress client in Astro middleware to protect routes with WordPress authentication:
+Protect routes by resolving the authenticated user from the JWT bridge cookie:
 
 ```typescript
 // src/middleware.ts
 import { defineMiddleware } from 'astro:middleware';
-import { WordPressClient } from 'wp-astrojs-integration';
+import { wordPressAuthBridge } from './lib/auth/bridge';
 
 export const onRequest = defineMiddleware(async (context, next) => {
-  // Only protect /admin routes
-  if (!context.url.pathname.startsWith('/admin')) {
+  if (context.url.pathname === '/login') {
     return next();
   }
 
-  // Get credentials from Authorization header (Basic Auth)
-  const authHeader = context.request.headers.get('Authorization');
-  if (!authHeader?.startsWith('Basic ')) {
-    return new Response('Authentication required', {
-      status: 401,
-      headers: { 'WWW-Authenticate': 'Basic realm="Admin Area"' }
-    });
+  const user = await wordPressAuthBridge.resolveUser(context);
+
+  if (!user) {
+    wordPressAuthBridge.clearAuthentication(context.cookies);
+    return Response.redirect(new URL('/login', context.url), 302);
   }
 
-  // Decode credentials
-  const base64Credentials = authHeader.slice(6);
-  const credentials = atob(base64Credentials);
-  const [username, password] = credentials.split(':');
-
-  // Verify against WordPress
-  const wp = new WordPressClient({
-    baseUrl: 'https://your-wordpress-site.com',
-    auth: { username, password }
-  });
-
-  const isAuthenticated = await wp.isAuthenticated();
-  if (!isAuthenticated) {
-    return new Response('Invalid credentials', {
-      status: 401,
-      headers: { 'WWW-Authenticate': 'Basic realm="Admin Area"' }
-    });
-  }
-
-  // Store user in locals for use in routes
-  const user = await wp.getCurrentUser();
   context.locals.user = user;
 
   return next();
 });
+```
+
+### Protected update action (JWT reused automatically)
+
+After middleware authenticates the request, action calls can reuse the same JWT cookie without manually forwarding headers:
+
+```astro
+---
+// src/pages/admin/edit-post.astro
+import { actions } from 'astro:actions';
+
+if (!Astro.locals.user) {
+  return Astro.redirect('/login');
+}
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const id = Number(formData.get('id'));
+  const title = String(formData.get('title') ?? '').trim();
+
+  const { data, error } = await Astro.callAction(actions.updatePost, { id, title });
+
+  if (error) {
+    throw error;
+  }
+
+  return Astro.redirect(`/admin/posts/${data.id}`);
+}
+---
+
+<form method="POST">
+  <input type="hidden" name="id" value="123" />
+  <input type="text" name="title" value="Updated from Astro" required />
+  <button type="submit">Update post</button>
+</form>
 ```
 
 Then access the authenticated user in your protected routes:
@@ -358,6 +520,7 @@ Use these for server-side rendering or real-time data:
 - `wordPressPageLoader(config)`: Live loader for pages
 - `wordPressMediaLoader(config)`: Live loader for media
 - `wordPressCategoryLoader(config)`: Live loader for categories/taxonomies
+- `wordPressUserLoader(config)`: Live loader for users
 
 ### Static Loaders (for `defineCollection`)
 
@@ -368,15 +531,42 @@ Use these for static site generation (build-time only):
 - `wordPressMediaStaticLoader(config)`: Static loader for media
 - `wordPressCategoryStaticLoader(config)`: Static loader for categories
 - `wordPressTagStaticLoader(config)`: Static loader for tags
+- `wordPressUserStaticLoader(config)`: Static loader for users
 
 **Static Loader Config:**
 ```typescript
 interface WordPressStaticLoaderConfig {
   baseUrl: string;
+  auth?: WordPressAuthConfig;
+  authHeader?: string;
+  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
+  cookies?: string;
   perPage?: number;  // Items per page (default: 100)
   params?: Record<string, string>;  // Additional query params
 }
 ```
+
+### Server Authentication Bridge
+
+- `createWordPressAuthBridge(config)`: Creates a packaged Astro JWT login bridge with middleware/action helpers
+- `wordPressLoginInputSchema`: Predefined Zod schema for login payload validation
+
+### Low-Level Client Transport
+
+- `WordPressClient.request(options)`: Execute custom REST requests while reusing configured auth/cookies on relative, full REST, or same-origin absolute URLs
+- `WordPressRequestOptions`: Type for request method, endpoint, params, body, and auth overrides
+- `WordPressRequestResult<T>`: Typed response payload with the original `Response`
+
+### Auth Utilities
+
+- `createBasicAuthHeader(credentials)`: Build a Basic Authorization header
+- `createJwtAuthHeader(token)`: Build a Bearer Authorization header for JWT tokens
+- `createWordPressAuthHeader(auth)`: Build Authorization header from basic/JWT/prebuilt auth config
+- `resolveWordPressRequestHeaders(config)`: Build final request headers from static auth and request-aware auth providers
+
+Detailed setup docs: https://github.com/JUVOJustin/astrojs-wp-integration/blob/main/docs/auth-action-bridge.md
+
+Client guide: https://github.com/JUVOJustin/astrojs-wp-integration/blob/main/docs/client-usage.md
 
 ### Schemas
 
@@ -425,11 +615,16 @@ TypeScript types inferred from schemas:
 
 This project uses integration tests that run against a real WordPress instance via [`@wordpress/env`](https://developer.wordpress.org/block-editor/reference-guides/packages/packages-env/) (Docker). Test content (150 posts, 10 pages, categories, tags) is automatically seeded on every `wp-env start` via a lifecycle script. Native REST meta is also seeded for known entries (`test-post-001`, `about`, `test-book-001`) so loader suites can verify meta passthrough behavior.
 
-ACF-based integration tests rely on the free ACF plugin, which is installed automatically during `npm run wp:start`.
+Repository guidance for contributors and AI agents lives in `AGENTS.md`. It is intentionally kept out of the published npm package because `package.json` only publishes `dist/` and `src/components/`.
+
+ACF-based integration tests rely on the free ACF plugin, which is auto-activated when already installed or installed+activated when missing during `npm run wp:start`.
+
+JWT auth integration tests rely on `jwt-authentication-for-wp-rest-api`, which follows the same activate-or-install flow during `npm run wp:start`.
 
 Reference suites for full CRUD examples:
 
 - `tests/integration/actions/posts.test.ts` — core post CRUD
+- `tests/integration/actions/auth-bridge.test.ts` — JWT auth bridge middleware/action helper coverage
 - `tests/integration/actions/pages.test.ts` — core page CRUD
 - `tests/integration/actions/books.test.ts` — core CPT (`book`) CRUD
 - `tests/integration/actions/acf.test.ts` — ACF CRUD with simple (text/number/url) and complex relation fields; relation values are validated as IDs and with `_links['acf:post']`/`_embedded['acf:post']` on `_embed=1` fetches

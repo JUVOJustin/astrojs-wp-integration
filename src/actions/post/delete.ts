@@ -1,7 +1,12 @@
-import { defineAction, ActionError, type ActionClient } from 'astro/actions/runtime/server.js';
+import { defineAction, ActionError, type ActionAPIContext, type ActionClient } from 'astro/actions/runtime/server.js';
 import { z } from 'astro/zod';
-import { createBasicAuthHeader, type BasicAuthCredentials } from '../../client/auth';
 import { wordPressErrorSchema } from '../../schemas';
+import {
+  resolveActionRequestAuth,
+  type ActionAuthConfig,
+  type ResolvableActionAuthHeaders,
+} from '../auth';
+import { executeActionRequest, type ExecuteActionAuthConfig } from './client';
 
 /**
  * Input schema for deleting a WordPress post (or page / custom post type).
@@ -25,24 +30,22 @@ export type DeletePostResult = { id: number; deleted: boolean };
 /**
  * Low-level config accepted by `executeDeletePost`.
  */
-export interface ExecuteDeleteConfig {
-  /** Base URL up to but excluding the resource (e.g. 'http://example.com/wp-json/wp/v2') */
-  apiBase: string;
-  /** Pre-built Authorization header value */
-  authHeader: string;
+export interface ExecuteDeleteConfig extends ExecuteActionAuthConfig {
   /** REST resource path appended to `apiBase` (default: 'posts') */
   resource?: string;
 }
 
 /**
  * Configuration required to create the delete-post action factory.
- * Authentication is mandatory because deleting posts requires write access.
+ * At least one auth strategy is required because deleting posts needs write access.
  */
 export interface DeletePostActionConfig {
   /** WordPress site URL (e.g. 'https://example.com') */
   baseUrl: string;
-  /** Application-password credentials */
-  auth: BasicAuthCredentials;
+  /** Static or request-scoped auth config (basic, JWT, or prebuilt header) */
+  auth?: ActionAuthConfig;
+  /** Advanced request-aware auth headers for OAuth-like signature methods */
+  authHeaders?: ResolvableActionAuthHeaders;
   /** REST resource path (default: 'posts') — set to 'pages' or a CPT rest_base */
   resource?: string;
 }
@@ -64,19 +67,12 @@ export async function executeDeletePost(
   input: DeletePostInput
 ): Promise<DeletePostResult> {
   const resource = config.resource ?? 'posts';
-  const url = new URL(`${config.apiBase}/${resource}/${input.id}`);
-  if (input.force) {
-    url.searchParams.set('force', 'true');
-  }
-
-  const response = await fetch(url.toString(), {
+  const params = input.force ? { force: 'true' } : undefined;
+  const { data, response } = await executeActionRequest<unknown>(config, {
     method: 'DELETE',
-    headers: {
-      Authorization: config.authHeader,
-    },
+    endpoint: `/${resource}/${input.id}`,
+    params,
   });
-
-  const data: unknown = await response.json();
 
   if (!response.ok) {
     const wpError = wordPressErrorSchema.safeParse(data);
@@ -118,13 +114,19 @@ export async function executeDeletePost(
 export function createDeletePostAction(
   config: DeletePostActionConfig
 ): ActionClient<DeletePostResult, undefined, typeof deletePostInputSchema> & string {
-  const authHeader = createBasicAuthHeader(config.auth);
   const apiBase = `${config.baseUrl.replace(/\/$/, '')}/wp-json/wp/v2`;
   const resource = config.resource;
 
   return defineAction({
     input: deletePostInputSchema,
-    handler: (input: DeletePostInput) => executeDeletePost({ apiBase, authHeader, resource }, input),
+    handler: async (input: DeletePostInput, context: ActionAPIContext) => {
+      const requestAuth = await resolveActionRequestAuth({
+        auth: config.auth,
+        authHeaders: config.authHeaders,
+      }, context);
+
+      return executeDeletePost({ apiBase, ...requestAuth, resource }, input);
+    },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any) as ActionClient<DeletePostResult, undefined, typeof deletePostInputSchema> & string;
 }

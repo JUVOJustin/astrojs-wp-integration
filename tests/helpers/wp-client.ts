@@ -28,3 +28,19 @@ export function createAuthClient(): WordPressClient {
     auth: { username: 'admin', password },
   });
 }
+
+/**
+ * Creates an authenticated client using the JWT generated during global setup.
+ */
+export function createJwtAuthClient(): WordPressClient {
+  const token = process.env.WP_JWT_TOKEN;
+
+  if (!token) {
+    throw new Error('WP_JWT_TOKEN not set — did global-setup run?');
+  }
+
+  return new WordPressClient({
+    baseUrl: getBaseUrl(),
+    auth: { token },
+  });
+}

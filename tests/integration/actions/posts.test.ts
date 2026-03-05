@@ -3,7 +3,7 @@ import { ActionError } from 'astro/actions/runtime/server.js';
 import { executeCreatePost } from '../../../src/actions/post/create';
 import { executeUpdatePost } from '../../../src/actions/post/update';
 import { executeDeletePost } from '../../../src/actions/post/delete';
-import { createBasicAuthHeader } from '../../../src/client/auth';
+import { createBasicAuthHeader, createJwtAuthHeader } from '../../../src/client/auth';
 import { getBaseUrl } from '../../helpers/wp-client';
 
 /**
@@ -22,6 +22,30 @@ describe('Actions: CRUD', () => {
       username: 'admin',
       password: process.env.WP_APP_PASSWORD!,
     }),
+  };
+
+  // Authenticated config for user-scoped SSR flows using JWT tokens
+  const jwtAuthConfig = {
+    apiBase,
+    authHeader: createJwtAuthHeader(process.env.WP_JWT_TOKEN!),
+  };
+
+  // Request-aware auth config for signature-like auth strategies
+  const requestAwareAuthConfig = {
+    apiBase,
+    authHeaders: ({ method, url }: { method: string; url: URL }) => {
+      if (method !== 'POST') {
+        throw new Error('Expected POST for create post auth provider test.');
+      }
+
+      if (!url.pathname.endsWith('/wp-json/wp/v2/posts')) {
+        throw new Error('Expected posts endpoint for create post auth provider test.');
+      }
+
+      return {
+        Authorization: createJwtAuthHeader(process.env.WP_JWT_TOKEN!),
+      };
+    },
   };
 
   // Unauthenticated config — used to verify auth enforcement
@@ -83,6 +107,30 @@ describe('Actions: CRUD', () => {
 
       expect(post.content.rendered).toContain('Hello from integration test.');
       expect(post.excerpt.rendered).toContain('Test excerpt');
+    });
+
+    it('creates a post when authenticated with JWT', async () => {
+      const post = await executeCreatePost(jwtAuthConfig, {
+        title: 'Action Test: JWT Auth',
+        status: 'draft',
+      });
+
+      createdIds.push(post.id);
+
+      expect(post.id).toBeGreaterThan(0);
+      expect(post.title.rendered).toBe('Action Test: JWT Auth');
+    });
+
+    it('creates a post with request-aware auth headers', async () => {
+      const post = await executeCreatePost(requestAwareAuthConfig, {
+        title: 'Action Test: Request-Aware Auth',
+        status: 'draft',
+      });
+
+      createdIds.push(post.id);
+
+      expect(post.id).toBeGreaterThan(0);
+      expect(post.title.rendered).toBe('Action Test: Request-Aware Auth');
     });
 
     it('throws ActionError when not authenticated', async () => {

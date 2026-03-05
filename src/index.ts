@@ -11,6 +11,7 @@ export {
   wordPressPageLoader,
   wordPressMediaLoader,
   wordPressCategoryLoader,
+  wordPressUserLoader,
 } from './loaders';
 
 // Export static loaders (for defineCollection - build-time only)
@@ -20,6 +21,7 @@ export {
   wordPressMediaStaticLoader,
   wordPressCategoryStaticLoader,
   wordPressTagStaticLoader,
+  wordPressUserStaticLoader,
 } from './loaders';
 
 export type {
@@ -29,6 +31,7 @@ export type {
   PageFilter,
   MediaFilter,
   CategoryFilter,
+  UserFilter,
 } from './loaders';
 
 // Export schemas
@@ -72,6 +75,10 @@ export {
   deletePostInputSchema,
 } from './actions';
 export type {
+  ActionAuthConfig,
+  ActionAuthHeadersConfig,
+  ActionAuthHeadersFromContext,
+  ResolvableActionAuthHeaders,
   UpdatePostInput,
   UpdatePostActionConfig,
   ExecuteUpdateConfig,
@@ -86,7 +93,12 @@ export type {
 
 // Export client
 export { WordPressClient } from './client';
-export type { WordPressClientConfig, FetchResult } from './client';
+export type {
+  WordPressClientConfig,
+  FetchResult,
+  WordPressRequestOptions,
+  WordPressRequestResult,
+} from './client';
 
 // Export client filter types for typesafe API calls
 export type {
@@ -101,8 +113,41 @@ export type {
 } from './client/types';
 
 // Export auth utilities
-export { createBasicAuthHeader } from './client/auth';
-export type { BasicAuthCredentials } from './client/auth';
+export {
+  createBasicAuthHeader,
+  createJwtAuthHeader,
+  createWordPressAuthHeader,
+  resolveWordPressAuth,
+  resolveWordPressRequestHeaders,
+} from './client/auth';
+export type {
+  BasicAuthCredentials,
+  JwtAuthCredentials,
+  HeaderAuthCredentials,
+  WordPressAuthRequest,
+  WordPressAuthHeaders,
+  WordPressAuthHeadersProvider,
+  WordPressAuthConfig,
+  WordPressAuthInput,
+  WordPressAuthResolver,
+  ResolvableWordPressAuth,
+} from './client/auth';
+
+// Export server auth bridge helpers
+export {
+  createWordPressAuthBridge,
+  wordPressLoginInputSchema,
+} from './server';
+
+export type {
+  WordPressAuthBridge,
+  WordPressAuthBridgeConfig,
+  WordPressAuthSession,
+  WordPressLoginAction,
+  WordPressLoginActionPayload,
+  WordPressLoginActionResult,
+  WordPressLoginInput,
+} from './server';
 
 // Components are imported directly via:
 // import WPImage from 'wp-astrojs-integration/components/WPImage.astro';

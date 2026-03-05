@@ -16,19 +16,29 @@ import {
   createUpdatePostAction,
   createDeletePostAction,
 } from 'wp-astrojs-integration';
+import { wordPressAuthBridge } from '../lib/auth/bridge';
 
 const wpConfig = {
   baseUrl: import.meta.env.WP_URL,
-  auth: {
-    username: import.meta.env.WP_USERNAME,
-    password: import.meta.env.WP_APP_PASSWORD,
-  },
+  auth: (context) => wordPressAuthBridge.getActionAuth(context),
 };
 
 export const server = {
   createPost: createCreatePostAction(wpConfig),
   updatePost: createUpdatePostAction(wpConfig),
   deletePost: createDeletePostAction(wpConfig),
+};
+```
+
+If you are not using JWT sessions, pass basic auth directly:
+
+```ts
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
 };
 ```
 

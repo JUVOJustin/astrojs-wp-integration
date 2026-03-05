@@ -10,6 +10,14 @@
 - **Zod schemas** (`src/schemas/`) — validation schemas for all WP entities
 - **Astro components** (`src/components/`) — `WPContent.astro`, `WPImage.astro`
 
+## Architecture Priorities
+
+- Treat `WordPressClient` as the package's core integration layer. Add or harden client capabilities before introducing higher-level loaders, bridges, or actions that depend on them.
+- Build loaders, actions, and helpers on top of proven client primitives. If a feature needs a new REST capability, implement that capability in the client first.
+- Keep the package aligned with WordPress' extensibility model. Default to generic resource-oriented patterns that work for core entities, custom post types, custom taxonomies, plugin endpoints, and custom auth flows.
+- Validate and require only the minimum data needed for a feature to work. Keep optional and custom fields extensible so projects can layer in ACF fields, meta, relations, and plugin data without fighting the package.
+- Avoid hard-coding assumptions that only fit default posts/pages. Always leave room for custom post types, taxonomies, actions, fields, and REST namespaces.
+
 ## Testing
 
 ### Philosophy
@@ -27,7 +35,7 @@
 | `.wp-env.json` | wp-env config — PHP version, mu-plugin mappings, lifecycle scripts |
 | `tests/wp-env/mu-plugins/` | Must-use plugins mounted into the WP container |
 | `tests/wp-env/seed-content.php` | Idempotent PHP script that generates all test content on startup |
-| `tests/setup/global-setup.ts` | Vitest globalSetup — waits for WP API, creates app password |
+| `tests/setup/global-setup.ts` | Vitest globalSetup — waits for WP API, creates app password + JWT token |
 | `tests/setup/env-loader.ts` | Vitest setupFile — reads `.test-env.json` into `process.env` for workers |
 | `tests/helpers/` | Shared test utilities (mock store, mock logger, WP client factories) |
 
@@ -81,9 +89,11 @@ ACF fields are seeded for a subset of content. The mu-plugin `register-acf-field
 2. Destroy and restart the environment: `npm run wp:clean && npm run wp:start`
 3. Update test assertions to match the new seed data counts/slugs
 
-### ACF plugin requirement
+### Plugin requirements
 
-The test environment installs the free ACF plugin during `wp-env start` via `wp plugin install --activate https://advancedcustomfields.com/latest/`.
+The test environment ensures the free ACF plugin is available during `wp-env start` by activating it when installed or installing+activating `advanced-custom-fields` when missing.
+
+The test environment also installs `jwt-authentication-for-wp-rest-api` during `wp-env start` and sets `JWT_AUTH_SECRET_KEY` in `.wp-env.json` for JWT endpoint tests.
 
 No license key is required.
 
@@ -103,6 +113,7 @@ npm run wp:clean   # Destroy container and volumes
 2. Place tests in `tests/integration/client/` for `WordPressClient` methods, `tests/integration/loaders/` for loader functions, or `tests/integration/actions/` for server actions.
 3. Use the helpers in `tests/helpers/`:
    - `createPublicClient()` / `createAuthClient()` from `wp-client.ts` for API access
+   - `createJwtAuthClient()` from `wp-client.ts` for JWT-authenticated API access
    - `createMockStore()` from `mock-store.ts` for static loader tests
    - `createMockLogger()` from `mock-logger.ts` for static loader tests
 4. One test file per resource type (posts, pages, categories, tags, media, users, settings).
@@ -113,6 +124,7 @@ npm run wp:clean   # Destroy container and volumes
 
 Reference integration suites:
 - `tests/integration/actions/posts.test.ts` — core post CRUD examples.
+- `tests/integration/actions/auth-bridge.test.ts` — JWT auth bridge session, middleware, and action-auth helper coverage.
 - `tests/integration/actions/pages.test.ts` — core page CRUD examples.
 - `tests/integration/actions/books.test.ts` — core book (CPT) CRUD examples.
 - `tests/integration/actions/acf.test.ts` — ACF CRUD examples with simple (`acf_subtitle`, `acf_priority_score`, `acf_external_url`) and complex relation fields (`acf_related_posts`, `acf_featured_post`). Relation fields are asserted as IDs in `acf`, plus `_links['acf:post']`/`_embedded['acf:post']` when fetched with `_embed=1`.
@@ -180,6 +192,7 @@ The workflow uses `ubuntu-latest` (Docker pre-installed), sets up Node 22, insta
 - `wp-env` output includes status lines (ℹ/✔). The `wpCli()` helper in `global-setup.ts` strips these. Always use it instead of raw `execSync`.
 - Vitest `globalSetup` runs in a separate process — `process.env` changes do NOT propagate to test workers. Env vars are bridged via `.test-env.json` (written by globalSetup, read by `env-loader.ts` setupFile).
 - WordPress application passwords require HTTPS by default. The mu-plugin at `tests/wp-env/mu-plugins/enable-app-passwords.php` overrides this for HTTP localhost.
+- JWT auth relies on `tests/wp-env/mu-plugins/enable-jwt-auth-header.php` so Authorization headers survive local wp-env rewrites.
 - The WP REST API caps `per_page` at 100. Use `getAll*()` methods for full pagination instead of setting high `perPage` values.
 - WordPress creates a default "Privacy Policy" page in draft status. The seed script detects this and publishes it to ensure 10 pages are available.
 - The `afterStart` lifecycle script runs on the HOST, not inside the container. It uses `npx wp-env run cli -- wp ...` to execute WP-CLI commands inside the container.
@@ -191,8 +204,9 @@ Follow the rules in the global `AGENTS.md` (clean code, exit early, DRY, English
 - Schemas live in `src/schemas/` — one file per concern.
 - Client methods live in individual files under `src/client/` (e.g., `posts.ts`, `pages.ts`).
 - Loaders are split into `src/loaders/static.ts` and `src/loaders/live.ts`.
+- Shared runtime helpers for Astro middleware, actions, and auth flows should prefer web-standard APIs so they work on Node and non-Node adapters; only use Node-specific globals behind guarded fallbacks when truly necessary.
 - All public API is re-exported from `src/index.ts`.
 
 ## npm Package
 
-The `files` field in `package.json` is an allowlist: only `dist/` and `src/components/` are published. Test files, wp-env config, and vitest config are excluded automatically. When adding new directories, verify they are not unintentionally included by running `npm pack --dry-run`.
+The `files` field in `package.json` is an allowlist: only `dist/` and `src/components/` are published. Test files, wp-env config, vitest config, and `AGENTS.md` are excluded automatically. `AGENTS.md` exists for repository-side contributor and AI guidance only. When adding new directories, verify they are not unintentionally included by running `npm pack --dry-run`.

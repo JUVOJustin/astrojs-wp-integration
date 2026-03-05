@@ -2,31 +2,94 @@
 
 Actions are Astro server actions that wrap the WordPress REST API, providing **type-safe, authenticated write operations** from any server-side Astro context — form handlers, API routes, middleware, or server components.
 
-Every action is a factory function that binds your WordPress credentials once and returns a reusable Astro `ActionClient`. Under the hood, each action calls an `execute*` function that performs the HTTP request and maps errors to `ActionError`.
+Every action is a factory function that binds a WordPress auth config (static credentials or request resolver) and returns a reusable Astro `ActionClient`. Under the hood, each action calls an `execute*` function that uses the same low-level `WordPressClient` request transport and maps failures to `ActionError`.
 
 ---
 
 ## Authentication
 
-All write operations require a WordPress **Application Password**. Application passwords are separate from the user's login password and can be scoped or revoked independently.
+All write operations need auth headers. The action factories support four auth styles:
 
-### Generate an application password
+- **Basic auth** (`{ username, password }`) for app-password workflows
+- **JWT auth** (`{ token }`) for user-scoped SSR requests
+- **Resolver auth** (`(context) => ...`) for per-request middleware/session integration
+- **Request-aware auth headers** (`authHeaders`) for signature-based methods like OAuth 1.0
 
-1. Log in to the WordPress admin.
-2. Go to **Users → Profile** (or **Users → All Users → Edit** for another user).
-3. Scroll to **Application Passwords**.
-4. Enter a name (e.g. `Astro Integration`) and click **Add New Application Password**.
-5. Copy the generated password — it is only shown once.
+### Basic auth (existing behavior)
 
-Store credentials in your Astro project's `.env` file:
-
-```ini
-WP_URL=https://example.com
-WP_USERNAME=my-wp-user
-WP_APP_PASSWORD=xxxx xxxx xxxx xxxx xxxx xxxx
+```ts
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
+};
 ```
 
-### Pass credentials to an action factory
+### JWT auth (static token)
+
+```ts
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    token: import.meta.env.WP_JWT_TOKEN,
+  },
+};
+```
+
+### JWT auth (request-scoped resolver)
+
+```ts
+import { wordPressAuthBridge } from '../lib/auth/bridge';
+
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: (context) => wordPressAuthBridge.getActionAuth(context),
+};
+```
+
+### Request-aware auth headers (OAuth-style signatures)
+
+```ts
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  authHeaders: ({ method, url, body }) => {
+    // Replace with your signer implementation
+    const signature = createSignedAuthHeader({ method, url: url.toString(), body });
+
+    return {
+      Authorization: signature,
+    };
+  },
+};
+```
+
+`createSignedAuthHeader` is a user-defined function for custom auth integrations. It is not part of this package and does not perform a network request by itself.
+
+If your signer needs Astro action context (for example, per-user tokens), resolve it via `fromContext`:
+
+```ts
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  authHeaders: {
+    fromContext: (context) => ({ method, url, body }) => {
+      const signature = createSignedAuthHeader({
+        method,
+        url: url.toString(),
+        body,
+        token: context.locals.oauthToken,
+      });
+
+      return {
+        Authorization: signature,
+      };
+    },
+  },
+};
+```
+
+Use the same `wpConfig` in all factories:
 
 ```ts
 // src/actions/index.ts
@@ -36,30 +99,11 @@ import {
   createDeletePostAction,
 } from 'wp-astrojs-integration';
 
-const wpConfig = {
-  baseUrl: import.meta.env.WP_URL,
-  auth: {
-    username: import.meta.env.WP_USERNAME,
-    password: import.meta.env.WP_APP_PASSWORD,
-  },
-};
-
 export const server = {
   createPost: createCreatePostAction(wpConfig),
   updatePost: createUpdatePostAction(wpConfig),
   deletePost: createDeletePostAction(wpConfig),
 };
-```
-
-The factory calls `createBasicAuthHeader` internally — you never handle the `Authorization` header manually in normal usage. If you are building a custom action (e.g. targeting a custom post type endpoint), you can call `createBasicAuthHeader` directly:
-
-```ts
-import { createBasicAuthHeader } from 'wp-astrojs-integration';
-
-const authHeader = createBasicAuthHeader({
-  username: import.meta.env.WP_USERNAME,
-  password: import.meta.env.WP_APP_PASSWORD,
-});
 ```
 
 ---
@@ -151,7 +195,7 @@ The `message` is taken directly from the WordPress `{ code, message, data }` err
 
 | `error.code` | HTTP status | Typical cause |
 |---|---|---|
-| `UNAUTHORIZED` | 401 | Missing, wrong, or expired application password |
+| `UNAUTHORIZED` | 401 | Missing, wrong, or expired credentials (basic auth or JWT) |
 | `FORBIDDEN` | 403 | Authenticated user lacks capability for the operation |
 | `NOT_FOUND` | 404 | Post / term / attachment ID does not exist |
 | `UNPROCESSABLE_CONTENT` | 422 | Invalid field value (bad date format, unknown template, etc.) |
@@ -181,6 +225,8 @@ const config = {
 
 const product = await executeCreatePost(config, { title: 'My Product', status: 'publish' });
 ```
+
+If you use JWT, build the header with `createJwtAuthHeader(token)` instead.
 
 When `resource` is omitted it defaults to `'posts'`. See [Post actions — Pages and custom post types](./posts.mdx#pages-and-custom-post-types) for the full pattern.
 

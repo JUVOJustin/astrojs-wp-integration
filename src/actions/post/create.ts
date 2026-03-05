@@ -1,8 +1,13 @@
-import { defineAction, ActionError, type ActionClient } from 'astro/actions/runtime/server.js';
+import { defineAction, ActionError, type ActionAPIContext, type ActionClient } from 'astro/actions/runtime/server.js';
 import { z } from 'astro/zod';
-import { createBasicAuthHeader, type BasicAuthCredentials } from '../../client/auth';
 import { postWriteBaseSchema, wordPressErrorSchema, postSchema, pageSchema, contentWordPressSchema } from '../../schemas';
 import type { WordPressPost, WordPressPage, WordPressContent } from '../../schemas';
+import {
+  resolveActionRequestAuth,
+  type ActionAuthConfig,
+  type ResolvableActionAuthHeaders,
+} from '../auth';
+import { executeActionRequest, type ExecuteActionAuthConfig } from './client';
 
 /**
  * Input schema for creating a new WordPress post (or page / custom post type).
@@ -27,11 +32,7 @@ export type CreatePostInput = z.infer<typeof createPostInputSchema>;
  * 'pages', 'books').  The optional `responseSchema` overrides the default
  * `postSchema` so the response can be parsed as a different type.
  */
-export interface ExecuteCreateConfig<T = WordPressPost> {
-  /** Base URL up to but excluding the resource (e.g. 'http://example.com/wp-json/wp/v2') */
-  apiBase: string;
-  /** Pre-built Authorization header value */
-  authHeader: string;
+export interface ExecuteCreateConfig<T = WordPressPost> extends ExecuteActionAuthConfig {
   /** REST resource path appended to `apiBase` (default: 'posts') */
   resource?: string;
   /** Zod schema used to parse the response (default: postSchema) */
@@ -40,13 +41,15 @@ export interface ExecuteCreateConfig<T = WordPressPost> {
 
 /**
  * Configuration required to create the create-post action factory.
- * Authentication is mandatory because creating posts requires write access.
+ * At least one auth strategy is required because creating posts needs write access.
  */
 export interface CreatePostActionConfig<T = WordPressPost> {
   /** WordPress site URL (e.g. 'https://example.com') */
   baseUrl: string;
-  /** Application-password credentials */
-  auth: BasicAuthCredentials;
+  /** Static or request-scoped auth config (basic, JWT, or prebuilt header) */
+  auth?: ActionAuthConfig;
+  /** Advanced request-aware auth headers for OAuth-like signature methods */
+  authHeaders?: ResolvableActionAuthHeaders;
   /** REST resource path (default: 'posts') — set to 'pages' or a CPT rest_base */
   resource?: string;
   /** Optional parser override for the action response */
@@ -95,16 +98,11 @@ export async function executeCreatePost<T = WordPressPost>(
     }
   }
 
-  const response = await fetch(`${config.apiBase}/${resource}`, {
+  const { data, response } = await executeActionRequest<unknown>(config, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: config.authHeader,
-    },
-    body: JSON.stringify(body),
+    endpoint: `/${resource}`,
+    body,
   });
-
-  const data: unknown = await response.json();
 
   if (!response.ok) {
     const wpError = wordPressErrorSchema.safeParse(data);
@@ -151,7 +149,6 @@ export function createCreatePostAction<
   TSchema extends typeof createPostInputSchema = typeof createPostInputSchema
 >(config: CreatePostActionConfig<TResponse> & { schema?: TSchema }): ActionClient<TResponse, undefined, TSchema> & string {
   const inputSchema = (config.schema ?? createPostInputSchema) as TSchema;
-  const authHeader = createBasicAuthHeader(config.auth);
   const apiBase = `${config.baseUrl.replace(/\/$/, '')}/wp-json/wp/v2`;
   const resource = config.resource;
   const responseSchema = config.responseSchema;
@@ -159,7 +156,16 @@ export function createCreatePostAction<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return defineAction({
     input: inputSchema,
-    handler: (input: z.infer<TSchema>) =>
-      executeCreatePost<TResponse>({ apiBase, authHeader, resource, responseSchema }, input as CreatePostInput & Record<string, unknown>),
+    handler: async (input: z.infer<TSchema>, context: ActionAPIContext) => {
+      const requestAuth = await resolveActionRequestAuth({
+        auth: config.auth,
+        authHeaders: config.authHeaders,
+      }, context);
+
+      return executeCreatePost<TResponse>(
+        { apiBase, ...requestAuth, resource, responseSchema },
+        input as CreatePostInput & Record<string, unknown>,
+      );
+    },
   } as any) as ActionClient<TResponse, undefined, TSchema> & string;
 }

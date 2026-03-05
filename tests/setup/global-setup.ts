@@ -5,6 +5,8 @@ import { dirname, resolve } from 'path';
 
 /** Temp file used to pass env vars from globalSetup to test workers */
 const ENV_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../.test-env.json');
+const DEFAULT_ADMIN_USERNAME = 'admin';
+const DEFAULT_ADMIN_PASSWORD = 'password';
 
 /**
  * Runs a WP-CLI command inside the wp-env container and returns the WP-CLI
@@ -40,9 +42,45 @@ function stripWpEnvOutput(raw: string): string {
  * Generates an application password for the admin user
  */
 function createAppPassword(): string {
-  const raw = wpCli('user application-password create admin vitest --porcelain');
+  const raw = wpCli(`user application-password create ${DEFAULT_ADMIN_USERNAME} vitest --porcelain`);
   // Output format: "<password> <id>" — we need just the password (first token)
   return raw.split(/\s+/)[0];
+}
+
+/**
+ * Keeps the local admin password deterministic so JWT auth setup stays stable.
+ */
+function resetAdminPassword(): void {
+  wpCli(`user update ${DEFAULT_ADMIN_USERNAME} --user_pass=${DEFAULT_ADMIN_PASSWORD}`);
+}
+
+/**
+ * Requests one JWT token from the local WordPress JWT auth endpoint.
+ */
+async function createJwtToken(baseUrl: string): Promise<string> {
+  const response = await fetch(`${baseUrl}/wp-json/jwt-auth/v1/token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      username: DEFAULT_ADMIN_USERNAME,
+      password: DEFAULT_ADMIN_PASSWORD,
+    }),
+  });
+
+  const data: unknown = await response.json().catch(() => null);
+
+  if (
+    !response.ok ||
+    typeof data !== 'object' ||
+    data === null ||
+    typeof (data as { token?: unknown }).token !== 'string'
+  ) {
+    throw new Error('Failed to create JWT token during global setup.');
+  }
+
+  return (data as { token: string }).token;
 }
 
 /**
@@ -65,7 +103,7 @@ async function waitForApi(baseUrl: string, maxAttempts = 30): Promise<void> {
  * Global setup: called once before all integration tests.
  * Content seeding is handled by wp-env's afterStart lifecycle script
  * (see .wp-env.json), so this only needs to wait for the API and
- * create an application password for authenticated endpoint tests.
+ * create an application password plus JWT token for authenticated endpoint tests.
  */
 export async function setup(): Promise<void> {
   const baseUrl = process.env.WP_BASE_URL || 'http://localhost:8888';
@@ -73,14 +111,21 @@ export async function setup(): Promise<void> {
   console.log('[global-setup] Waiting for WordPress API...');
   await waitForApi(baseUrl);
 
+  console.log('[global-setup] Resetting admin password...');
+  resetAdminPassword();
+
   console.log('[global-setup] Creating application password...');
   const appPassword = createAppPassword();
+
+  console.log('[global-setup] Creating JWT token...');
+  const jwtToken = await createJwtToken(baseUrl);
 
   // Persist env vars to a file so test workers can read them (globalSetup runs
   // in a separate process — process.env changes are not inherited by workers)
   const envData = {
     WP_BASE_URL: baseUrl,
     WP_APP_PASSWORD: appPassword,
+    WP_JWT_TOKEN: jwtToken,
   };
   writeFileSync(ENV_FILE, JSON.stringify(envData), 'utf-8');
 
@@ -98,7 +143,7 @@ export async function teardown(): Promise<void> {
 
   // Remove the app password
   try {
-    wpCli('user application-password delete admin --all');
+    wpCli(`user application-password delete ${DEFAULT_ADMIN_USERNAME} --all`);
   } catch {
     // Ignore — container may already be down
   }
