@@ -10,6 +10,14 @@
 - **Zod schemas** (`src/schemas/`) — validation schemas for all WP entities
 - **Astro components** (`src/components/`) — `WPContent.astro`, `WPImage.astro`
 
+## Architecture Priorities
+
+- Treat `WordPressClient` as the package's core integration layer. Add or harden client capabilities before introducing higher-level loaders, bridges, or actions that depend on them.
+- Build loaders, actions, and helpers on top of proven client primitives. If a feature needs a new REST capability, implement that capability in the client first.
+- Keep the package aligned with WordPress' extensibility model. Default to generic resource-oriented patterns that work for core entities, custom post types, custom taxonomies, plugin endpoints, and custom auth flows.
+- Validate and require only the minimum data needed for a feature to work. Keep optional and custom fields extensible so projects can layer in ACF fields, meta, relations, and plugin data without fighting the package.
+- Avoid hard-coding assumptions that only fit default posts/pages. Always leave room for custom post types, taxonomies, actions, fields, and REST namespaces.
+
 ## Testing
 
 ### Philosophy
@@ -196,8 +204,9 @@ Follow the rules in the global `AGENTS.md` (clean code, exit early, DRY, English
 - Schemas live in `src/schemas/` — one file per concern.
 - Client methods live in individual files under `src/client/` (e.g., `posts.ts`, `pages.ts`).
 - Loaders are split into `src/loaders/static.ts` and `src/loaders/live.ts`.
+- Shared runtime helpers for Astro middleware, actions, and auth flows should prefer web-standard APIs so they work on Node and non-Node adapters; only use Node-specific globals behind guarded fallbacks when truly necessary.
 - All public API is re-exported from `src/index.ts`.
 
 ## npm Package
 
-The `files` field in `package.json` is an allowlist: only `dist/` and `src/components/` are published. Test files, wp-env config, and vitest config are excluded automatically. When adding new directories, verify they are not unintentionally included by running `npm pack --dry-run`.
+The `files` field in `package.json` is an allowlist: only `dist/` and `src/components/` are published. Test files, wp-env config, vitest config, and `AGENTS.md` are excluded automatically. `AGENTS.md` exists for repository-side contributor and AI guidance only. When adding new directories, verify they are not unintentionally included by running `npm pack --dry-run`.

@@ -2,6 +2,8 @@
 
 This guide covers how to use `WordPressClient` directly, especially for endpoints that do not yet have dedicated helpers in this package.
 
+`WordPressClient` is the package's foundation. New WordPress support should land here before it is wrapped by loaders, actions, or higher-level helpers.
+
 ## When to use the client directly
 
 Use the built-in `getPosts()`, `getPages()`, `getUsers()`, etc. when available.
@@ -9,9 +11,12 @@ Use the built-in `getPosts()`, `getPages()`, `getUsers()`, etc. when available.
 Use `WordPressClient.request()` when you need:
 
 - custom post types without dedicated wrappers
+- custom taxonomies or term endpoints beyond the built-in helpers
 - plugin endpoints outside `/wp/v2`
 - write operations not yet covered by action factories
 - custom auth integrations with request signing (for example OAuth-style signatures)
+
+When adding new package capabilities, prefer extending the client in a way that keeps the surface generic enough for core entities, custom post types, custom taxonomies, plugin namespaces, and custom field payloads.
 
 ## Create a client
 
@@ -154,7 +159,7 @@ if (!response.ok) {
 
 - v2-relative paths (example: `/posts`)
 - full REST paths (example: `/wp-json/my-plugin/v1/sync`)
-- absolute URLs
+- same-origin absolute URLs
 
 Call plugin endpoints by passing their full `/wp-json/...` path:
 
@@ -174,5 +179,8 @@ if (!response.ok) {
 
 - Use `getAll*()` for complete pagination (WordPress limits `per_page` to 100).
 - Prefer `request()` for one-off endpoints and custom resources.
+- Same-origin absolute URLs are supported when you already have a fully resolved endpoint.
+- Cross-origin absolute URLs throw to prevent inherited auth or cookie headers from leaking to another host.
+- Validate only the fields your feature truly requires, and leave the rest extensible for custom meta, ACF data, and plugin fields.
 - Keep `authHeaders` pure and deterministic; it should only derive headers from request input.
 - For Astro user-scoped flows, resolve auth per request in actions/middleware and pass JWT or signed headers from context.

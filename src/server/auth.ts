@@ -8,7 +8,7 @@ import type { APIContext } from 'astro';
 import { z } from 'astro/zod';
 import { WordPressClient } from '../client';
 import { createJwtAuthHeader, type JwtAuthCredentials } from '../client/auth';
-import type { WordPressAuthor } from '../schemas';
+import { wordPressErrorSchema, type WordPressAuthor } from '../schemas';
 
 const DEFAULT_COOKIE_NAME = 'wp_astro_auth';
 const DEFAULT_COOKIE_PATH = '/';
@@ -26,8 +26,15 @@ const jwtAuthTokenResponseSchema = z.object({
 });
 
 const jwtAuthErrorSchema = z.object({
+  code: z.string().trim().min(1).optional(),
   message: z.string().trim().min(1),
+  statusCode: z.number().int().optional(),
+  data: z.object({
+    status: z.number().int().optional(),
+  }).optional(),
 });
+
+type JwtAuthErrorResponse = z.infer<typeof jwtAuthErrorSchema>;
 
 /**
  * Input schema for WordPress login requests handled by Astro server actions.
@@ -139,6 +146,88 @@ function buildWordPressURL(baseUrl: string, suffix: string): string {
 }
 
 /**
+ * Converts one base64url string into padded base64 expected by web-standard decoders.
+ */
+function normalizeBase64UrlValue(value: string): string {
+  const normalizedValue = value.replace(/-/g, '+').replace(/_/g, '/');
+  const missingPadding = normalizedValue.length % 4;
+
+  if (missingPadding === 0) {
+    return normalizedValue;
+  }
+
+  return `${normalizedValue}${'='.repeat(4 - missingPadding)}`;
+}
+
+/**
+ * Decodes one base64url value to UTF-8 text with runtime-safe web APIs.
+ */
+function decodeBase64UrlUtf8(value: string): string {
+  const normalizedValue = normalizeBase64UrlValue(value);
+  const binaryValue = atob(normalizedValue);
+  const bytes = Uint8Array.from(binaryValue, (character) => character.charCodeAt(0));
+
+  return new TextDecoder().decode(bytes);
+}
+
+/**
+ * Checks whether one HTTP status represents an authentication failure.
+ */
+function isAuthFailureStatus(status: number): boolean {
+  return status === 401 || status === 403;
+}
+
+/**
+ * Extracts one readable WordPress error message from a REST response payload.
+ */
+function getWordPressErrorMessage(data: unknown, response: Response): string {
+  const wpError = wordPressErrorSchema.safeParse(data);
+
+  if (wpError.success) {
+    return wpError.data.message;
+  }
+
+  return `WordPress API error: ${response.status} ${response.statusText}`;
+}
+
+/**
+ * Validates the minimum `/users/me` response shape before exposing the user.
+ */
+function isWordPressAuthor(value: unknown): value is WordPressAuthor {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const candidate = value as Partial<WordPressAuthor>;
+
+  return typeof candidate.id === 'number'
+    && typeof candidate.name === 'string'
+    && typeof candidate.slug === 'string';
+}
+
+/**
+ * Checks whether the JWT endpoint reported a server-side configuration error.
+ */
+function isJwtAuthConfigurationError(error: JwtAuthErrorResponse | null): boolean {
+  if (!error) {
+    return false;
+  }
+
+  if (error.code === 'jwt_auth_bad_config') {
+    return true;
+  }
+
+  return /JWT is not configured properly/i.test(error.message);
+}
+
+/**
+ * Reads one effective JWT error status from either payload metadata or the HTTP response.
+ */
+function getJwtAuthErrorStatus(error: JwtAuthErrorResponse | null, response: Response): number {
+  return error?.data?.status ?? error?.statusCode ?? response.status;
+}
+
+/**
  * Decodes the JWT payload to inspect expiration and user metadata claims.
  */
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
@@ -149,7 +238,7 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
   }
 
   try {
-    const decodedPayload = Buffer.from(tokenParts[1], 'base64url').toString('utf-8');
+    const decodedPayload = decodeBase64UrlUtf8(tokenParts[1]);
     const parsedPayload: unknown = JSON.parse(decodedPayload);
 
     if (typeof parsedPayload !== 'object' || parsedPayload === null) {
@@ -285,11 +374,20 @@ async function loginWithWordPressJwt(
       });
     }
 
-    const jwtError = jwtAuthErrorSchema.safeParse(data);
+    const parsedJwtError = jwtAuthErrorSchema.safeParse(data);
+    const jwtError = parsedJwtError.success ? parsedJwtError.data : null;
+    const jwtErrorStatus = getJwtAuthErrorStatus(jwtError, response);
+
+    if (isJwtAuthConfigurationError(jwtError) || jwtErrorStatus >= 500) {
+      throw new ActionError({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: jwtError?.message ?? 'WordPress JWT authentication is not configured correctly.',
+      });
+    }
 
     throw new ActionError({
       code: 'UNAUTHORIZED',
-      message: jwtError.success ? jwtError.data.message : 'WordPress rejected these credentials.',
+      message: jwtError?.message ?? 'WordPress rejected these credentials.',
     });
   }
 
@@ -314,11 +412,51 @@ async function resolveUserByToken(baseUrl: string, token: string): Promise<WordP
     auth: { token },
   });
 
-  try {
-    return await client.getCurrentUser();
-  } catch {
-    return null;
+  const { data, response } = await client.request<unknown>({
+    endpoint: '/users/me',
+  });
+  const wpError = wordPressErrorSchema.safeParse(data);
+
+  if (!response.ok) {
+    if (wpError.success && wpError.data.code === 'jwt_auth_bad_config') {
+      throw new Error(wpError.data.message);
+    }
+
+    if (isAuthFailureStatus(response.status)) {
+      return null;
+    }
+
+    throw new Error(getWordPressErrorMessage(data, response));
   }
+
+  if (!isWordPressAuthor(data)) {
+    throw new Error('WordPress /users/me returned an invalid user payload.');
+  }
+
+  return data;
+}
+
+/**
+ * Creates one normalized session error for invalid or unusable JWT login results.
+ */
+function createInvalidSessionError(): ActionError {
+  return new ActionError({
+    code: 'UNAUTHORIZED',
+    message: 'WordPress returned an expired or invalid JWT session.',
+  });
+}
+
+/**
+ * Resolves one authenticated WordPress user after a successful JWT login.
+ */
+async function resolveLoggedInUser(baseUrl: string, token: string): Promise<WordPressAuthor> {
+  const user = await resolveUserByToken(baseUrl, token);
+
+  if (!user) {
+    throw createInvalidSessionError();
+  }
+
+  return user;
 }
 
 /**
@@ -442,20 +580,10 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
       const session = getSession(token);
 
       if (!session) {
-        throw new ActionError({
-          code: 'UNAUTHORIZED',
-          message: 'WordPress returned an expired or invalid JWT session.',
-        });
+        throw createInvalidSessionError();
       }
 
-      const user = await resolveUserByToken(normalizedConfig.baseUrl, session.token);
-
-      if (!user) {
-        throw new ActionError({
-          code: 'UNAUTHORIZED',
-          message: 'WordPress rejected these credentials.',
-        });
-      }
+      const user = await resolveLoggedInUser(normalizedConfig.baseUrl, session.token);
 
       context.cookies.set(normalizedConfig.cookieName, session.token, {
         path: normalizedConfig.cookiePath,

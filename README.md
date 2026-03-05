@@ -4,14 +4,21 @@ Ready to use WordPress integration for Astro.js with live loaders, static loader
 
 ## Features
 
+- **Client-First Core**: `WordPressClient` is the base layer; loaders, actions, and bridges build on top of stable client behavior
 - **Live Loaders**: Real-time data fetching from WordPress REST API (server-side rendering)
 - **Static Loaders**: Build-time data fetching for static site generation
 - **WordPress Client**: Direct runtime API access for dynamic content
 - **Auth Action Bridge**: Pre-shipped Astro server action bridge with JWT login and middleware helpers
 - **Gutenberg Support**: Automatic block styles loading for proper rendering
 - **TypeScript First**: Fully typed with extensible schemas
-- **Easy Extension**: Simple API for adding custom ACF fields, post types, and taxonomies
+- **Easy Extension**: Simple API for adding custom ACF fields, post types, taxonomies, and plugin data
 - **Optimized Images**: Responsive image component with srcset support
+
+## Architecture Principles
+
+- Start with `WordPressClient` when adding new WordPress support. Higher-level APIs should only be added after the underlying client behavior exists and is validated.
+- Assume and validate the minimum required data for each feature. Keep custom fields, meta, taxonomies, post types, actions, and plugin endpoints extensible instead of forcing a narrow core-data shape.
+- Prefer WordPress-native flexibility over package-specific constraints so custom REST resources can reuse the same patterns as core entities.
 
 ## Installation
 
@@ -326,6 +333,8 @@ const signedClient = new WordPressClient({
 
 Use the packaged bridge to get a ready-to-use JWT login server action with Zod validation and middleware/action helpers.
 
+The bridge uses web-standard runtime APIs so the same flow works in Node and non-Node Astro adapters.
+
 The bridge includes:
 
 - `wordPressLoginInputSchema` for predefined Zod validation (`usernameOrEmail`, `password`, `redirectTo`)
@@ -544,7 +553,7 @@ interface WordPressStaticLoaderConfig {
 
 ### Low-Level Client Transport
 
-- `WordPressClient.request(options)`: Execute custom REST requests while reusing configured auth/cookies
+- `WordPressClient.request(options)`: Execute custom REST requests while reusing configured auth/cookies on relative, full REST, or same-origin absolute URLs
 - `WordPressRequestOptions`: Type for request method, endpoint, params, body, and auth overrides
 - `WordPressRequestResult<T>`: Typed response payload with the original `Response`
 
@@ -605,6 +614,8 @@ TypeScript types inferred from schemas:
 ## Development & Testing
 
 This project uses integration tests that run against a real WordPress instance via [`@wordpress/env`](https://developer.wordpress.org/block-editor/reference-guides/packages/packages-env/) (Docker). Test content (150 posts, 10 pages, categories, tags) is automatically seeded on every `wp-env start` via a lifecycle script. Native REST meta is also seeded for known entries (`test-post-001`, `about`, `test-book-001`) so loader suites can verify meta passthrough behavior.
+
+Repository guidance for contributors and AI agents lives in `AGENTS.md`. It is intentionally kept out of the published npm package because `package.json` only publishes `dist/` and `src/components/`.
 
 ACF-based integration tests rely on the free ACF plugin, which is auto-activated when already installed or installed+activated when missing during `npm run wp:start`.
 

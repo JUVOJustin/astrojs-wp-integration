@@ -2,6 +2,10 @@
 
 The package ships a JWT-first Astro auth bridge for WordPress.
 
+This bridge is a higher-level integration layer on top of the client transport. New action or bridge behavior should follow established `WordPressClient` capabilities instead of inventing parallel request logic.
+
+It uses web-standard runtime APIs so the same bridge works in Node and non-Node Astro adapters.
+
 ## What It Provides
 
 - `createWordPressAuthBridge(config)` to create a reusable auth bridge
@@ -9,6 +13,11 @@ The package ships a JWT-first Astro auth bridge for WordPress.
 - `loginAction` to exchange username/password for a WordPress JWT
 - `resolveUser(context)` and `isAuthenticated(context)` for Astro middleware checks
 - `getActionAuth(context)` to reuse the JWT in `create*PostAction` factories
+
+## Design Guidance
+
+- Keep action factories generic so they can target core resources, custom post types, and plugin-backed endpoints that follow WordPress REST conventions.
+- Validate only the minimum action input and response data required for the current feature, and leave room for custom fields, meta, and related plugin data.
 
 ## WordPress Requirement
 

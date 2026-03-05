@@ -33,11 +33,39 @@ describe('Actions: Auth Bridge', () => {
     expect(session?.authHeader.startsWith('Bearer ')).toBe(true);
   });
 
+  it('decodes one JWT token without relying on the Node Buffer global', () => {
+    const originalBuffer = globalThis.Buffer;
+    Reflect.set(globalThis as object, 'Buffer', undefined);
+
+    try {
+      const session = bridge.getSession(token);
+
+      expect(session).not.toBeNull();
+      expect(session?.token).toBe(token);
+    } finally {
+      Reflect.set(globalThis as object, 'Buffer', originalBuffer);
+    }
+  });
+
   it('resolves the authenticated user from one JWT session token', async () => {
     const user = await bridge.resolveUserBySessionId(token);
 
     expect(user).not.toBeNull();
     expect(user?.slug).toBe('admin');
+  });
+
+  it('returns null when the JWT session token is invalid', async () => {
+    const tokenParts = token.split('.');
+    const invalidToken = `${tokenParts[0]}.${tokenParts[1]}.invalid-signature`;
+    const user = await bridge.resolveUserBySessionId(invalidToken);
+
+    expect(user).toBeNull();
+  });
+
+  it('surfaces transport errors while resolving the authenticated user', async () => {
+    const unreachableBridge = createWordPressAuthBridge({ baseUrl: 'http://127.0.0.1:9' });
+
+    await expect(unreachableBridge.resolveUserBySessionId(token)).rejects.toThrow();
   });
 
   it('returns JWT auth config for action handlers', () => {
@@ -63,5 +91,26 @@ describe('Actions: Auth Bridge', () => {
     });
 
     expect(authenticated).toBe(false);
+  });
+
+  it('matches the wp-env JWT endpoint auth failure status for invalid credentials', async () => {
+    const response = await fetch(`${getBaseUrl()}/wp-json/jwt-auth/v1/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        username: 'admin',
+        password: 'definitely-wrong',
+      }),
+    });
+    const data = await response.json() as {
+      code?: string;
+      data?: { status?: number };
+    };
+
+    expect(response.status).toBe(403);
+    expect(data.code).toBe('[jwt_auth] incorrect_password');
+    expect(data.data?.status).toBe(403);
   });
 });

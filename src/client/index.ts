@@ -49,7 +49,7 @@ export interface FetchResult<T> {
  * Low-level request options for direct calls to the WordPress REST API.
  */
 export interface WordPressRequestOptions {
-  /** API endpoint path (relative to `/wp-json/wp/v2`, `/wp-json/...`, or full URL) */
+  /** API endpoint path (relative to `/wp-json/wp/v2`, `/wp-json/...`, or same-origin absolute URL) */
   endpoint: string;
   /** HTTP method used for the request (default: GET) */
   method?: string;
@@ -97,6 +97,7 @@ export interface WordPressRequestResult<T> {
  */
 export class WordPressClient {
   private baseUrl: string;
+  private baseOrigin: string;
   private apiBase: string;
   private auth: WordPressAuthInput | undefined;
   private authHeaders: WordPressAuthHeaders | WordPressAuthHeadersProvider | undefined;
@@ -150,6 +151,7 @@ export class WordPressClient {
 
   constructor(config: WordPressClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, ''); // Remove trailing slash
+    this.baseOrigin = new URL(this.baseUrl).origin;
     this.auth = config.authHeader
       ? config.authHeader
       : config.auth;
@@ -214,11 +216,26 @@ export class WordPressClient {
   }
 
   /**
+   * Rejects absolute URLs that do not target the configured WordPress origin.
+   */
+  private createAbsoluteApiUrl(endpoint: string): URL {
+    const url = new URL(endpoint);
+
+    if (url.origin !== this.baseOrigin) {
+      throw new Error(
+        `Cross-origin absolute URLs are not allowed. Expected origin '${this.baseOrigin}' but received '${url.origin}'.`
+      );
+    }
+
+    return url;
+  }
+
+  /**
    * Builds one REST URL from endpoint and query params.
    */
   private createApiUrl(endpoint: string, params: Record<string, string> = {}): URL {
     const url = /^https?:\/\//i.test(endpoint)
-      ? new URL(endpoint)
+      ? this.createAbsoluteApiUrl(endpoint)
       : endpoint.startsWith('/wp-json/')
         ? new URL(`${this.baseUrl}${endpoint}`)
         : new URL(`${this.apiBase}${endpoint}`);

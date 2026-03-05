@@ -97,6 +97,23 @@ describe('Client: Users', () => {
     expect(me.slug).toBe('admin');
   });
 
+  it('request also supports same-origin absolute URLs', async () => {
+    const endpoint = new URL('/wp-json/wp/v2/users/me', process.env.WP_BASE_URL!).toString();
+    const { data, response } = await jwtClient.request<{ slug: string }>({ endpoint });
+
+    expect(response.ok).toBe(true);
+    expect(data.slug).toBe('admin');
+  });
+
+  it('request rejects cross-origin absolute URLs before forwarding auth', async () => {
+    const endpoint = new URL('/wp-json/wp/v2/users/me', process.env.WP_BASE_URL!);
+    endpoint.hostname = endpoint.hostname === 'localhost' ? '127.0.0.1' : 'localhost';
+
+    await expect(authClient.request({ endpoint: endpoint.toString() })).rejects.toThrow(
+      'Cross-origin absolute URLs are not allowed'
+    );
+  });
+
   it('getCurrentUser throws without auth', async () => {
     await expect(publicClient.getCurrentUser()).rejects.toThrow('Authentication required');
   });
