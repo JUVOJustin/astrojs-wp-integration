@@ -2,7 +2,7 @@
 
 Actions are Astro server actions that wrap the WordPress REST API, providing **type-safe, authenticated write operations** from any server-side Astro context — form handlers, API routes, middleware, or server components.
 
-Every action is a factory function that binds a WordPress auth config (static credentials or request resolver) and returns a reusable Astro `ActionClient`. Under the hood, each action calls an `execute*` function that performs the HTTP request and maps errors to `ActionError`.
+Every action is a factory function that binds a WordPress auth config (static credentials or request resolver) and returns a reusable Astro `ActionClient`. Under the hood, each action calls an `execute*` function that uses the same low-level `WordPressClient` request transport and maps failures to `ActionError`.
 
 ---
 
@@ -56,7 +56,7 @@ const wpConfig = {
   baseUrl: import.meta.env.WP_URL,
   authHeaders: ({ method, url, body }) => {
     // Replace with your signer implementation
-    const signature = signWordPressRequest({ method, url: url.toString(), body });
+    const signature = createSignedAuthHeader({ method, url: url.toString(), body });
 
     return {
       Authorization: signature,
@@ -65,6 +65,8 @@ const wpConfig = {
 };
 ```
 
+`createSignedAuthHeader` is a user-defined function for custom auth integrations. It is not part of this package and does not perform a network request by itself.
+
 If your signer needs Astro action context (for example, per-user tokens), resolve it via `fromContext`:
 
 ```ts
@@ -72,7 +74,7 @@ const wpConfig = {
   baseUrl: import.meta.env.WP_URL,
   authHeaders: {
     fromContext: (context) => ({ method, url, body }) => {
-      const signature = signWordPressRequest({
+      const signature = createSignedAuthHeader({
         method,
         url: url.toString(),
         body,

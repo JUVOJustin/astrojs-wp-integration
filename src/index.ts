@@ -93,7 +93,12 @@ export type {
 
 // Export client
 export { WordPressClient } from './client';
-export type { WordPressClientConfig, FetchResult } from './client';
+export type {
+  WordPressClientConfig,
+  FetchResult,
+  WordPressRequestOptions,
+  WordPressRequestResult,
+} from './client';
 
 // Export client filter types for typesafe API calls
 export type {

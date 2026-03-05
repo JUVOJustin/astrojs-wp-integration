@@ -1,11 +1,5 @@
 import { defineAction, ActionError, type ActionAPIContext, type ActionClient } from 'astro/actions/runtime/server.js';
 import { z } from 'astro/zod';
-import {
-  resolveWordPressRequestHeaders,
-  type WordPressAuthHeaders,
-  type WordPressAuthHeadersProvider,
-  type WordPressAuthInput,
-} from '../../client/auth';
 import { postWriteBaseSchema, wordPressErrorSchema, postSchema, pageSchema, contentWordPressSchema } from '../../schemas';
 import type { WordPressPost, WordPressPage, WordPressContent } from '../../schemas';
 import {
@@ -13,6 +7,7 @@ import {
   type ActionAuthConfig,
   type ResolvableActionAuthHeaders,
 } from '../auth';
+import { executeActionRequest, type ExecuteActionAuthConfig } from './client';
 
 /**
  * Input schema for creating a new WordPress post (or page / custom post type).
@@ -37,15 +32,7 @@ export type CreatePostInput = z.infer<typeof createPostInputSchema>;
  * 'pages', 'books').  The optional `responseSchema` overrides the default
  * `postSchema` so the response can be parsed as a different type.
  */
-export interface ExecuteCreateConfig<T = WordPressPost> {
-  /** Base URL up to but excluding the resource (e.g. 'http://example.com/wp-json/wp/v2') */
-  apiBase: string;
-  /** Legacy pre-built Authorization header value */
-  authHeader?: string;
-  /** Normalized auth input that resolves into an Authorization header */
-  auth?: WordPressAuthInput;
-  /** Request-aware auth headers for signature-based auth strategies */
-  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
+export interface ExecuteCreateConfig<T = WordPressPost> extends ExecuteActionAuthConfig {
   /** REST resource path appended to `apiBase` (default: 'posts') */
   resource?: string;
   /** Zod schema used to parse the response (default: postSchema) */
@@ -111,28 +98,11 @@ export async function executeCreatePost<T = WordPressPost>(
     }
   }
 
-  const bodyJson = JSON.stringify(body);
-  const url = new URL(`${config.apiBase}/${resource}`);
-  const authHeaders = await resolveWordPressRequestHeaders({
-    auth: config.auth ?? config.authHeader,
-    authHeaders: config.authHeaders,
-    request: {
-      method: 'POST',
-      url,
-      body: bodyJson,
-    },
-  });
-
-  const response = await fetch(url.toString(), {
+  const { data, response } = await executeActionRequest<unknown>(config, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders,
-    },
-    body: bodyJson,
+    endpoint: `/${resource}`,
+    body,
   });
-
-  const data: unknown = await response.json();
 
   if (!response.ok) {
     const wpError = wordPressErrorSchema.safeParse(data);

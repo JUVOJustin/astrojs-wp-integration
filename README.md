@@ -263,7 +263,7 @@ const tags = await wp.getTags();
 
 ### With Authentication
 
-For endpoints requiring authentication (e.g., `/settings`, `/users/me`) you can use basic auth or JWT auth:
+For endpoints requiring authentication (e.g., `/settings`, `/users/me`) the client supports these direct auth patterns:
 
 ```typescript
 import { WordPressClient } from 'wp-astrojs-integration';
@@ -285,7 +285,19 @@ const jwtClient = new WordPressClient({
   }
 });
 
-const currentUser = await jwtClient.getCurrentUser();
+// Prebuilt authorization header
+const headerClient = new WordPressClient({
+  baseUrl: 'https://your-wordpress-site.com',
+  authHeader: 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOi...'
+});
+
+// WordPress session cookies
+const cookieClient = new WordPressClient({
+  baseUrl: 'https://your-wordpress-site.com',
+  cookies: 'wordpress_logged_in_xxx=...; wordpress_sec_xxx=...'
+});
+
+const currentUser = await headerClient.getCurrentUser();
 console.log(currentUser.name, currentUser.email);
 ```
 
@@ -295,7 +307,7 @@ For signature-based methods (for example OAuth 1.0 style flows), use request-awa
 const signedClient = new WordPressClient({
   baseUrl: 'https://your-wordpress-site.com',
   authHeaders: ({ method, url, body }) => {
-    const authorization = signWordPressRequest({
+    const authorization = createSignedAuthHeader({
       method,
       url: url.toString(),
       body,
@@ -307,6 +319,8 @@ const signedClient = new WordPressClient({
   },
 });
 ```
+
+`createSignedAuthHeader` is your own app function for custom auth integrations (for example OAuth 1.0). It just returns a header string; it is not a sub-request and is not provided by this package.
 
 ### Astro Actions Authentication Bridge (Pre-Shipped)
 
@@ -373,7 +387,7 @@ const signedActionConfig = {
   baseUrl: import.meta.env.WP_URL,
   authHeaders: {
     fromContext: (context) => ({ method, url, body }) => {
-      const authorization = signWordPressRequest({
+      const authorization = createSignedAuthHeader({
         method,
         url: url.toString(),
         body,
@@ -387,6 +401,8 @@ const signedActionConfig = {
   },
 };
 ```
+
+This pattern is meant for custom auth integrations. The package passes request metadata (`method`, `url`, `body`) into your signer, then forwards the returned headers to WordPress.
 
 ```astro
 ---
@@ -526,6 +542,12 @@ interface WordPressStaticLoaderConfig {
 - `createWordPressAuthBridge(config)`: Creates a packaged Astro JWT login bridge with middleware/action helpers
 - `wordPressLoginInputSchema`: Predefined Zod schema for login payload validation
 
+### Low-Level Client Transport
+
+- `WordPressClient.request(options)`: Execute custom REST requests while reusing configured auth/cookies
+- `WordPressRequestOptions`: Type for request method, endpoint, params, body, and auth overrides
+- `WordPressRequestResult<T>`: Typed response payload with the original `Response`
+
 ### Auth Utilities
 
 - `createBasicAuthHeader(credentials)`: Build a Basic Authorization header
@@ -534,6 +556,8 @@ interface WordPressStaticLoaderConfig {
 - `resolveWordPressRequestHeaders(config)`: Build final request headers from static auth and request-aware auth providers
 
 Detailed setup docs: https://github.com/JUVOJustin/astrojs-wp-integration/blob/main/docs/auth-action-bridge.md
+
+Client guide: https://github.com/JUVOJustin/astrojs-wp-integration/blob/main/docs/client-usage.md
 
 ### Schemas
 

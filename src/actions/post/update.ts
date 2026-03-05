@@ -1,11 +1,5 @@
 import { defineAction, ActionError, type ActionAPIContext, type ActionClient } from 'astro/actions/runtime/server.js';
 import { z } from 'astro/zod';
-import {
-  resolveWordPressRequestHeaders,
-  type WordPressAuthHeaders,
-  type WordPressAuthHeadersProvider,
-  type WordPressAuthInput,
-} from '../../client/auth';
 import { postWriteBaseSchema, wordPressErrorSchema, postSchema, pageSchema, contentWordPressSchema } from '../../schemas';
 import type { WordPressPost, WordPressPage, WordPressContent } from '../../schemas';
 import {
@@ -13,6 +7,7 @@ import {
   type ActionAuthConfig,
   type ResolvableActionAuthHeaders,
 } from '../auth';
+import { executeActionRequest, type ExecuteActionAuthConfig } from './client';
 
 /**
  * Full input schema for updating an existing WordPress post (or page / CPT).
@@ -39,15 +34,7 @@ export type UpdatePostInput = z.infer<typeof updatePostInputSchema>;
  * 'pages', 'books').  The optional `responseSchema` overrides the default
  * `postSchema` so the response can be parsed as a different type.
  */
-export interface ExecuteUpdateConfig<T = WordPressPost> {
-  /** Base URL up to but excluding the resource (e.g. 'http://example.com/wp-json/wp/v2') */
-  apiBase: string;
-  /** Legacy pre-built Authorization header value */
-  authHeader?: string;
-  /** Normalized auth input that resolves into an Authorization header */
-  auth?: WordPressAuthInput;
-  /** Request-aware auth headers for signature-based auth strategies */
-  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
+export interface ExecuteUpdateConfig<T = WordPressPost> extends ExecuteActionAuthConfig {
   /** REST resource path appended to `apiBase` (default: 'posts') */
   resource?: string;
   /** Zod schema used to parse the response (default: postSchema) */
@@ -114,29 +101,12 @@ export async function executeUpdatePost<T = WordPressPost>(
     }
   }
 
-  const bodyJson = JSON.stringify(body);
-  const url = new URL(`${config.apiBase}/${resource}/${id}`);
-  const authHeaders = await resolveWordPressRequestHeaders({
-    auth: config.auth ?? config.authHeader,
-    authHeaders: config.authHeaders,
-    request: {
-      method: 'POST',
-      url,
-      body: bodyJson,
-    },
-  });
-
   // WordPress REST API uses POST (not PUT/PATCH) for updating existing posts
-  const response = await fetch(url.toString(), {
+  const { data, response } = await executeActionRequest<unknown>(config, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeaders,
-    },
-    body: bodyJson,
+    endpoint: `/${resource}/${id}`,
+    body,
   });
-
-  const data: unknown = await response.json();
 
   if (!response.ok) {
     const wpError = wordPressErrorSchema.safeParse(data);

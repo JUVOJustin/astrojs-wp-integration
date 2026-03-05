@@ -1,17 +1,12 @@
 import { defineAction, ActionError, type ActionAPIContext, type ActionClient } from 'astro/actions/runtime/server.js';
 import { z } from 'astro/zod';
-import {
-  resolveWordPressRequestHeaders,
-  type WordPressAuthHeaders,
-  type WordPressAuthHeadersProvider,
-  type WordPressAuthInput,
-} from '../../client/auth';
 import { wordPressErrorSchema } from '../../schemas';
 import {
   resolveActionRequestAuth,
   type ActionAuthConfig,
   type ResolvableActionAuthHeaders,
 } from '../auth';
+import { executeActionRequest, type ExecuteActionAuthConfig } from './client';
 
 /**
  * Input schema for deleting a WordPress post (or page / custom post type).
@@ -35,15 +30,7 @@ export type DeletePostResult = { id: number; deleted: boolean };
 /**
  * Low-level config accepted by `executeDeletePost`.
  */
-export interface ExecuteDeleteConfig {
-  /** Base URL up to but excluding the resource (e.g. 'http://example.com/wp-json/wp/v2') */
-  apiBase: string;
-  /** Legacy pre-built Authorization header value */
-  authHeader?: string;
-  /** Normalized auth input that resolves into an Authorization header */
-  auth?: WordPressAuthInput;
-  /** Request-aware auth headers for signature-based auth strategies */
-  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
+export interface ExecuteDeleteConfig extends ExecuteActionAuthConfig {
   /** REST resource path appended to `apiBase` (default: 'posts') */
   resource?: string;
 }
@@ -80,26 +67,12 @@ export async function executeDeletePost(
   input: DeletePostInput
 ): Promise<DeletePostResult> {
   const resource = config.resource ?? 'posts';
-  const url = new URL(`${config.apiBase}/${resource}/${input.id}`);
-  if (input.force) {
-    url.searchParams.set('force', 'true');
-  }
-
-  const authHeaders = await resolveWordPressRequestHeaders({
-    auth: config.auth ?? config.authHeader,
-    authHeaders: config.authHeaders,
-    request: {
-      method: 'DELETE',
-      url,
-    },
-  });
-
-  const response = await fetch(url.toString(), {
+  const params = input.force ? { force: 'true' } : undefined;
+  const { data, response } = await executeActionRequest<unknown>(config, {
     method: 'DELETE',
-    headers: authHeaders,
+    endpoint: `/${resource}/${input.id}`,
+    params,
   });
-
-  const data: unknown = await response.json();
 
   if (!response.ok) {
     const wpError = wordPressErrorSchema.safeParse(data);

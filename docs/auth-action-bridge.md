@@ -72,26 +72,60 @@ export const server = {
 };
 ```
 
-If you need non-JWT signing (for example OAuth-style signatures), action factories also accept request-aware `authHeaders`:
+If you need a custom auth integration (for example OAuth-style signatures), action factories also accept request-aware `authHeaders`.
 
 ```typescript
 const signedActionsConfig = {
   baseUrl: import.meta.env.WP_URL,
   authHeaders: {
-    fromContext: (context) => ({ method, url, body }) => {
-      const authorization = signWordPressRequest({
-        method,
-        url: url.toString(),
-        body,
-        token: context.locals.oauthToken,
-      });
+    fromContext: (context) => {
+      const oauthToken = context.locals.oauthToken;
 
-      return {
-        Authorization: authorization,
-      };
+      // Return null when the current request has no auth context.
+      // The action then fails with UNAUTHORIZED before calling WordPress.
+      if (!oauthToken) {
+        return null;
+      }
+
+      return ({ method, url, body }) => ({
+        Authorization: createSignedAuthHeader({
+          method,
+          url: url.toString(),
+          body,
+          token: oauthToken,
+        }),
+      });
     },
   },
 };
+```
+
+How `fromContext` works:
+
+1. `fromContext(context)` runs once when the Astro action is invoked.
+2. You read request-scoped values from Astro context (`locals`, cookies, session state).
+3. You return a request signer function: `({ method, url, body }) => headers`.
+4. The package calls that signer with the exact outgoing WordPress request data.
+5. Your returned headers are sent with the WordPress request.
+
+`createSignedAuthHeader` is your own application helper for custom auth integrations:
+
+- It is not part of this package.
+- It should build an `Authorization` header string from request data.
+- It is not a sub-request by itself.
+
+```typescript
+type SignedHeaderInput = {
+  method: string;
+  url: string;
+  body?: string;
+  token: string;
+};
+
+function createSignedAuthHeader(input: SignedHeaderInput): string {
+  // Replace with your real custom auth signature algorithm.
+  return buildOAuthAuthorizationHeader(input);
+}
 ```
 
 ## Middleware Example
