@@ -106,6 +106,8 @@ export function createGetAbilityAction<
   TSchema extends typeof getAbilityInputSchema = typeof getAbilityInputSchema,
 >(config: GetAbilityActionConfig<TResponse> & { schema?: TSchema }): ActionClient<TResponse, undefined, TSchema> & string {
   const inputSchema = (config.schema ?? getAbilityInputSchema) as TSchema;
+  // apiBase uses /wp-json/wp/v2 so createActionClient can derive the site URL.
+  // Ability endpoints use /wp-json/wp-abilities/v1 paths which the client resolves separately.
   const apiBase = `${config.baseUrl.replace(/\/$/, '')}/wp-json/wp/v2`;
   const responseSchema = config.responseSchema;
 
