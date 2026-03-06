@@ -73,6 +73,12 @@ export {
   createPostInputSchema,
   createDeletePostAction,
   deletePostInputSchema,
+  createGetAbilityAction,
+  getAbilityInputSchema,
+  createRunAbilityAction,
+  runAbilityInputSchema,
+  createDeleteAbilityAction,
+  deleteAbilityInputSchema,
 } from './actions';
 export type {
   ActionAuthConfig,
@@ -89,6 +95,15 @@ export type {
   DeletePostActionConfig,
   DeletePostResult,
   ExecuteDeleteConfig,
+  GetAbilityInput,
+  GetAbilityActionConfig,
+  ExecuteGetAbilityConfig,
+  RunAbilityInput,
+  RunAbilityActionConfig,
+  ExecuteRunAbilityConfig,
+  DeleteAbilityInput,
+  DeleteAbilityActionConfig,
+  ExecuteDeleteAbilityConfig,
 } from './actions';
 
 // Export client
