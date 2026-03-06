@@ -568,6 +568,12 @@ Detailed setup docs: https://github.com/JUVOJustin/astrojs-wp-integration/blob/m
 
 Client guide: https://github.com/JUVOJustin/astrojs-wp-integration/blob/main/docs/client-usage.md
 
+### Server Actions
+
+- Post actions (create, update, delete): https://github.com/JUVOJustin/astrojs-wp-integration/blob/main/docs/actions/posts.mdx
+- Ability actions (get, run, delete): https://github.com/JUVOJustin/astrojs-wp-integration/blob/main/docs/actions/abilities.mdx
+- Actions overview (auth, validation, errors): https://github.com/JUVOJustin/astrojs-wp-integration/blob/main/docs/actions/index.mdx
+
 ### Schemas
 
 Default schemas for WordPress content:
@@ -579,6 +585,9 @@ Default schemas for WordPress content:
 - `mediaSchema`: WordPress media
 - `categorySchema`: Categories and taxonomies
 - `embeddedMediaSchema`: Embedded media from `_embedded` field
+- `abilitySchema`: WordPress ability objects
+- `abilityAnnotationsSchema`: Ability `meta.annotations` block
+- `abilityCategorySchema`: Ability categories
 
 ### Types
 
@@ -591,6 +600,9 @@ TypeScript types inferred from schemas:
 - `WordPressTag`
 - `WordPressAuthor`
 - `WordPressEmbeddedMedia`
+- `WordPressAbility`
+- `WordPressAbilityAnnotations`
+- `WordPressAbilityCategory`
 
 ## Live vs Static Loaders
 
@@ -629,6 +641,7 @@ Reference suites for full CRUD examples:
 - `tests/integration/actions/books.test.ts` — core CPT (`book`) CRUD
 - `tests/integration/actions/acf.test.ts` — ACF CRUD with simple (text/number/url) and complex relation fields; relation values are validated as IDs and with `_links['acf:post']`/`_embedded['acf:post']` on `_embed=1` fetches
 - `tests/integration/actions/meta.test.ts` — core meta CRUD with simple, complex, and subtype-specific custom fields
+- `tests/integration/actions/abilities.test.ts` — ability actions (GET/POST/DELETE) with simple, complex, and invalid input schemas
 
 ```bash
 npm run wp:start   # Start WordPress Docker container (seeds data automatically)

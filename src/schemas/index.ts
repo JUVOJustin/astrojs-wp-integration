@@ -198,6 +198,9 @@ export type WordPressPage = z.infer<typeof pageSchema>;
 export type WordPressMedia = z.infer<typeof mediaSchema>;
 export type WordPressCategory = z.infer<typeof categorySchema>;
 export type WordPressEmbeddedMedia = z.infer<typeof embeddedMediaSchema>;
+export type WordPressAbilityAnnotations = z.infer<typeof abilityAnnotationsSchema>;
+export type WordPressAbility = z.infer<typeof abilitySchema>;
+export type WordPressAbilityCategory = z.infer<typeof abilityCategorySchema>;
 
 /**
  * WordPress Author interface (not using live collections)
@@ -311,6 +314,82 @@ export const postWriteBaseSchema = updatePostFieldsSchema.extend({
 });
 
 export type WordPressPostWriteBase = z.infer<typeof postWriteBaseSchema>;
+
+/**
+ * Schema for the `meta.annotations` object returned by WordPress ability
+ * registrations.  Annotations describe the HTTP semantics of an ability
+ * (`readonly`, `destructive`, `idempotent`) and optional free-form
+ * `instructions` text.
+ *
+ * Uses `.passthrough()` so custom annotation fields added by plugins are
+ * preserved.
+ */
+export const abilityAnnotationsSchema = z.object({
+  /** Free-form guidance text for agents / consumers */
+  instructions: z.string().optional(),
+  /** `true` when the ability only reads data (must use GET /run) */
+  readonly: z.boolean().optional(),
+  /** `true` when the ability performs a destructive action (must use DELETE /run) */
+  destructive: z.boolean().optional(),
+  /** `true` when re-running the ability with the same input produces the same effect */
+  idempotent: z.boolean().optional(),
+}).passthrough();
+
+/**
+ * Schema for a WordPress Ability object returned by the Abilities REST API.
+ *
+ * Represents the JSON shape returned by:
+ * - `GET /wp-abilities/v1/abilities`        (list)
+ * - `GET /wp-abilities/v1/{ns}/{ability}`   (single)
+ *
+ * Uses `.passthrough()` so plugin-added fields are preserved.
+ * Extend with `.extend()` to add typed custom fields:
+ *
+ * @example
+ * const myAbilitySchema = abilitySchema.extend({
+ *   custom_meta: z.string().optional(),
+ * });
+ */
+export const abilitySchema = z.object({
+  /** Full ability name in `namespace/ability` format */
+  name: z.string(),
+  /** Human-readable label */
+  label: z.string(),
+  /** Description of what the ability does */
+  description: z.string().optional(),
+  /** Category slug grouping related abilities */
+  category: z.string().optional(),
+  /** JSON Schema describing the expected input */
+  input_schema: z.any().optional(),
+  /** JSON Schema describing the output */
+  output_schema: z.any().optional(),
+  /** Metadata including REST visibility and annotations */
+  meta: z.object({
+    annotations: abilityAnnotationsSchema.optional(),
+  }).passthrough().optional(),
+}).passthrough();
+
+/**
+ * Schema for a WordPress Ability Category returned by the Abilities REST API.
+ *
+ * Represents the JSON shape returned by:
+ * - `GET /wp-abilities/v1/categories`             (list)
+ * - `GET /wp-abilities/v1/categories/{slug}`      (single)
+ *
+ * Uses `.passthrough()` so plugin-added fields are preserved.
+ */
+export const abilityCategorySchema = z.object({
+  /** Unique category slug */
+  slug: z.string(),
+  /** Human-readable label */
+  label: z.string(),
+  /** Description of this category */
+  description: z.string().optional(),
+  /** Metadata (extensible) */
+  meta: z.any().optional(),
+  /** HAL-style links */
+  _links: z.any().optional(),
+}).passthrough();
 
 /**
  * Schema for WordPress REST API error responses

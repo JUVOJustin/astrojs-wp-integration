@@ -1,0 +1,371 @@
+# Ability Actions
+
+Ability actions let you **execute WordPress abilities** from Astro server-side code — form handlers, API routes, middleware, or server components.
+
+WordPress abilities (introduced in WP 6.9) are registered server-side functions exposed via the REST API at `/wp-abilities/v1/`. Each ability declares an HTTP method annotation that determines which action to use:
+
+| Annotation | HTTP method | Action factory | Execute function |
+|---|---|---|---|
+| `readonly: true` | GET | `createGetAbilityAction` | `executeGetAbility` |
+| `readonly: false, destructive: false` | POST | `createRunAbilityAction` | `executeRunAbility` |
+| `destructive: true` | DELETE | `createDeleteAbilityAction` | `executeDeleteAbility` |
+
+For authentication setup, the validation model, and error handling see [Actions overview](./index.mdx).
+
+---
+
+## Setup
+
+Register the ability action factories in your Astro project's `src/actions/index.ts`:
+
+```ts
+import {
+  createGetAbilityAction,
+  createRunAbilityAction,
+  createDeleteAbilityAction,
+} from 'wp-astrojs-integration';
+import { wordPressAuthBridge } from '../lib/auth/bridge';
+
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: (context) => wordPressAuthBridge.getActionAuth(context),
+};
+
+export const server = {
+  getAbility: createGetAbilityAction(wpConfig),
+  runAbility: createRunAbilityAction(wpConfig),
+  deleteAbility: createDeleteAbilityAction(wpConfig),
+};
+```
+
+If you are not using JWT sessions, pass basic auth directly:
+
+```ts
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
+};
+```
+
+---
+
+## Reading data (GET)
+
+Use `getAbility` for abilities annotated with `readonly: true`. The ability name is passed in `namespace/ability` format:
+
+```ts
+const { data, error } = await Astro.callAction(actions.getAbility, {
+  name: 'my-plugin/get-site-info',
+});
+
+if (data) {
+  console.log(data.title); // ability output is untyped by default
+}
+```
+
+### Passing input to a read-only ability
+
+Some abilities accept input parameters. For GET abilities, input is serialized as a JSON query parameter:
+
+```ts
+const { data } = await Astro.callAction(actions.getAbility, {
+  name: 'my-plugin/get-user-data',
+  input: { user_id: 1, include_meta: true },
+});
+```
+
+### Complex nested output
+
+Abilities can return deeply nested objects. The response is untyped (`unknown`) by default. Use `responseSchema` for typed parsing:
+
+```ts
+import { createGetAbilityAction } from 'wp-astrojs-integration';
+import { z } from 'astro/zod';
+
+const userDataSchema = z.object({
+  user: z.object({
+    id: z.number(),
+    name: z.string(),
+    roles: z.array(z.string()),
+  }),
+  site: z.object({
+    title: z.string(),
+    url: z.string(),
+  }),
+  meta_included: z.boolean(),
+});
+
+export const server = {
+  getUserData: createGetAbilityAction({
+    ...wpConfig,
+    responseSchema: userDataSchema,
+  }),
+};
+```
+
+Now the returned `data` is fully typed according to `userDataSchema`.
+
+---
+
+## Executing abilities (POST)
+
+Use `runAbility` for abilities annotated with `readonly: false, destructive: false`. Input is sent as JSON in the request body:
+
+### Simple input
+
+```ts
+const { data, error } = await Astro.callAction(actions.runAbility, {
+  name: 'my-plugin/update-option',
+  input: { value: 'new-value' },
+});
+```
+
+### Complex nested input
+
+Abilities can accept nested objects and arrays:
+
+```ts
+const { data } = await Astro.callAction(actions.runAbility, {
+  name: 'my-plugin/process-settings',
+  input: {
+    name: 'site-config',
+    settings: {
+      theme: 'dark',
+      font_size: 16,
+    },
+    tags: ['production', 'v2'],
+  },
+});
+```
+
+---
+
+## Destructive abilities (DELETE)
+
+Use `deleteAbility` for abilities annotated with `destructive: true`. Input is serialized as a JSON query parameter (same as GET):
+
+```ts
+const { data, error } = await Astro.callAction(actions.deleteAbility, {
+  name: 'my-plugin/delete-cache',
+});
+```
+
+---
+
+## Input validation
+
+Ability input validation happens in two layers — the same model used by [post actions](./index.mdx#validation-model):
+
+### Layer 1 — Zod (local, before the HTTP request)
+
+| Field | Constraint |
+|---|---|
+| `name` | Must be a non-empty string |
+| `input` | Optional, accepts any value (`z.unknown()`) |
+
+The `input` field uses `z.unknown()` because ability schemas are defined server-side in WordPress. Zod only validates that `name` is present — the actual input shape is validated by WordPress (Layer 2).
+
+### Layer 2 — WordPress REST API (remote, after the HTTP request)
+
+WordPress validates the `input` against the ability's registered `input_schema`. If the input doesn't match, WordPress returns a structured error that the action surfaces as an `ActionError`.
+
+Common validation errors from WordPress:
+
+| Situation | WordPress error |
+|---|---|
+| Required input field missing | `rest_missing_callback_param` |
+| Wrong input field type | `rest_invalid_param` |
+| Unknown input field name | Silently ignored or `rest_invalid_param` depending on `additionalProperties` |
+| Wrong nested object structure | `rest_invalid_param` |
+
+---
+
+## The `execute*` pattern
+
+Like post actions, ability actions export both a factory and a raw execute function:
+
+```ts
+import { executeGetAbility, executeRunAbility, executeDeleteAbility } from 'wp-astrojs-integration/actions';
+import { createBasicAuthHeader } from 'wp-astrojs-integration';
+
+const config = {
+  apiBase: 'https://example.com/wp-json/wp/v2',
+  authHeader: createBasicAuthHeader({
+    username: 'admin',
+    password: 'xxxx xxxx xxxx xxxx',
+  }),
+};
+
+// GET — read-only ability
+const siteInfo = await executeGetAbility(config, {
+  name: 'my-plugin/get-site-info',
+});
+
+// POST — regular ability
+const result = await executeRunAbility(config, {
+  name: 'my-plugin/update-option',
+  input: { value: 'new-value' },
+});
+
+// DELETE — destructive ability
+const deleted = await executeDeleteAbility(config, {
+  name: 'my-plugin/delete-cache',
+});
+```
+
+### Typed responses with `responseSchema`
+
+Pass a Zod schema to parse and type-check the response:
+
+```ts
+import { z } from 'astro/zod';
+
+const optionResultSchema = z.object({
+  previous: z.string(),
+  current: z.string(),
+});
+
+const result = await executeRunAbility(
+  { ...config, responseSchema: optionResultSchema },
+  { name: 'my-plugin/update-option', input: { value: 'hello' } },
+);
+
+// result is typed as { previous: string; current: string }
+```
+
+---
+
+## Ability schemas
+
+The package exports Zod schemas for WordPress ability objects. Use these to parse ability metadata from the REST API or as a base for extension:
+
+```ts
+import {
+  abilitySchema,
+  abilityAnnotationsSchema,
+  abilityCategorySchema,
+} from 'wp-astrojs-integration';
+```
+
+### `abilitySchema`
+
+Validates the full ability object returned by `GET /wp-abilities/v1/abilities`:
+
+```ts
+import { abilitySchema } from 'wp-astrojs-integration';
+
+const ability = abilitySchema.parse(apiResponse);
+// ability.name        — "my-plugin/update-option"
+// ability.label       — "Update Option"
+// ability.description — "Updates a WordPress option value"
+// ability.category    — "site-management"
+// ability.input_schema  — JSON Schema object
+// ability.output_schema — JSON Schema object
+// ability.meta?.annotations?.readonly — boolean
+```
+
+### `abilityAnnotationsSchema`
+
+Validates the `meta.annotations` block:
+
+```ts
+import { abilityAnnotationsSchema } from 'wp-astrojs-integration';
+
+const annotations = abilityAnnotationsSchema.parse(ability.meta.annotations);
+// annotations.readonly    — true/false
+// annotations.destructive — true/false
+// annotations.idempotent  — true/false
+// annotations.instructions — free-form text
+```
+
+### Extending ability schemas
+
+All ability schemas use `.passthrough()`, so plugin-added fields are preserved. Extend with `.extend()` for typed custom fields:
+
+```ts
+import { abilitySchema } from 'wp-astrojs-integration';
+import { z } from 'astro/zod';
+
+const myAbilitySchema = abilitySchema.extend({
+  custom_priority: z.number().optional(),
+  plugin_version: z.string().optional(),
+});
+```
+
+---
+
+## Registering abilities in WordPress
+
+Abilities are registered server-side in PHP. Here is a minimal example:
+
+```php
+// functions.php or a plugin
+if ( function_exists( 'wp_register_ability' ) ) {
+  add_action( 'init', function () {
+    // Read-only ability (GET /run)
+    wp_register_ability( 'my-plugin/get-site-info', [
+      'label'        => 'Get Site Info',
+      'description'  => 'Returns basic site information.',
+      'category'     => 'site',
+      'output_schema' => [
+        'type'       => 'object',
+        'properties' => [
+          'title' => [ 'type' => 'string' ],
+          'url'   => [ 'type' => 'string' ],
+        ],
+      ],
+      'permission_callback' => function () {
+        return current_user_can( 'read' );
+      },
+      'execute_callback' => function () {
+        return [
+          'title' => get_bloginfo( 'name' ),
+          'url'   => get_bloginfo( 'url' ),
+        ];
+      },
+      'meta' => [
+        'show_in_rest' => true,
+        'annotations'  => [ 'readonly' => true ],
+      ],
+    ] );
+
+    // Regular ability with input (POST /run)
+    wp_register_ability( 'my-plugin/update-option', [
+      'label'        => 'Update Option',
+      'description'  => 'Updates a WordPress option.',
+      'category'     => 'site',
+      'input_schema' => [
+        'type'       => 'object',
+        'properties' => [
+          'value' => [ 'type' => 'string' ],
+        ],
+        'required'   => [ 'value' ],
+      ],
+      'output_schema' => [
+        'type'       => 'object',
+        'properties' => [
+          'previous' => [ 'type' => 'string' ],
+          'current'  => [ 'type' => 'string' ],
+        ],
+      ],
+      'permission_callback' => function () {
+        return current_user_can( 'manage_options' );
+      },
+      'execute_callback' => function ( $input ) {
+        $prev = get_option( 'my_option', '' );
+        update_option( 'my_option', $input['value'] );
+        return [ 'previous' => $prev, 'current' => $input['value'] ];
+      },
+      'meta' => [
+        'show_in_rest' => true,
+        'annotations'  => [ 'readonly' => false, 'destructive' => false ],
+      ],
+    ] );
+  } );
+}
+```
+
+The `function_exists` guard ensures the file works on WordPress versions older than 6.9.
