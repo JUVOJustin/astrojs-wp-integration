@@ -20,3 +20,13 @@ export type { UpdatePostInput, UpdatePostActionConfig, ExecuteUpdateConfig } fro
 
 export { createDeletePostAction, deletePostInputSchema, executeDeletePost } from './post/delete';
 export type { DeletePostInput, DeletePostActionConfig, DeletePostResult, ExecuteDeleteConfig } from './post/delete';
+
+// Term actions
+export { createCreateTermAction, createTermInputSchema, executeCreateTerm } from './term/create';
+export type { CreateTermInput, CreateTermActionConfig, ExecuteCreateTermConfig } from './term/create';
+
+export { createUpdateTermAction, updateTermInputSchema, executeUpdateTerm } from './term/update';
+export type { UpdateTermInput, UpdateTermActionConfig, ExecuteUpdateTermConfig } from './term/update';
+
+export { createDeleteTermAction, deleteTermInputSchema, executeDeleteTerm } from './term/delete';
+export type { DeleteTermInput, DeleteTermActionConfig, DeleteTermResult, ExecuteDeleteTermConfig } from './term/delete';

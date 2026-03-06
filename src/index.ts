@@ -47,6 +47,7 @@ export {
   wordPressErrorSchema,
   updatePostFieldsSchema,
   postWriteBaseSchema,
+  termWriteBaseSchema,
 } from './schemas';
 
 export type {
@@ -63,6 +64,7 @@ export type {
   WordPressError,
   WordPressPostWriteFields,
   WordPressPostWriteBase,
+  WordPressTermWriteBase,
 } from './schemas';
 
 // Export predefined server actions
@@ -73,6 +75,12 @@ export {
   createPostInputSchema,
   createDeletePostAction,
   deletePostInputSchema,
+  createCreateTermAction,
+  createTermInputSchema,
+  createUpdateTermAction,
+  updateTermInputSchema,
+  createDeleteTermAction,
+  deleteTermInputSchema,
 } from './actions';
 export type {
   ActionAuthConfig,
@@ -89,6 +97,16 @@ export type {
   DeletePostActionConfig,
   DeletePostResult,
   ExecuteDeleteConfig,
+  CreateTermInput,
+  CreateTermActionConfig,
+  ExecuteCreateTermConfig,
+  UpdateTermInput,
+  UpdateTermActionConfig,
+  ExecuteUpdateTermConfig,
+  DeleteTermInput,
+  DeleteTermActionConfig,
+  DeleteTermResult,
+  ExecuteDeleteTermConfig,
 } from './actions';
 
 // Export client

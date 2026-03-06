@@ -58,9 +58,10 @@ describe('Live Loaders', () => {
     it('loadEntry by id returns the correct post', async () => {
       const loader = wordPressPostLoader({ baseUrl });
 
-      // Get a post ID from the collection first
-      const collResult = (await loader.loadCollection!({ filter: undefined } as any)) as any;
-      const id = (collResult as any).entries[0].data.id;
+      // Use a known seed post slug to obtain a stable ID that won't be
+      // deleted by parallel test files (e.g. posts.test.ts afterAll cleanup).
+      const bySlug = (await loader.loadEntry!({ filter: { slug: 'test-post-001' } } as any)) as any;
+      const id = (bySlug as any).data.id;
 
       const result = (await loader.loadEntry!({ filter: { id } } as any)) as any;
 
@@ -214,9 +215,10 @@ describe('Live Loaders', () => {
     it('loadEntry by id returns a category', async () => {
       const loader = wordPressCategoryLoader({ baseUrl });
 
-      // Get a category ID from the collection first
-      const collResult = (await loader.loadCollection!({ filter: undefined } as any)) as any;
-      const id = (collResult as any).entries[0].data.id;
+      // Use a known seed category slug to obtain a stable ID that won't be
+      // deleted by parallel test files (e.g. terms.test.ts afterAll cleanup).
+      const bySlug = (await loader.loadEntry!({ filter: { slug: 'technology' } } as any)) as any;
+      const id = (bySlug as any).data.id;
 
       const result = (await loader.loadEntry!({ filter: { id } } as any)) as any;
 

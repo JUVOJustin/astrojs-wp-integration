@@ -112,4 +112,46 @@ add_action( 'init', function () {
 		'show_in_rest'  => true,
 		'auth_callback' => '__return_true',
 	] );
+
+	// =====================================================================
+	// Term meta fields
+	// =====================================================================
+	// Registered for categories, tags, and the custom "genre" taxonomy to
+	// exercise term meta CRUD in integration tests.
+
+	$register_term_meta_for_all = function ( string $meta_key, array $args ): void {
+		foreach ( [ 'category', 'post_tag', 'genre' ] as $taxonomy ) {
+			register_term_meta( $taxonomy, $meta_key, $args );
+		}
+	};
+
+	// ── String term meta ── auth: always allowed ───────────────────────
+	$register_term_meta_for_all( 'test_term_string_meta', [
+		'type'          => 'string',
+		'single'        => true,
+		'show_in_rest'  => true,
+		'auth_callback' => '__return_true',
+	] );
+
+	// ── Number term meta ── auth: always allowed ───────────────────────
+	$register_term_meta_for_all( 'test_term_number_meta', [
+		'type'          => 'number',
+		'single'        => true,
+		'show_in_rest'  => true,
+		'auth_callback' => '__return_true',
+	] );
+
+	// ── Array term meta ── auth: always allowed ────────────────────────
+	$register_term_meta_for_all( 'test_term_array_meta', [
+		'type'          => 'array',
+		'single'        => true,
+		'show_in_rest'  => [
+			'schema' => [
+				'items' => [
+					'type' => 'string',
+				],
+			],
+		],
+		'auth_callback' => '__return_true',
+	] );
 } );

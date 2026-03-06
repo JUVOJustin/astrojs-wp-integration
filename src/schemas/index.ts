@@ -222,6 +222,38 @@ export interface WordPressAuthor {
 export type WordPressTag = WordPressCategory;
 
 /**
+ * Shared base schema for term create and update action inputs.
+ *
+ * Contains the writable fields accepted by the WordPress REST API for
+ * taxonomy terms (categories, tags, and custom taxonomies).  All fields
+ * are optional — WordPress applies sensible defaults (e.g. auto-generates
+ * slug from name).
+ *
+ * Uses `.passthrough()` so that ACF data, custom meta keys, or other
+ * plugin-specific fields can be included in the request body without being
+ * stripped by Zod.  Extend with `.extend()` to add fully-typed custom fields:
+ *
+ * @example
+ * const myTermSchema = termWriteBaseSchema.extend({
+ *   acf: z.object({ color: z.string().optional() }).optional(),
+ * });
+ */
+export const termWriteBaseSchema = z.object({
+  /** Term name (required on create, optional on update) */
+  name: z.string().optional(),
+  /** Term slug */
+  slug: z.string().optional(),
+  /** Term description */
+  description: z.string().optional(),
+  /** Parent term ID (hierarchical taxonomies only, e.g. categories) */
+  parent: z.number().int().optional(),
+  /** Term meta fields */
+  meta: z.record(z.any()).optional(),
+}).passthrough();
+
+export type WordPressTermWriteBase = z.infer<typeof termWriteBaseSchema>;
+
+/**
  * Schema for the writable scalar fields shared between the WordPress post
  * update action and the post response shape.  These are the core WordPress
  * post fields that have the same meaning and compatible types in both the

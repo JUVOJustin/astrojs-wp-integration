@@ -1,0 +1,284 @@
+# Term Actions
+
+Term actions let you **create, update, and delete WordPress taxonomy terms** from Astro server-side code — form handlers, API routes, middleware, or server components.
+
+This works with **categories**, **tags**, and **custom taxonomies** registered with `show_in_rest`.
+
+For authentication setup, the validation model, and error handling see [Actions overview](./index.mdx).
+
+---
+
+## Setup
+
+Register the three action factories in your Astro project's `src/actions/index.ts`:
+
+```ts
+import {
+  createCreateTermAction,
+  createUpdateTermAction,
+  createDeleteTermAction,
+} from 'wp-astrojs-integration';
+import { wordPressAuthBridge } from '../lib/auth/bridge';
+
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: (context) => wordPressAuthBridge.getActionAuth(context),
+};
+
+export const server = {
+  createCategory: createCreateTermAction(wpConfig),
+  updateCategory: createUpdateTermAction(wpConfig),
+  deleteCategory: createDeleteTermAction(wpConfig),
+};
+```
+
+If you are not using JWT sessions, pass basic auth directly:
+
+```ts
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
+};
+```
+
+---
+
+## Creating a term
+
+### Basic category
+
+```astro
+---
+// src/pages/new-category.astro
+import { actions } from 'astro:actions';
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+
+  const { data, error } = await Astro.callAction(actions.createCategory, {
+    name: formData.get('name') as string,
+    description: formData.get('description') as string,
+  });
+
+  if (data) {
+    return Astro.redirect(`/categories/${data.slug}`);
+  }
+}
+---
+
+<form method="POST">
+  <input name="name" placeholder="Category name" required />
+  <textarea name="description" placeholder="Description"></textarea>
+  <button type="submit">Create category</button>
+</form>
+```
+
+### All available fields
+
+```ts
+const { data } = await Astro.callAction(actions.createCategory, {
+  name: 'Web Development',        // required by WordPress
+  slug: 'web-development',        // auto-generated from name if omitted
+  description: 'Posts about web dev topics.',
+  parent: 5,                      // parent term ID (hierarchical taxonomies only)
+  meta: {                         // registered meta fields
+    color: '#3b82f6',
+  },
+});
+```
+
+### Child category
+
+```ts
+const { data: parent } = await Astro.callAction(actions.createCategory, {
+  name: 'Programming',
+});
+
+const { data: child } = await Astro.callAction(actions.createCategory, {
+  name: 'JavaScript',
+  parent: parent.id,
+});
+```
+
+---
+
+## Updating a term
+
+`updateCategory` accepts the same fields as `createCategory` plus the required `id`. Only the fields you provide are sent to WordPress — everything else is left unchanged.
+
+```ts
+const { data } = await Astro.callAction(actions.updateCategory, {
+  id: 12,
+  name: 'Updated Category Name',
+  description: 'New description.',
+});
+```
+
+---
+
+## Deleting a term
+
+WordPress does not support trashing terms — they are always permanently deleted.
+
+```ts
+const { data } = await Astro.callAction(actions.deleteCategory, { id: 12 });
+// data → { id: 12, deleted: true }
+```
+
+---
+
+## Term meta
+
+WordPress exposes registered term meta fields through the REST API. Include them under the `meta` key:
+
+```ts
+// Meta fields must be registered in WordPress with show_in_rest: true:
+//
+// register_term_meta('category', 'color', [
+//   'show_in_rest' => true,
+//   'single'       => true,
+//   'type'         => 'string',
+// ]);
+
+const { data } = await Astro.callAction(actions.createCategory, {
+  name: 'Highlighted Category',
+  meta: {
+    color: '#ef4444',
+    priority: 10,
+  },
+});
+```
+
+Meta keys not registered with `show_in_rest: true` are silently ignored by WordPress.
+
+---
+
+## Tags and custom taxonomies
+
+All action factories accept a `resource` parameter that controls which REST endpoint is targeted. WordPress exposes tags at `/wp-json/wp/v2/tags` and custom taxonomies at `/wp-json/wp/v2/<rest_base>`.
+
+### Tags
+
+```ts
+// src/actions/index.ts
+import {
+  createCreateTermAction,
+  createUpdateTermAction,
+  createDeleteTermAction,
+} from 'wp-astrojs-integration';
+
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
+};
+
+export const server = {
+  createTag: createCreateTermAction({ ...wpConfig, resource: 'tags' }),
+  updateTag: createUpdateTermAction({ ...wpConfig, resource: 'tags' }),
+  deleteTag: createDeleteTermAction({ ...wpConfig, resource: 'tags' }),
+};
+```
+
+### Custom taxonomies
+
+Register the taxonomy in WordPress with `show_in_rest` and a `rest_base`:
+
+```php
+// functions.php or a plugin
+register_taxonomy('genre', 'book', [
+    'public'       => true,
+    'hierarchical' => true,
+    'show_in_rest' => true,
+    'rest_base'    => 'genres',
+]);
+```
+
+Then pass the `rest_base` value as the `resource`:
+
+```ts
+// src/actions/index.ts
+export const server = {
+  createGenre: createCreateTermAction({ ...wpConfig, resource: 'genres' }),
+  updateGenre: createUpdateTermAction({ ...wpConfig, resource: 'genres' }),
+  deleteGenre: createDeleteTermAction({ ...wpConfig, resource: 'genres' }),
+};
+```
+
+### Using `execute*` directly
+
+The `execute*` functions also accept `resource`. This is useful when building fully custom actions or calling from non-Astro contexts:
+
+```ts
+import {
+  executeCreateTerm,
+  executeUpdateTerm,
+  executeDeleteTerm,
+} from 'wp-astrojs-integration/actions';
+import { createBasicAuthHeader } from 'wp-astrojs-integration';
+
+const config = {
+  apiBase: `${import.meta.env.WP_URL.replace(/\/$/, '')}/wp-json/wp/v2`,
+  authHeader: createBasicAuthHeader({
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  }),
+  resource: 'genres',
+};
+
+const genre = await executeCreateTerm(config, { name: 'Science Fiction' });
+const updated = await executeUpdateTerm(config, { id: genre.id, description: 'Sci-fi books' });
+const deleted = await executeDeleteTerm(config, { id: genre.id });
+```
+
+---
+
+## Custom taxonomies with typed ACF fields
+
+When a custom taxonomy surfaces ACF or other plugin fields via the REST API, extend the input schema to get end-to-end type safety through Zod.
+
+### Define an extended schema
+
+```ts
+// src/lib/genre-schema.ts
+import { createTermInputSchema, updateTermInputSchema } from 'wp-astrojs-integration';
+import { z } from 'astro/zod';
+
+const acfShape = z.object({
+  color: z.string().optional(),
+  icon:  z.string().optional(),
+}).optional();
+
+export const genreCreateSchema = createTermInputSchema.extend({ acf: acfShape });
+export const genreUpdateSchema = updateTermInputSchema.extend({ acf: acfShape });
+```
+
+### Use the extended schema with a factory
+
+```ts
+import { createCreateTermAction, createUpdateTermAction } from 'wp-astrojs-integration';
+import { genreCreateSchema, genreUpdateSchema } from '../lib/genre-schema';
+
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
+};
+
+export const server = {
+  createGenre: createCreateTermAction({
+    ...wpConfig,
+    resource: 'genres',
+    schema: genreCreateSchema,
+  }),
+  updateGenre: createUpdateTermAction({
+    ...wpConfig,
+    resource: 'genres',
+    schema: genreUpdateSchema,
+  }),
+};
+```
