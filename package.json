@@ -63,7 +63,7 @@
   "homepage": "https://github.com/JUVOJustin/astrojs-wp-integration#readme",
   "license": "MIT",
   "dependencies": {
-    "fluent-wp-client": "^1.0.0"
+    "fluent-wp-client": "^1.1.0"
   },
   "peerDependencies": {
     "astro": "^5.0.0"

@@ -41,12 +41,13 @@ describe('Live Loaders', () => {
       const loader = wordPressPostLoader({ baseUrl });
       const result = await loader.loadEntry!({ filter: { filter: { slug: 'test-post-001' } } } as never) as {
         id: string;
-        data: { slug: string; content: { rendered: string } };
+        data: { slug: string; content: { rendered: string }; _embedded?: unknown };
         rendered?: { html: string };
       };
 
       expect(result.data.slug).toBe('test-post-001');
       expect(result.rendered?.html).toBe(result.data.content.rendered);
+      expect(result.data._embedded).toBeDefined();
     });
 
     it('returns one error object for missing entries', async () => {

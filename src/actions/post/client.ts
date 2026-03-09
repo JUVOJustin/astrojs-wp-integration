@@ -13,9 +13,9 @@ import type {
 /**
  * Shared auth config used by low-level post action execute helpers.
  */
-export interface ExecuteActionAuthConfig extends Omit<
-  Pick<WordPressClientConfig, 'baseUrl' | 'authHeader' | 'authHeaders' | 'cookies' | 'credentials'>,
-  'authHeader'
+export interface ExecuteActionAuthConfig extends Pick<
+  WordPressClientConfig,
+  'baseUrl' | 'authHeaders' | 'cookies' | 'credentials'
 > {
   auth?: WordPressAuthInput;
   authHeader?: string;
