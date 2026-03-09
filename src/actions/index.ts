@@ -20,3 +20,13 @@ export type { UpdatePostInput, UpdatePostActionConfig, ExecuteUpdateConfig } fro
 
 export { createDeletePostAction, deletePostInputSchema, executeDeletePost } from './post/delete';
 export type { DeletePostInput, DeletePostActionConfig, DeletePostResult, ExecuteDeleteConfig } from './post/delete';
+
+// Ability actions
+export { createGetAbilityAction, getAbilityInputSchema, executeGetAbility } from './ability/get';
+export type { GetAbilityInput, GetAbilityActionConfig, ExecuteGetAbilityConfig } from './ability/get';
+
+export { createRunAbilityAction, runAbilityInputSchema, executeRunAbility } from './ability/execute';
+export type { RunAbilityInput, RunAbilityActionConfig, ExecuteRunAbilityConfig } from './ability/execute';
+
+export { createDeleteAbilityAction, deleteAbilityInputSchema, executeDeleteAbility } from './ability/delete';
+export type { DeleteAbilityInput, DeleteAbilityActionConfig, ExecuteDeleteAbilityConfig } from './ability/delete';

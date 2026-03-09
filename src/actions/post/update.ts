@@ -1,13 +1,20 @@
-import { defineAction, ActionError, type ActionAPIContext, type ActionClient } from 'astro/actions/runtime/server.js';
+import { defineAction, type ActionAPIContext, type ActionClient } from 'astro/actions/runtime/server.js';
 import { z } from 'astro/zod';
-import { postWriteBaseSchema, wordPressErrorSchema, postSchema, pageSchema, contentWordPressSchema } from '../../schemas';
-import type { WordPressPost, WordPressPage, WordPressContent } from '../../schemas';
+import {
+  postWriteBaseSchema,
+  postSchema,
+  pageSchema,
+  contentWordPressSchema,
+  type WordPressPost,
+  type WordPressPage,
+  type WordPressContent,
+} from 'fluent-wp-client';
 import {
   resolveActionRequestAuth,
   type ActionAuthConfig,
   type ResolvableActionAuthHeaders,
 } from '../auth';
-import { executeActionRequest, type ExecuteActionAuthConfig } from './client';
+import { withActionClient, type ExecuteActionAuthConfig } from './client';
 
 /**
  * Full input schema for updating an existing WordPress post (or page / CPT).
@@ -22,7 +29,6 @@ import { executeActionRequest, type ExecuteActionAuthConfig } from './client';
  * });
  */
 export const updatePostInputSchema = postWriteBaseSchema.extend({
-  /** ID of the post to update (required) */
   id: z.number().int().positive(),
 });
 
@@ -35,7 +41,7 @@ export type UpdatePostInput = z.infer<typeof updatePostInputSchema>;
  * `postSchema` so the response can be parsed as a different type.
  */
 export interface ExecuteUpdateConfig<T = WordPressPost> extends ExecuteActionAuthConfig {
-  /** REST resource path appended to `apiBase` (default: 'posts') */
+  /** REST resource path appended to the published client base URL (default: 'posts') */
   resource?: string;
   /** Zod schema used to parse the response (default: postSchema) */
   responseSchema?: z.ZodType<T>;
@@ -91,33 +97,18 @@ export async function executeUpdatePost<T = WordPressPost>(
   input: UpdatePostInput & Record<string, unknown>
 ): Promise<T> {
   const resource = config.resource ?? 'posts';
-  const { id, ...fields } = input;
 
-  // Only include fields that were explicitly provided; custom fields pass through as-is
-  const body: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(fields)) {
-    if (value !== undefined) {
-      body[key] = value;
-    }
-  }
+  return withActionClient(config, async (client) => {
+    const responseSchema = (config.responseSchema ?? getDefaultResponseSchema(resource)) as z.ZodType<T>;
+    const { id, ...fields } = input;
 
-  // WordPress REST API uses POST (not PUT/PATCH) for updating existing posts
-  const { data, response } = await executeActionRequest<unknown>(config, {
-    method: 'POST',
-    endpoint: `/${resource}/${id}`,
-    body,
+    return client.updateContent<T, Record<string, unknown>>(
+      resource,
+      id,
+      fields,
+      responseSchema,
+    );
   });
-
-  if (!response.ok) {
-    const wpError = wordPressErrorSchema.safeParse(data);
-    const message = wpError.success
-      ? wpError.data.message
-      : `WordPress API error: ${response.status} ${response.statusText}`;
-    throw new ActionError({ code: ActionError.statusToCode(response.status), message });
-  }
-
-  const responseSchema = (config.responseSchema ?? getDefaultResponseSchema(resource)) as z.ZodType<T>;
-  return responseSchema.parse(data);
 }
 
 /**
@@ -154,7 +145,6 @@ export function createUpdatePostAction<
   TSchema extends typeof updatePostInputSchema = typeof updatePostInputSchema
 >(config: UpdatePostActionConfig<TResponse> & { schema?: TSchema }): ActionClient<TResponse, undefined, TSchema> & string {
   const inputSchema = (config.schema ?? updatePostInputSchema) as TSchema;
-  const apiBase = `${config.baseUrl.replace(/\/$/, '')}/wp-json/wp/v2`;
   const resource = config.resource;
   const responseSchema = config.responseSchema;
 
@@ -171,7 +161,7 @@ export function createUpdatePostAction<
       }, context);
 
       return executeUpdatePost<TResponse>(
-        { apiBase, ...requestAuth, resource, responseSchema },
+        { baseUrl: config.baseUrl, ...requestAuth, resource, responseSchema },
         input as UpdatePostInput & Record<string, unknown>,
       );
     },

@@ -2,7 +2,9 @@
 
 The package ships a JWT-first Astro auth bridge for WordPress.
 
-This bridge is a higher-level integration layer on top of the client transport. New action or bridge behavior should follow established `WordPressClient` capabilities instead of inventing parallel request logic.
+This bridge is a higher-level integration layer on top of `fluent-wp-client` transport primitives. New action or bridge behavior should follow established `WordPressClient` abilities and request helpers instead of inventing parallel request logic.
+
+`WordPressClient` also supports browser-friendly cookie+nonce auth (`X-WP-Nonce` + `credentials: 'include'`) for front-end REST requests outside the JWT bridge flow.
 
 It uses web-standard runtime APIs so the same bridge works in Node and non-Node Astro adapters.
 
@@ -13,6 +15,8 @@ It uses web-standard runtime APIs so the same bridge works in Node and non-Node 
 - `loginAction` to exchange username/password for a WordPress JWT
 - `resolveUser(context)` and `isAuthenticated(context)` for Astro middleware checks
 - `getActionAuth(context)` to reuse the JWT in `create*PostAction` factories
+
+The bridge now relies on the published client's `loginWithJwt()` and `getCurrentUser()` helpers instead of duplicating request handling.
 
 ## Design Guidance
 

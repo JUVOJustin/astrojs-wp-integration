@@ -1,21 +1,18 @@
-import { defineAction, ActionError, type ActionAPIContext, type ActionClient } from 'astro/actions/runtime/server.js';
+import { defineAction, type ActionAPIContext, type ActionClient } from 'astro/actions/runtime/server.js';
 import { z } from 'astro/zod';
-import { wordPressErrorSchema } from '../../schemas';
 import {
   resolveActionRequestAuth,
   type ActionAuthConfig,
   type ResolvableActionAuthHeaders,
 } from '../auth';
-import { executeActionRequest, type ExecuteActionAuthConfig } from './client';
+import { withActionClient, type ExecuteActionAuthConfig } from './client';
 
 /**
  * Input schema for deleting a WordPress post (or page / custom post type).
  * When `force` is true the post is permanently deleted; otherwise it is moved to the trash.
  */
 export const deletePostInputSchema = z.object({
-  /** ID of the post to delete */
   id: z.number().int().positive(),
-  /** Permanently delete instead of trashing (default: false) */
   force: z.boolean().optional(),
 });
 
@@ -31,7 +28,7 @@ export type DeletePostResult = { id: number; deleted: boolean };
  * Low-level config accepted by `executeDeletePost`.
  */
 export interface ExecuteDeleteConfig extends ExecuteActionAuthConfig {
-  /** REST resource path appended to `apiBase` (default: 'posts') */
+  /** REST resource path appended to the published client base URL (default: 'posts') */
   resource?: string;
 }
 
@@ -67,33 +64,11 @@ export async function executeDeletePost(
   input: DeletePostInput
 ): Promise<DeletePostResult> {
   const resource = config.resource ?? 'posts';
-  const params = input.force ? { force: 'true' } : undefined;
-  const { data, response } = await executeActionRequest<unknown>(config, {
-    method: 'DELETE',
-    endpoint: `/${resource}/${input.id}`,
-    params,
+
+  return withActionClient(config, async (client) => {
+    const result = await client.deleteContent(resource, input.id, { force: input.force });
+    return { id: result.id, deleted: result.deleted };
   });
-
-  if (!response.ok) {
-    const wpError = wordPressErrorSchema.safeParse(data);
-    const message = wpError.success
-      ? wpError.data.message
-      : `WordPress API error: ${response.status} ${response.statusText}`;
-    throw new ActionError({ code: ActionError.statusToCode(response.status), message });
-  }
-
-  // Permanent delete returns { deleted: true, previous: <post> }
-  if (
-    typeof data === 'object' &&
-    data !== null &&
-    'deleted' in data &&
-    (data as Record<string, unknown>).deleted === true
-  ) {
-    return { id: input.id, deleted: true };
-  }
-
-  // Trash returns the trashed post object
-  return { id: input.id, deleted: false };
 }
 
 /**
@@ -114,7 +89,6 @@ export async function executeDeletePost(
 export function createDeletePostAction(
   config: DeletePostActionConfig
 ): ActionClient<DeletePostResult, undefined, typeof deletePostInputSchema> & string {
-  const apiBase = `${config.baseUrl.replace(/\/$/, '')}/wp-json/wp/v2`;
   const resource = config.resource;
 
   return defineAction({
@@ -125,7 +99,7 @@ export function createDeletePostAction(
         authHeaders: config.authHeaders,
       }, context);
 
-      return executeDeletePost({ apiBase, ...requestAuth, resource }, input);
+      return executeDeletePost({ baseUrl: config.baseUrl, ...requestAuth, resource }, input);
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any) as ActionClient<DeletePostResult, undefined, typeof deletePostInputSchema> & string;

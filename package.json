@@ -33,14 +33,15 @@
     "src/components"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "rm -rf dist && tsc",
     "dev": "tsc --watch",
     "prepublishOnly": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
     "wp:start": "wp-env start",
     "wp:stop": "wp-env stop",
-    "wp:clean": "wp-env clean all"
+    "wp:clean": "wp-env clean all",
+    "wp:status": "wp-env status"
   },
   "keywords": [
     "astro",
@@ -61,6 +62,9 @@
   },
   "homepage": "https://github.com/JUVOJustin/astrojs-wp-integration#readme",
   "license": "MIT",
+  "dependencies": {
+    "fluent-wp-client": "^1.0.0"
+  },
   "peerDependencies": {
     "astro": "^5.0.0"
   },

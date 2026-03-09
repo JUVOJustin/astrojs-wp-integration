@@ -17,5 +17,9 @@
     "jsxImportSource": "astro"
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "src/components/index.ts"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/components/index.ts"
+  ]
 }

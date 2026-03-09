@@ -1,4 +1,4 @@
-import { WordPressClient } from '../../src/client';
+import { WordPressClient } from 'fluent-wp-client';
 
 /**
  * Resolves the WP base URL from the environment (set by global setup)
@@ -43,4 +43,36 @@ export function createJwtAuthClient(): WordPressClient {
     baseUrl: getBaseUrl(),
     auth: { token },
   });
+}
+
+/**
+ * Creates a cookie-authenticated client using a seeded nonce + auth cookie pair.
+ */
+export function createCookieAuthClient(): WordPressClient {
+  const nonce = process.env.WP_REST_NONCE;
+  const cookieHeader = process.env.WP_COOKIE_AUTH_HEADER;
+
+  if (!nonce) {
+    throw new Error('WP_REST_NONCE not set — did global-setup run?');
+  }
+
+  if (!cookieHeader) {
+    throw new Error('WP_COOKIE_AUTH_HEADER not set — did global-setup run?');
+  }
+
+  return new WordPressClient({
+    baseUrl: getBaseUrl(),
+    auth: { nonce, credentials: 'include' },
+    credentials: 'include',
+    cookies: cookieHeader,
+  });
+}
+
+/**
+ * Creates the shared execute-action config used by Astro action integration tests.
+ */
+export function createActionBaseConfig(): { baseUrl: string } {
+  return {
+    baseUrl: getBaseUrl(),
+  };
 }

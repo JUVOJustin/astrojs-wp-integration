@@ -5,7 +5,7 @@ import {
   type WordPressAuthHeaders,
   type WordPressAuthHeadersProvider,
   type WordPressAuthInput,
-} from '../client/auth';
+} from 'fluent-wp-client';
 
 /**
  * Context-aware authentication input accepted by action factories.

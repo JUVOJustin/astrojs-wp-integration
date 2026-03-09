@@ -1,37 +1,25 @@
 import {
+  WordPressApiError,
   WordPressClient,
-  type WordPressRequestOptions,
-  type WordPressRequestResult,
-} from '../../client';
+  type WordPressClientConfig,
+} from 'fluent-wp-client';
+import { ActionError } from 'astro/actions/runtime/server.js';
 import type {
   WordPressAuthHeaders,
   WordPressAuthHeadersProvider,
   WordPressAuthInput,
-} from '../../client/auth';
-
-const WORDPRESS_REST_BASE_SUFFIX = '/wp-json/wp/v2';
+} from 'fluent-wp-client';
 
 /**
  * Shared auth config used by low-level post action execute helpers.
  */
-export interface ExecuteActionAuthConfig {
-  apiBase: string;
-  authHeader?: string;
+export interface ExecuteActionAuthConfig extends Omit<
+  Pick<WordPressClientConfig, 'baseUrl' | 'authHeader' | 'authHeaders' | 'cookies' | 'credentials'>,
+  'authHeader'
+> {
   auth?: WordPressAuthInput;
+  authHeader?: string;
   authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
-}
-
-/**
- * Converts one `apiBase` value into a site base URL accepted by `WordPressClient`.
- */
-function getBaseUrlFromApiBase(apiBase: string): string {
-  const normalizedApiBase = apiBase.replace(/\/$/, '');
-
-  if (!normalizedApiBase.endsWith(WORDPRESS_REST_BASE_SUFFIX)) {
-    throw new Error(`Invalid WordPress apiBase: '${apiBase}'. Expected to end with '${WORDPRESS_REST_BASE_SUFFIX}'.`);
-  }
-
-  return normalizedApiBase.slice(0, -WORDPRESS_REST_BASE_SUFFIX.length);
 }
 
 /**
@@ -44,20 +32,53 @@ function createActionClient(config: ExecuteActionAuthConfig): WordPressClient {
   const authHeader = config.authHeader ?? (typeof config.auth === 'string' ? config.auth : undefined);
 
   return new WordPressClient({
-    baseUrl: getBaseUrlFromApiBase(config.apiBase),
+    baseUrl: config.baseUrl,
     auth,
     authHeader,
     authHeaders: config.authHeaders,
+    cookies: config.cookies,
+    credentials: config.credentials,
   });
 }
 
 /**
- * Executes one action request through the shared WordPress client transport.
+ * Executes one callback with a configured client and normalizes thrown errors.
  */
-export async function executeActionRequest<T>(
+export async function withActionClient<T>(
   config: ExecuteActionAuthConfig,
-  options: WordPressRequestOptions,
-): Promise<WordPressRequestResult<T>> {
-  const client = createActionClient(config);
-  return client.request<T>(options);
+  callback: (client: WordPressClient) => Promise<T>,
+): Promise<T> {
+  try {
+    return await callback(createActionClient(config));
+  } catch (error) {
+    throw toActionError(error);
+  }
+}
+
+/**
+ * Maps one client-side API error to the Astro action error contract.
+ */
+export function toActionError(error: unknown): ActionError {
+  if (error instanceof ActionError) {
+    return error;
+  }
+
+  if (error instanceof WordPressApiError) {
+    return new ActionError({
+      code: ActionError.statusToCode(error.status),
+      message: error.message,
+    });
+  }
+
+  if (error instanceof Error) {
+    return new ActionError({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: error.message,
+    });
+  }
+
+  return new ActionError({
+    code: 'INTERNAL_SERVER_ERROR',
+    message: 'Unexpected WordPress action error.',
+  });
 }

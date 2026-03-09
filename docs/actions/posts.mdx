@@ -243,7 +243,7 @@ import {
 import { createBasicAuthHeader } from 'wp-astrojs-integration';
 
 const config = {
-  apiBase: `${import.meta.env.WP_URL.replace(/\/$/, '')}/wp-json/wp/v2`,
+  baseUrl: import.meta.env.WP_URL,
   authHeader: createBasicAuthHeader({
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,

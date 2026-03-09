@@ -1,8 +1,8 @@
 # Actions
 
-Actions are Astro server actions that wrap the WordPress REST API, providing **type-safe, authenticated write operations** from any server-side Astro context — form handlers, API routes, middleware, or server components.
+Actions are Astro server actions that wrap the WordPress REST API, providing type-safe authenticated operations from any server-side Astro context.
 
-Every action is a factory function that binds a WordPress auth config (static credentials or request resolver) and returns a reusable Astro `ActionClient`. Under the hood, each action calls an `execute*` function that uses the same low-level `WordPressClient` request transport and maps failures to `ActionError`.
+Every action is a factory function that binds a WordPress auth config and returns a reusable Astro `ActionClient`. Under the hood, each action calls an `execute*` function that delegates to `fluent-wp-client` and maps failures to `ActionError`.
 
 ---
 
@@ -97,12 +97,18 @@ import {
   createCreatePostAction,
   createUpdatePostAction,
   createDeletePostAction,
+  createGetAbilityAction,
+  createRunAbilityAction,
+  createDeleteAbilityAction,
 } from 'wp-astrojs-integration';
 
 export const server = {
   createPost: createCreatePostAction(wpConfig),
   updatePost: createUpdatePostAction(wpConfig),
   deletePost: createDeletePostAction(wpConfig),
+  getAbility: createGetAbilityAction(wpConfig),
+  runAbility: createRunAbilityAction(wpConfig),
+  deleteAbility: createDeleteAbilityAction(wpConfig),
 };
 ```
 
@@ -218,7 +224,7 @@ import { executeCreatePost } from 'wp-astrojs-integration/actions';
 import { createBasicAuthHeader } from 'wp-astrojs-integration';
 
 const config = {
-  apiBase: 'https://example.com/wp-json/wp/v2',
+  baseUrl: 'https://example.com',
   authHeader: createBasicAuthHeader({ username, password }),
   resource: 'products', // targets /wp-json/wp/v2/products
 };
@@ -228,6 +234,6 @@ const product = await executeCreatePost(config, { title: 'My Product', status: '
 
 If you use JWT, build the header with `createJwtAuthHeader(token)` instead.
 
-When `resource` is omitted it defaults to `'posts'`. See [Post actions — Pages and custom post types](./posts.mdx#pages-and-custom-post-types) for the full pattern.
+When `resource` is omitted it defaults to `'posts'`. See [Post actions — Pages and custom post types](./posts.mdx#pages-and-custom-post-types) for that pattern, or [Ability actions](./abilities.mdx) for the WordPress Abilities API.
 
 This is also how integration tests call actions directly — without needing the Astro runtime.

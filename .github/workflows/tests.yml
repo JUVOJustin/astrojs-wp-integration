@@ -25,11 +25,11 @@ jobs:
         run: npm ci
 
       - name: Start WordPress environment
-        run: npx wp-env start
+        run: npm run wp:start
 
       - name: Run integration tests
         run: npm test
 
       - name: Stop WordPress environment
         if: always()
-        run: npx wp-env stop
+        run: npm run wp:stop
