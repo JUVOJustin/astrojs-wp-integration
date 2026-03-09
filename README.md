@@ -240,7 +240,6 @@ Seeded content includes posts, pages, tags, categories, books, native REST meta,
 ## Docs
 
 - Auth bridge: `docs/auth-action-bridge.md`
-- Astro abilities: `docs/abilities.md`
 - Action overview: `docs/actions/index.mdx`
 - Post actions: `docs/actions/posts.mdx`
 - Ability actions: `docs/actions/abilities.mdx`
