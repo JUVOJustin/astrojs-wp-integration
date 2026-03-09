@@ -1,8 +1,8 @@
 import type { ActionClient } from 'astro/actions/runtime/server.js';
-import { z } from 'astro/zod';
 import {
-  getAbilityInputSchema as clientGetAbilityInputSchema,
-  type GetAbilityInput as ClientGetAbilityInput,
+  getAbilityInputSchema,
+  type GetAbilityInput,
+  type WordPressStandardSchema,
 } from 'fluent-wp-client';
 import { withActionClient, type ExecuteActionAuthConfig } from '../post/client';
 import { createAbilityAction, type AbilityActionConfig } from './factory';
@@ -10,15 +10,14 @@ import { createAbilityAction, type AbilityActionConfig } from './factory';
 /**
  * Input schema for executing one read-only WordPress ability via GET.
  */
-export const getAbilityInputSchema = clientGetAbilityInputSchema;
-
-export type GetAbilityInput = ClientGetAbilityInput;
+export { getAbilityInputSchema };
+export type { GetAbilityInput };
 
 /**
  * Low-level config accepted by `executeGetAbility`.
  */
 export interface ExecuteGetAbilityConfig<T = unknown> extends ExecuteActionAuthConfig {
-  responseSchema?: z.ZodType<T>;
+  responseSchema?: WordPressStandardSchema<T>;
 }
 
 /**

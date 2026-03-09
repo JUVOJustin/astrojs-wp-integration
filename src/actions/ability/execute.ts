@@ -1,8 +1,8 @@
 import type { ActionClient } from 'astro/actions/runtime/server.js';
-import { z } from 'astro/zod';
 import {
-  runAbilityInputSchema as clientRunAbilityInputSchema,
-  type RunAbilityInput as ClientRunAbilityInput,
+  runAbilityInputSchema,
+  type RunAbilityInput,
+  type WordPressStandardSchema,
 } from 'fluent-wp-client';
 import { withActionClient, type ExecuteActionAuthConfig } from '../post/client';
 import { createAbilityAction, type AbilityActionConfig } from './factory';
@@ -10,15 +10,14 @@ import { createAbilityAction, type AbilityActionConfig } from './factory';
 /**
  * Input schema for executing one regular WordPress ability via POST.
  */
-export const runAbilityInputSchema = clientRunAbilityInputSchema;
-
-export type RunAbilityInput = ClientRunAbilityInput;
+export { runAbilityInputSchema };
+export type { RunAbilityInput };
 
 /**
  * Low-level config accepted by `executeRunAbility`.
  */
 export interface ExecuteRunAbilityConfig<T = unknown> extends ExecuteActionAuthConfig {
-  responseSchema?: z.ZodType<T>;
+  responseSchema?: WordPressStandardSchema<T>;
 }
 
 /**

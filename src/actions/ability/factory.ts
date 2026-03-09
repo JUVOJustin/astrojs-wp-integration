@@ -1,5 +1,6 @@
 import { defineAction, type ActionAPIContext, type ActionClient } from 'astro/actions/runtime/server.js';
 import { z } from 'astro/zod';
+import type { WordPressStandardSchema } from 'fluent-wp-client';
 import {
   resolveActionRequestAuth,
   type ActionAuthConfig,
@@ -14,7 +15,7 @@ export interface AbilityActionConfig<T = unknown> {
   baseUrl: string;
   auth?: ActionAuthConfig;
   authHeaders?: ResolvableActionAuthHeaders;
-  responseSchema?: z.ZodType<T>;
+  responseSchema?: WordPressStandardSchema<T>;
 }
 
 /**
@@ -24,7 +25,7 @@ interface CreateAbilityActionParams<TInput, TResponse, TSchema extends z.ZodType
   schema?: TSchema;
   defaultSchema: TSchema;
   execute: (
-    config: ExecuteActionAuthConfig & { responseSchema?: z.ZodType<TResponse> },
+    config: ExecuteActionAuthConfig & { responseSchema?: WordPressStandardSchema<TResponse> },
     input: TInput,
   ) => Promise<TResponse>;
 }

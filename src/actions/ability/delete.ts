@@ -1,8 +1,8 @@
 import type { ActionClient } from 'astro/actions/runtime/server.js';
-import { z } from 'astro/zod';
 import {
-  deleteAbilityInputSchema as clientDeleteAbilityInputSchema,
-  type DeleteAbilityInput as ClientDeleteAbilityInput,
+  deleteAbilityInputSchema,
+  type DeleteAbilityInput,
+  type WordPressStandardSchema,
 } from 'fluent-wp-client';
 import { withActionClient, type ExecuteActionAuthConfig } from '../post/client';
 import { createAbilityAction, type AbilityActionConfig } from './factory';
@@ -10,15 +10,14 @@ import { createAbilityAction, type AbilityActionConfig } from './factory';
 /**
  * Input schema for executing one destructive WordPress ability via DELETE.
  */
-export const deleteAbilityInputSchema = clientDeleteAbilityInputSchema;
-
-export type DeleteAbilityInput = ClientDeleteAbilityInput;
+export { deleteAbilityInputSchema };
+export type { DeleteAbilityInput };
 
 /**
  * Low-level config accepted by `executeDeleteAbility`.
  */
 export interface ExecuteDeleteAbilityConfig<T = unknown> extends ExecuteActionAuthConfig {
-  responseSchema?: z.ZodType<T>;
+  responseSchema?: WordPressStandardSchema<T>;
 }
 
 /**

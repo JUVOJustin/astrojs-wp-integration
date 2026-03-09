@@ -2,22 +2,15 @@
  * Type definitions for WordPress loaders
  */
 
-import type {
-  WordPressAuthConfig,
-  WordPressAuthHeaders,
-  WordPressAuthHeadersProvider,
-} from 'fluent-wp-client';
+import type { WordPressClientConfig } from 'fluent-wp-client';
 
 /**
  * Configuration for WordPress loaders
  */
-export interface WordPressLoaderConfig {
-  baseUrl: string;
-  auth?: WordPressAuthConfig;
-  authHeader?: string;
-  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
-  cookies?: string;
-}
+export interface WordPressLoaderConfig extends Pick<
+  WordPressClientConfig,
+  'baseUrl' | 'auth' | 'authHeader' | 'authHeaders' | 'cookies'
+> {}
 
 /**
  * Configuration for static WordPress loaders (build-time only)

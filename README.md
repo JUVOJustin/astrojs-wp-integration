@@ -117,6 +117,8 @@ export const server = {
 };
 ```
 
+Action factories accept an optional `responseSchema` that follows the Standard Schema spec (for example Zod schemas).
+
 ## Auth bridge
 
 ```ts
