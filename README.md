@@ -1,35 +1,37 @@
 # WordPress Astro.js Integration
 
-Astro loaders, server actions, auth helpers, and components for WordPress, built on top of the published `fluent-wp-client` package.
+Astro-first integration for WordPress with content loaders, server actions, auth bridge helpers, and rendering components.
 
 ## Install
 
 ```bash
-npm install wp-astrojs-integration fluent-wp-client
+npm install wp-astrojs-integration
 ```
 
-`wp-astrojs-integration` provides Astro-facing APIs.
+## Feature overview
 
-`fluent-wp-client` is now consumed as a normal npm dependency instead of a local workspace package.
+| Feature | What you get in Astro | Main API |
+|---|---|---|
+| Live content collections | Request-time WordPress data for SSR routes | `defineLiveCollection` + `wordPress*Loader` |
+| Static content collections | Build-time WordPress snapshots for SSG | `defineCollection` + `wordPress*StaticLoader` |
+| Server actions | Typed create/update/delete actions for WordPress content and abilities | `create*Action` factories |
+| Auth bridge | Login/session helpers for Astro server actions and middleware | `createWordPressAuthBridge` |
+| Rendering components | Gutenberg-friendly HTML and media rendering in Astro | `WPContent`, `WPImage` |
 
-## What this package includes
+## Available entities
 
-- Live loaders for Astro live collections
-- Static loaders for Astro content collections
-- Astro server action factories for posts, pages, custom post types, and WordPress abilities
-- JWT-based Astro auth bridge helpers
-- `WPContent` and `WPImage` components
-- Re-exports for the published `fluent-wp-client` schemas, types, auth helpers, and `WordPressClient`
-
-## Architecture
-
-- `WordPressClient` from `fluent-wp-client` is the core integration layer
-- Astro loaders, actions, and auth helpers are thin wrappers around published client behavior
-- Custom post types, taxonomies, meta, ACF fields, and plugin endpoints should reuse the same generic client patterns
+| Entity | Schema | Live loader | Static loader | Notes |
+|---|---|---|---|---|
+| Posts | `postSchema` | `wordPressPostLoader` | `wordPressPostStaticLoader` | |
+| Pages | `pageSchema` | `wordPressPageLoader` | `wordPressPageStaticLoader` | |
+| Media | `mediaSchema` | `wordPressMediaLoader` | `wordPressMediaStaticLoader` | |
+| Categories | `categorySchema` | `wordPressCategoryLoader` | `wordPressCategoryStaticLoader` | |
+| Tags | `categorySchema` | - | `wordPressTagStaticLoader` | Static only |
+| Users | `WordPressAuthor` | `wordPressUserLoader` | `wordPressUserStaticLoader` | |
 
 ## Quick start
 
-### Live collections
+### 1) Live collection (SSR)
 
 ```ts
 import { defineLiveCollection } from 'astro:content';
@@ -45,7 +47,7 @@ const posts = defineLiveCollection({
 export const collections = { posts };
 ```
 
-### Static collections
+### 2) Static collection (SSG)
 
 ```ts
 import { defineCollection } from 'astro:content';
@@ -61,29 +63,27 @@ const posts = defineCollection({
 export const collections = { posts };
 ```
 
-### Runtime client usage
+### 3) Render WordPress content in Astro pages
 
-```ts
-import { WordPressClient } from 'fluent-wp-client';
+```astro
+---
+import { getLiveEntry } from 'astro:content';
+import WPContent from 'wp-astrojs-integration/components/WPContent.astro';
+import WPImage from 'wp-astrojs-integration/components/WPImage.astro';
 
-const wp = new WordPressClient({
-  baseUrl: 'https://your-wordpress-site.com',
-});
+const { slug } = Astro.params;
+const { entry: post } = await getLiveEntry('posts', { slug });
+const featuredMedia = post.data._embedded?.['wp:featuredmedia']?.[0];
+---
 
-const posts = await wp.getPosts();
-const post = await wp.getPostBySlug('hello-world');
-const books = await wp.content('books').getAll();
+<article>
+  {featuredMedia && <WPImage media={featuredMedia} loading="eager" />}
+  <h1 set:html={post.data.title.rendered} />
+  <WPContent content={post.data.content.rendered} baseUrl={import.meta.env.PUBLIC_WORDPRESS_BASE_URL} />
+</article>
 ```
 
-### WPAPI-style request builder
-
-```ts
-const posts = await wp.posts().perPage(10).page(1).embed().get();
-const created = await wp.posts().create({ title: 'Hello', status: 'draft' });
-const book = await wp.namespace('wp/v2').route('books').slug('test-book-001').get();
-```
-
-### Astro actions
+## Astro actions
 
 ```ts
 import {
@@ -117,25 +117,6 @@ export const server = {
 };
 ```
 
-The low-level `execute*` helpers now also accept `baseUrl` directly:
-
-```ts
-import { executeCreatePost } from 'wp-astrojs-integration/actions';
-import { createBasicAuthHeader } from 'wp-astrojs-integration';
-
-const product = await executeCreatePost(
-  {
-    baseUrl: 'https://example.com',
-    authHeader: createBasicAuthHeader({ username: 'admin', password: 'app-password' }),
-    resource: 'products',
-  },
-  {
-    title: 'Running Shoes',
-    status: 'publish',
-  },
-);
-```
-
 ## Auth bridge
 
 ```ts
@@ -145,33 +126,6 @@ export const wordPressAuthBridge = createWordPressAuthBridge({
   baseUrl: import.meta.env.WP_URL,
   cookieName: 'wp_user_session',
 });
-```
-
-The bridge now uses published client capabilities for JWT login and authenticated user resolution.
-
-## Components
-
-### `WPContent`
-
-```astro
----
-import WPContent from 'wp-astrojs-integration/components/WPContent.astro';
----
-
-<WPContent
-  content={post.data.content.rendered}
-  baseUrl="https://your-wordpress-site.com"
-/>
-```
-
-### `WPImage`
-
-```astro
----
-import WPImage from 'wp-astrojs-integration/components/WPImage.astro';
----
-
-<WPImage media={featuredMedia} loading="eager" />
 ```
 
 ## Extending schemas
@@ -195,22 +149,16 @@ const posts = defineLiveCollection({
 });
 ```
 
-## Available entities
+## Live vs static loaders
 
-| Entity | Schema | Live loader | Static loader |
-|---|---|---|---|
-| Posts | `postSchema` | `wordPressPostLoader` | `wordPressPostStaticLoader` |
-| Pages | `pageSchema` | `wordPressPageLoader` | `wordPressPageStaticLoader` |
-| Media | `mediaSchema` | `wordPressMediaLoader` | `wordPressMediaStaticLoader` |
-| Categories | `categorySchema` | `wordPressCategoryLoader` | `wordPressCategoryStaticLoader` |
-| Tags | `categorySchema` | - | `wordPressTagStaticLoader` |
-| Users | `WordPressAuthor` | `wordPressUserLoader` | `wordPressUserStaticLoader` |
+| Feature | Live loaders | Static loaders |
+|---|---|---|
+| Freshness | Request-time | Build-time |
+| Best for | SSR and frequently changing content | SSG and stable content |
+| Astro API | `defineLiveCollection` | `defineCollection` |
+| Content APIs | `getLiveEntry`, `getLiveCollection` | `getEntry`, `getCollection` |
 
 ## Development and testing
-
-This repository now ships one npm package and consumes `fluent-wp-client` from npm.
-
-Root scripts use `wp-env` directly:
 
 ```bash
 npm run wp:start
@@ -218,7 +166,7 @@ npm test
 npm run wp:stop
 ```
 
-Other available commands:
+Other useful commands:
 
 ```bash
 npm run test:watch
@@ -227,15 +175,12 @@ npm run wp:status
 npm run build
 ```
 
-### Local integration test environment
+Local integration test environment:
 
-- `.wp-env.json` defines the local WordPress environment
-- `tests/wp-env/` contains mu-plugins and seeded content
-- `tests/setup/global-setup.ts` provisions app-password, JWT, and cookie+nonce auth fixtures
-- `tests/integration/` contains Astro-facing integration coverage for loaders, actions, auth bridge behavior, meta, ACF, and abilities
-- Integration suites prioritize Astro wrapper behavior (action schemas, auth resolution, loader/store contracts, error mapping); deep WordPress REST semantics are primarily covered in `fluent-wp-client`
-
-Seeded content includes posts, pages, tags, categories, books, native REST meta, ACF fields, and test abilities.
+- `.wp-env.json` defines the local WordPress setup.
+- `tests/wp-env/` contains mu-plugins and seeded content.
+- `tests/setup/global-setup.ts` provisions app password, JWT, and cookie+nonce fixtures.
+- `tests/integration/` contains Astro-facing integration coverage for loaders, actions, auth bridge behavior, meta, ACF, and abilities.
 
 ## Docs
 
@@ -243,9 +188,6 @@ Seeded content includes posts, pages, tags, categories, books, native REST meta,
 - Action overview: `docs/actions/index.mdx`
 - Post actions: `docs/actions/posts.mdx`
 - Ability actions: `docs/actions/abilities.mdx`
-- Published client usage: https://github.com/JUVOJustin/fluent-wp-client/blob/main/docs/usage.md
-- Published client abilities: https://github.com/JUVOJustin/fluent-wp-client/blob/main/docs/abilities.md
-- Published client migration guide: https://github.com/JUVOJustin/fluent-wp-client/blob/main/docs/migration-from-node-wpapi.md
 
 ## License
 
