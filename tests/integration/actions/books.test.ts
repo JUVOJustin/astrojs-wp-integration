@@ -11,6 +11,7 @@ import {
 } from '../../../src/actions';
 import { createBasicAuthHeader, contentWordPressSchema } from 'fluent-wp-client';
 import { createActionBaseConfig } from '../../helpers/wp-client';
+import { callActionOrThrow } from '../../helpers/call-action';
 
 /**
  * Astro action integration for custom post type resource behavior.
@@ -52,7 +53,7 @@ describe('Actions: Books', () => {
       responseSchema: contentWordPressSchema,
     });
 
-    const created = await createBookAction.orThrow({
+    const created = await callActionOrThrow(createBookAction, {
       title: 'Books behavior: action create',
       status: 'draft',
       meta: {
@@ -75,7 +76,7 @@ describe('Actions: Books', () => {
       }),
     });
 
-    const created = await createBookAction.orThrow({
+    const created = await callActionOrThrow(createBookAction, {
       title: 'Books behavior: schema extension',
       status: 'draft',
       custom_note: 'typed-input-extension',
@@ -97,7 +98,7 @@ describe('Actions: Books', () => {
       }),
     });
 
-    const created = await createBookAction.orThrow({
+    const created = await callActionOrThrow(createBookAction, {
       title: 'Books behavior: response override',
       status: 'draft',
     } as never);
@@ -123,7 +124,7 @@ describe('Actions: Books', () => {
       }),
     });
 
-    const updated = await updateBookAction.orThrow({
+    const updated = await callActionOrThrow(updateBookAction, {
       id: created.id,
       title: 'Books behavior: updated title',
       custom_note: 'typed-update-extension',

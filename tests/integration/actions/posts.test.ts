@@ -13,6 +13,7 @@ import {
 import { createJwtAuthHeader } from 'fluent-wp-client';
 import { resolveActionRequestAuth } from '../../../src/actions/auth';
 import { createActionBaseConfig, getBaseUrl } from '../../helpers/wp-client';
+import { callActionOrThrow } from '../../helpers/call-action';
 
 /**
  * Integration tests for Astro post action behavior.
@@ -55,7 +56,7 @@ describe('Actions: Posts', () => {
       }),
     });
 
-    const created = await createAction.orThrow({
+    const created = await callActionOrThrow(createAction, {
       title: 'Action behavior: custom schema create',
       status: 'draft',
       acf: {
@@ -84,7 +85,7 @@ describe('Actions: Posts', () => {
       }),
     });
 
-    const updated = await updateAction.orThrow({
+    const updated = await callActionOrThrow(updateAction, {
       id: created.id,
       title: 'Action behavior: custom schema updated',
       acf: {
@@ -123,7 +124,7 @@ describe('Actions: Posts', () => {
       }),
     });
 
-    const created = await createAction.orThrow({
+    const created = await callActionOrThrow(createAction, {
       title: 'Action behavior: response schema override',
       status: 'draft',
     } as never);
@@ -160,20 +161,20 @@ describe('Actions: Posts', () => {
       auth: { token: process.env.WP_JWT_TOKEN! },
     });
 
-    const trashedCandidate = await createAction.orThrow({
+    const trashedCandidate = await callActionOrThrow(createAction, {
       title: 'Action behavior: trash flow',
       status: 'draft',
     } as never);
 
-    const trashed = await deleteAction.orThrow({ id: trashedCandidate.id } as never);
+    const trashed = await callActionOrThrow(deleteAction, { id: trashedCandidate.id } as never);
     expect(trashed.deleted).toBe(false);
 
-    const forceCandidate = await createAction.orThrow({
+    const forceCandidate = await callActionOrThrow(createAction, {
       title: 'Action behavior: force delete flow',
       status: 'draft',
     } as never);
 
-    const forceDeleted = await deleteAction.orThrow({ id: forceCandidate.id, force: true } as never);
+    const forceDeleted = await callActionOrThrow(deleteAction, { id: forceCandidate.id, force: true } as never);
     expect(forceDeleted.deleted).toBe(true);
   });
 });

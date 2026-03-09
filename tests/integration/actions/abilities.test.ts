@@ -9,6 +9,7 @@ import {
 } from '../../../src/actions';
 import { createBasicAuthHeader } from 'fluent-wp-client';
 import { createActionBaseConfig } from '../../helpers/wp-client';
+import { callActionOrThrow } from '../../helpers/call-action';
 
 /**
  * Astro action integration for ability wrapper behavior.
@@ -42,7 +43,7 @@ describe('Actions: Abilities', () => {
       }),
     });
 
-    const result = await getAction.orThrow({
+    const result = await callActionOrThrow(getAction, {
       name: 'test/get-site-title',
     } as never);
 
@@ -58,7 +59,7 @@ describe('Actions: Abilities', () => {
       }),
     });
 
-    const result = await runAction.orThrow({
+    const result = await callActionOrThrow(runAction, {
       name: 'test/update-option',
       input: {
         key: optionKey,
@@ -86,7 +87,7 @@ describe('Actions: Abilities', () => {
       }),
     });
 
-    const result = await deleteAction.orThrow({
+    const result = await callActionOrThrow(deleteAction, {
       name: 'test/delete-option',
       input: optionKey,
     } as never);
@@ -100,7 +101,7 @@ describe('Actions: Abilities', () => {
     });
 
     await expect(
-      getAction.orThrow({ name: 'test/get-site-title' } as never),
+      callActionOrThrow(getAction, { name: 'test/get-site-title' } as never),
     ).rejects.toThrow(ActionError);
   });
 });

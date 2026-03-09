@@ -10,6 +10,7 @@ import {
 } from '../../../src/actions';
 import { createBasicAuthHeader, pageSchema } from 'fluent-wp-client';
 import { createActionBaseConfig } from '../../helpers/wp-client';
+import { callActionOrThrow } from '../../helpers/call-action';
 
 /**
  * Astro action integration for page-targeted resource behavior.
@@ -51,7 +52,7 @@ describe('Actions: Pages', () => {
       responseSchema: pageSchema,
     });
 
-    const created = await createPageAction.orThrow({
+    const created = await callActionOrThrow(createPageAction, {
       title: 'Pages behavior: action create',
       status: 'draft',
       parent: 0,
@@ -82,7 +83,7 @@ describe('Actions: Pages', () => {
       }),
     });
 
-    const updated = await updatePageAction.orThrow({
+    const updated = await callActionOrThrow(updatePageAction, {
       id: page.id,
       menu_order: 21,
       acf: {
@@ -106,7 +107,7 @@ describe('Actions: Pages', () => {
       }),
     });
 
-    const created = await createPageAction.orThrow({
+    const created = await callActionOrThrow(createPageAction, {
       title: 'Pages behavior: response override',
       status: 'draft',
     } as never);
