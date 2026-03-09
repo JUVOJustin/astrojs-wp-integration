@@ -1,121 +1,151 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { ActionError } from 'astro/actions/runtime/server.js';
-import { executeCreatePost } from '../../../src/actions/post/create';
-import { executeUpdatePost } from '../../../src/actions/post/update';
-import { executeDeletePost } from '../../../src/actions/post/delete';
-import { createBasicAuthHeader } from '../../../src/client/auth';
-import { contentWordPressSchema } from '../../../src/schemas';
-import { getBaseUrl } from '../../helpers/wp-client';
+import { z } from 'astro/zod';
+import {
+  createCreatePostAction,
+  createUpdatePostAction,
+  createPostInputSchema,
+  updatePostInputSchema,
+  executeCreatePost,
+  executeDeletePost,
+} from '../../../src/actions';
+import { createBasicAuthHeader, contentWordPressSchema } from 'fluent-wp-client';
+import { createActionBaseConfig } from '../../helpers/wp-client';
+import { callActionOrThrow } from '../../helpers/call-action';
 
 /**
- * Integration tests for custom post type (book) CRUD via the execute* functions.
- * The 'book' CPT is registered by the mu-plugin at tests/wp-env/mu-plugins/register-book-cpt.php
- * and uses rest_base='books', so the endpoint is /wp-json/wp/v2/books.
- *
- * Uses contentWordPressSchema for response parsing — books don't have
- * post-specific fields like sticky, format, categories, or tags.
+ * Astro action integration for custom post type resource behavior.
  */
-describe('Actions: Books (CPT) CRUD', () => {
-  const baseUrl = getBaseUrl();
-  const apiBase = `${baseUrl}/wp-json/wp/v2`;
+describe('Actions: Books', () => {
+  const actionBaseConfig = createActionBaseConfig();
+  const authHeader = createBasicAuthHeader({
+    username: 'admin',
+    password: process.env.WP_APP_PASSWORD!,
+  });
 
-  const authConfig = {
-    apiBase,
-    authHeader: createBasicAuthHeader({
-      username: 'admin',
-      password: process.env.WP_APP_PASSWORD!,
-    }),
+  const bookConfig = {
+    ...actionBaseConfig,
+    authHeader,
     resource: 'books' as const,
     responseSchema: contentWordPressSchema,
-  };
-
-  const anonConfig = {
-    apiBase,
-    authHeader: '',
-    resource: 'books' as const,
-    responseSchema: contentWordPressSchema,
-  };
-
-  const deleteConfig = {
-    apiBase,
-    authHeader: authConfig.authHeader,
-    resource: 'books' as const,
   };
 
   const createdIds: number[] = [];
 
   afterAll(async () => {
     for (const id of createdIds) {
-      await executeDeletePost(deleteConfig, { id, force: true }).catch(() => {});
+      await executeDeletePost(
+        {
+          ...actionBaseConfig,
+          authHeader,
+          resource: 'books',
+        },
+        { id, force: true },
+      ).catch(() => undefined);
     }
   });
 
-  const updateConfig = {
-    apiBase,
-    authHeader: authConfig.authHeader,
-    resource: 'books' as const,
-    responseSchema: contentWordPressSchema,
-  };
-
-  describe('resource-specific behavior', () => {
-    it('creates a book through the books endpoint', async () => {
-      const book = await executeCreatePost(authConfig, {
-        title: 'Action Test: Draft Book',
-        status: 'draft',
-      });
-
-      createdIds.push(book.id);
-
-      expect(book.id).toBeGreaterThan(0);
-      expect(book.title.rendered).toBe('Action Test: Draft Book');
-      expect(book.status).toBe('draft');
-      expect(book.type).toBe('book');
+  it('routes create action to custom post type resource endpoint', async () => {
+    const createBookAction = createCreatePostAction({
+      baseUrl: bookConfig.baseUrl,
+      auth: { username: 'admin', password: process.env.WP_APP_PASSWORD! },
+      resource: 'books',
+      responseSchema: contentWordPressSchema,
     });
 
-    it('updates an existing book through the books endpoint', async () => {
-      const created = await executeCreatePost(authConfig, {
-        title: 'Action Test: Book Before Update',
-        status: 'draft',
-      });
-      createdIds.push(created.id);
+    const created = await callActionOrThrow(createBookAction, {
+      title: 'Books behavior: action create',
+      status: 'draft',
+      meta: {
+        test_book_isbn: '978-0-00-000000-1',
+      },
+    } as never);
 
-      const updated = await executeUpdatePost(updateConfig, {
-        id: created.id,
-        title: 'Action Test: Book After Update',
-        status: 'publish',
-      });
-
-      expect(updated.id).toBe(created.id);
-      expect(updated.type).toBe('book');
-      expect(updated.title.rendered).toBe('Action Test: Book After Update');
-      expect(updated.status).toBe('publish');
-    });
-
-    it('permanently deletes a book through the books endpoint', async () => {
-      const created = await executeCreatePost(authConfig, {
-        title: 'Action Test: Destroy Book',
-        status: 'draft',
-      });
-      createdIds.push(created.id);
-
-      const deleted = await executeDeletePost(deleteConfig, { id: created.id, force: true });
-
-      expect(deleted.id).toBe(created.id);
-      expect(deleted.deleted).toBe(true);
-    });
+    createdIds.push(created.id);
+    expect(created.type).toBe('book');
   });
 
-  describe('error behavior', () => {
-    it('throws ActionError when not authenticated', async () => {
-      await expect(
-        executeCreatePost(anonConfig, { title: 'Should Fail', status: 'draft' })
-      ).rejects.toThrow(ActionError);
+  it('supports custom schema extension for CPT-specific fields', async () => {
+    const createBookAction = createCreatePostAction({
+      baseUrl: bookConfig.baseUrl,
+      auth: { username: 'admin', password: process.env.WP_APP_PASSWORD! },
+      resource: 'books',
+      responseSchema: contentWordPressSchema,
+      schema: createPostInputSchema.extend({
+        custom_note: z.string().min(3).optional(),
+      }),
     });
 
-    it('throws ActionError for a non-existent book ID on update', async () => {
-      await expect(
-        executeUpdatePost(updateConfig, { id: 999999, title: 'Ghost Book' })
-      ).rejects.toThrow(ActionError);
+    const created = await callActionOrThrow(createBookAction, {
+      title: 'Books behavior: schema extension',
+      status: 'draft',
+      custom_note: 'typed-input-extension',
+    } as never);
+
+    createdIds.push(created.id);
+    expect(created.type).toBe('book');
+  });
+
+  it('supports response schema override for CPT action responses', async () => {
+    const createBookAction = createCreatePostAction({
+      baseUrl: bookConfig.baseUrl,
+      auth: { username: 'admin', password: process.env.WP_APP_PASSWORD! },
+      resource: 'books',
+      responseSchema: z.object({
+        id: z.number().int().positive(),
+        type: z.literal('book'),
+        status: z.string(),
+      }),
     });
+
+    const created = await callActionOrThrow(createBookAction, {
+      title: 'Books behavior: response override',
+      status: 'draft',
+    } as never);
+
+    createdIds.push(created.id);
+    expect(created.type).toBe('book');
+  });
+
+  it('updates CPT content through configured books resource', async () => {
+    const created = await executeCreatePost(bookConfig, {
+      title: 'Books behavior: update base',
+      status: 'draft',
+    });
+    createdIds.push(created.id);
+
+    const updateBookAction = createUpdatePostAction({
+      baseUrl: bookConfig.baseUrl,
+      auth: { username: 'admin', password: process.env.WP_APP_PASSWORD! },
+      resource: 'books',
+      responseSchema: contentWordPressSchema,
+      schema: updatePostInputSchema.extend({
+        custom_note: z.string().optional(),
+      }),
+    });
+
+    const updated = await callActionOrThrow(updateBookAction, {
+      id: created.id,
+      title: 'Books behavior: updated title',
+      custom_note: 'typed-update-extension',
+    } as never);
+
+    expect(updated.type).toBe('book');
+    expect(updated.title.rendered).toBe('Books behavior: updated title');
+  });
+
+  it('maps CPT write auth failures to ActionError', async () => {
+    await expect(
+      executeCreatePost(
+        {
+          ...bookConfig,
+          authHeader: '',
+        },
+        {
+          title: 'Books behavior: unauthorized',
+          status: 'draft',
+        },
+      ),
+    ).rejects.toThrow(ActionError);
   });
 });

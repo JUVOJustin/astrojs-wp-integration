@@ -6,16 +6,19 @@ import {
 } from 'astro/actions/runtime/server.js';
 import type { APIContext } from 'astro';
 import { z } from 'astro/zod';
-import { WordPressClient } from '../client';
-import { createJwtAuthHeader, type JwtAuthCredentials } from '../client/auth';
-import { wordPressErrorSchema, type WordPressAuthor } from '../schemas';
+import {
+  WordPressClient,
+  createJwtAuthHeader,
+  wordPressErrorSchema,
+  type JwtAuthCredentials,
+  type JwtAuthTokenResponse,
+  type WordPressAuthor,
+} from 'fluent-wp-client';
 
 const DEFAULT_COOKIE_NAME = 'wp_astro_auth';
 const DEFAULT_COOKIE_PATH = '/';
 const DEFAULT_COOKIE_SAME_SITE: 'lax' = 'lax';
 const DEFAULT_SESSION_DURATION_SECONDS = 60 * 60 * 12;
-const DEFAULT_JWT_TOKEN_PATH = '/wp-json/jwt-auth/v1/token';
-
 const loginUsernameOrEmailSchema = z.string().trim().min(1).max(320);
 
 const jwtAuthTokenResponseSchema = z.object({
@@ -80,7 +83,6 @@ export type WordPressLoginAction = ActionClient<
  */
 export interface WordPressAuthBridgeConfig {
   baseUrl: string;
-  jwtTokenPath?: string;
   cookieName?: string;
   cookiePath?: string;
   cookieSameSite?: 'lax' | 'strict' | 'none';
@@ -136,13 +138,6 @@ function sanitizeRedirectPath(candidate: string | null | undefined): string {
   }
 
   return candidate;
-}
-
-/**
- * Builds a WordPress URL by appending a suffix to the configured base URL.
- */
-function buildWordPressURL(baseUrl: string, suffix: string): string {
-  return `${baseUrl.replace(/\/$/, '')}${suffix}`;
 }
 
 /**
@@ -218,13 +213,6 @@ function isJwtAuthConfigurationError(error: JwtAuthErrorResponse | null): boolea
   }
 
   return /JWT is not configured properly/i.test(error.message);
-}
-
-/**
- * Reads one effective JWT error status from either payload metadata or the HTTP response.
- */
-function getJwtAuthErrorStatus(error: JwtAuthErrorResponse | null, response: Response): number {
-  return error?.data?.status ?? error?.statusCode ?? response.status;
 }
 
 /**
@@ -347,36 +335,38 @@ function getCookieMaxAge(defaultSeconds: number, expiresAt: number | null): numb
  */
 async function loginWithWordPressJwt(
   baseUrl: string,
-  jwtTokenPath: string,
   usernameOrEmail: string,
   password: string,
 ): Promise<string> {
-  const loginUrl = buildWordPressURL(baseUrl, jwtTokenPath);
-
-  const response = await fetch(loginUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      username: usernameOrEmail,
-      password,
-    }),
+  const client = new WordPressClient({
+    baseUrl,
   });
 
-  const data: unknown = await response.json().catch(() => null);
+  let tokenResponseData: JwtAuthTokenResponse;
 
-  if (!response.ok) {
-    if (response.status === 404) {
+  try {
+    tokenResponseData = await client.loginWithJwt({
+      username: usernameOrEmail,
+      password,
+    });
+  } catch (error) {
+    if (!(error instanceof Error) || !("status" in error)) {
+      throw error;
+    }
+
+    const responseStatus = typeof error.status === 'number' ? error.status : 500;
+    const responseBody = 'responseBody' in error ? error.responseBody : null;
+
+    if (responseStatus === 404) {
       throw new ActionError({
         code: 'INTERNAL_SERVER_ERROR',
         message: 'WordPress JWT endpoint is missing. Activate the jwt-authentication-for-wp-rest-api plugin.',
       });
     }
 
-    const parsedJwtError = jwtAuthErrorSchema.safeParse(data);
+    const parsedJwtError = jwtAuthErrorSchema.safeParse(responseBody);
     const jwtError = parsedJwtError.success ? parsedJwtError.data : null;
-    const jwtErrorStatus = getJwtAuthErrorStatus(jwtError, response);
+    const jwtErrorStatus = jwtError?.data?.status ?? jwtError?.statusCode ?? responseStatus;
 
     if (isJwtAuthConfigurationError(jwtError) || jwtErrorStatus >= 500) {
       throw new ActionError({
@@ -391,7 +381,7 @@ async function loginWithWordPressJwt(
     });
   }
 
-  const tokenResponse = jwtAuthTokenResponseSchema.safeParse(data);
+  const tokenResponse = jwtAuthTokenResponseSchema.safeParse(tokenResponseData);
 
   if (!tokenResponse.success) {
     throw new ActionError({
@@ -412,28 +402,39 @@ async function resolveUserByToken(baseUrl: string, token: string): Promise<WordP
     auth: { token },
   });
 
-  const { data, response } = await client.request<unknown>({
-    endpoint: '/users/me',
-  });
-  const wpError = wordPressErrorSchema.safeParse(data);
+  let user: unknown;
 
-  if (!response.ok) {
+  try {
+    user = await client.getCurrentUser();
+  } catch (error) {
+    if (!(error instanceof Error) || !("status" in error)) {
+      throw error;
+    }
+
+    const responseStatus = typeof error.status === 'number' ? error.status : 500;
+    const responseBody = 'responseBody' in error ? error.responseBody : null;
+    const wpError = wordPressErrorSchema.safeParse(responseBody);
+
     if (wpError.success && wpError.data.code === 'jwt_auth_bad_config') {
       throw new Error(wpError.data.message);
     }
 
-    if (isAuthFailureStatus(response.status)) {
+    if (isAuthFailureStatus(responseStatus)) {
       return null;
     }
 
-    throw new Error(getWordPressErrorMessage(data, response));
+    throw new Error(
+      wpError.success
+        ? wpError.data.message
+        : error.message,
+    );
   }
 
-  if (!isWordPressAuthor(data)) {
+  if (!isWordPressAuthor(user)) {
     throw new Error('WordPress /users/me returned an invalid user payload.');
   }
 
-  return data;
+  return user;
 }
 
 /**
@@ -465,7 +466,6 @@ async function resolveLoggedInUser(baseUrl: string, token: string): Promise<Word
 export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): WordPressAuthBridge {
   const normalizedConfig = {
     ...config,
-    jwtTokenPath: config.jwtTokenPath || DEFAULT_JWT_TOKEN_PATH,
     cookieName: config.cookieName || DEFAULT_COOKIE_NAME,
     cookiePath: config.cookiePath || DEFAULT_COOKIE_PATH,
     cookieSameSite: config.cookieSameSite || DEFAULT_COOKIE_SAME_SITE,
@@ -572,7 +572,6 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
     ): Promise<WordPressLoginActionResult> => {
       const token = await loginWithWordPressJwt(
         normalizedConfig.baseUrl,
-        normalizedConfig.jwtTokenPath,
         input.usernameOrEmail,
         input.password,
       );

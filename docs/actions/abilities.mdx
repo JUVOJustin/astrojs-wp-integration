@@ -1,0 +1,117 @@
+# Ability Actions
+
+Ability actions let you execute WordPress abilities from Astro server-side code.
+
+WordPress abilities expose executable server-side primitives through the REST API at `/wp-json/wp-abilities/v1`.
+
+Each ability declares annotations that determine which HTTP method you must use:
+
+| Annotation | HTTP method | Action factory | Execute function |
+|---|---|---|---|
+| `readonly: true` | GET | `createGetAbilityAction` | `executeGetAbility` |
+| `readonly: false, destructive: false` | POST | `createRunAbilityAction` | `executeRunAbility` |
+| `destructive: true` | DELETE | `createDeleteAbilityAction` | `executeDeleteAbility` |
+
+## Setup
+
+```ts
+import {
+  createDeleteAbilityAction,
+  createGetAbilityAction,
+  createRunAbilityAction,
+} from 'wp-astrojs-integration';
+import { wordPressAuthBridge } from '../lib/auth/bridge';
+
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: (context) => wordPressAuthBridge.getActionAuth(context),
+};
+
+export const server = {
+  getAbility: createGetAbilityAction(wpConfig),
+  runAbility: createRunAbilityAction(wpConfig),
+  deleteAbility: createDeleteAbilityAction(wpConfig),
+};
+```
+
+## Read-only abilities
+
+Use `createGetAbilityAction` for abilities annotated with `readonly: true`.
+
+```ts
+const { data, error } = await Astro.callAction(actions.getAbility, {
+  name: 'my-plugin/get-site-info',
+  input: { user_id: 1 },
+});
+```
+
+## Regular abilities
+
+Use `createRunAbilityAction` for abilities that execute through `POST /run`.
+
+```ts
+const { data, error } = await Astro.callAction(actions.runAbility, {
+  name: 'my-plugin/update-option',
+  input: { value: 'new-value' },
+});
+```
+
+## Destructive abilities
+
+Use `createDeleteAbilityAction` for abilities annotated with `destructive: true`.
+
+```ts
+const { data, error } = await Astro.callAction(actions.deleteAbility, {
+  name: 'my-plugin/delete-cache',
+});
+```
+
+## Typed responses
+
+Pass a `responseSchema` when you want the action result parsed and typed locally.
+
+```ts
+import { z } from 'astro/zod';
+
+const optionResultSchema = z.object({
+  previous: z.string(),
+  current: z.string(),
+});
+
+export const server = {
+  runAbility: createRunAbilityAction({
+    ...wpConfig,
+    responseSchema: optionResultSchema,
+  }),
+};
+```
+
+## Execute helpers
+
+The raw `execute*` functions are useful in tests or custom wrappers.
+
+```ts
+import {
+  executeDeleteAbility,
+  executeGetAbility,
+  executeRunAbility,
+} from 'wp-astrojs-integration/actions';
+import { createBasicAuthHeader } from 'wp-astrojs-integration';
+
+const config = {
+  baseUrl: 'https://example.com',
+  authHeader: createBasicAuthHeader({ username: 'admin', password: 'app-password' }),
+};
+
+await executeGetAbility(config, { name: 'my-plugin/get-site-info' });
+await executeRunAbility(config, { name: 'my-plugin/update-option', input: { value: 'hello' } });
+await executeDeleteAbility(config, { name: 'my-plugin/delete-cache' });
+```
+
+## Client relationship
+
+Astro ability actions are thin wrappers around `fluent-wp-client`.
+
+They resolve Astro auth per request, call the standalone client, and map WordPress failures into `ActionError`.
+
+For direct runtime usage outside Astro, use the published `fluent-wp-client` abilities guide.

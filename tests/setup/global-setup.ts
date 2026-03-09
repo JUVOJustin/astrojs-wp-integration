@@ -84,6 +84,102 @@ async function createJwtToken(baseUrl: string): Promise<string> {
 }
 
 /**
+ * Extracts one `name=value` pair from a raw Set-Cookie header value.
+ */
+function getCookiePair(setCookieValue: string): string {
+  return setCookieValue.split(';')[0].trim();
+}
+
+/**
+ * Reads all Set-Cookie headers from one fetch response.
+ */
+function getSetCookieHeaders(response: Response): string[] {
+  const headersWithSetCookie = response.headers as Headers & {
+    getSetCookie?: () => string[];
+  };
+
+  if (typeof headersWithSetCookie.getSetCookie === 'function') {
+    return headersWithSetCookie.getSetCookie();
+  }
+
+  const fallback = response.headers.get('set-cookie');
+
+  if (!fallback) {
+    return [];
+  }
+
+  return [fallback];
+}
+
+/**
+ * Creates one logged-in cookie + REST nonce pair through a real wp-admin login flow.
+ */
+async function createCookieAuthSession(baseUrl: string): Promise<{ cookieHeader: string; restNonce: string }> {
+  const preflightResponse = await fetch(`${baseUrl}/wp-login.php`, {
+    redirect: 'manual',
+  });
+  const preflightCookies = getSetCookieHeaders(preflightResponse)
+    .map(getCookiePair)
+    .filter((pair) => pair.length > 0)
+    .join('; ');
+
+  const loginForm = new URLSearchParams({
+    log: DEFAULT_ADMIN_USERNAME,
+    pwd: DEFAULT_ADMIN_PASSWORD,
+    'wp-submit': 'Log In',
+    redirect_to: `${baseUrl}/wp-admin/`,
+    testcookie: '1',
+  });
+
+  const loginResponse = await fetch(`${baseUrl}/wp-login.php`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      ...(preflightCookies ? { Cookie: preflightCookies } : {}),
+    },
+    body: loginForm.toString(),
+    redirect: 'manual',
+  });
+
+  const setCookies = [
+    ...getSetCookieHeaders(loginResponse),
+    ...getSetCookieHeaders(preflightResponse),
+  ];
+
+  if (setCookies.length === 0) {
+    throw new Error('Failed to create cookie auth session during global setup (missing Set-Cookie headers).');
+  }
+
+  const cookieHeader = setCookies
+    .map(getCookiePair)
+    .filter((pair) => pair.length > 0)
+    .join('; ');
+
+  if (!cookieHeader) {
+    throw new Error('Failed to create cookie auth session during global setup (empty cookie header).');
+  }
+
+  const adminResponse = await fetch(`${baseUrl}/wp-admin/`, {
+    headers: {
+      Cookie: cookieHeader,
+    },
+  });
+
+  const adminHtml = await adminResponse.text();
+  const nonceMatch = adminHtml.match(/"nonce":"([^"]+)"/);
+  const restNonce = nonceMatch?.[1];
+
+  if (!restNonce) {
+    throw new Error('Failed to extract wpApiSettings nonce during global setup.');
+  }
+
+  return {
+    cookieHeader,
+    restNonce,
+  };
+}
+
+/**
  * Waits for the WordPress REST API to respond before running tests
  */
 async function waitForApi(baseUrl: string, maxAttempts = 30): Promise<void> {
@@ -103,7 +199,7 @@ async function waitForApi(baseUrl: string, maxAttempts = 30): Promise<void> {
  * Global setup: called once before all integration tests.
  * Content seeding is handled by wp-env's afterStart lifecycle script
  * (see .wp-env.json), so this only needs to wait for the API and
- * create an application password plus JWT token for authenticated endpoint tests.
+ * create app-password, JWT, and cookie+nonce auth credentials for integration tests.
  */
 export async function setup(): Promise<void> {
   const baseUrl = process.env.WP_BASE_URL || 'http://localhost:8888';
@@ -120,12 +216,17 @@ export async function setup(): Promise<void> {
   console.log('[global-setup] Creating JWT token...');
   const jwtToken = await createJwtToken(baseUrl);
 
+  console.log('[global-setup] Creating cookie auth session...');
+  const cookieAuthSession = await createCookieAuthSession(baseUrl);
+
   // Persist env vars to a file so test workers can read them (globalSetup runs
   // in a separate process — process.env changes are not inherited by workers)
   const envData = {
     WP_BASE_URL: baseUrl,
     WP_APP_PASSWORD: appPassword,
     WP_JWT_TOKEN: jwtToken,
+    WP_COOKIE_AUTH_HEADER: cookieAuthSession.cookieHeader,
+    WP_REST_NONCE: cookieAuthSession.restNonce,
   };
   writeFileSync(ENV_FILE, JSON.stringify(envData), 'utf-8');
 

@@ -1,424 +1,325 @@
 import type { LiveLoader } from 'astro/loaders';
 import type {
-  WordPressPost,
-  WordPressPage,
-  WordPressMedia,
-  WordPressCategory,
   WordPressAuthor,
-} from '../schemas';
-import { WordPressClient } from '../client';
+  WordPressCategory,
+  WordPressMedia,
+  WordPressPage,
+  WordPressPost,
+} from 'fluent-wp-client';
+import { WordPressClient } from 'fluent-wp-client';
 import type {
-  WordPressAuthConfig,
-  WordPressAuthHeaders,
-  WordPressAuthHeadersProvider,
-} from '../client/auth';
+  CategoryFilter,
+  MediaFilter,
+  PageFilter,
+  PostFilter,
+  UserFilter,
+  WordPressLoaderConfig,
+} from './types';
 
 /**
- * Loader configuration for WordPress content
+ * Shared shape used by Astro loader entry payloads.
  */
-export interface WordPressLoaderConfig {
-  baseUrl: string;
-  auth?: WordPressAuthConfig;
-  authHeader?: string;
-  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
-  cookies?: string;
+type IdentifiableEntry = {
+  id: number;
+};
+
+/**
+ * Astro's live loader callbacks pass an optional wrapped filter object.
+ */
+type LiveLoaderContext = {
+  filter?: unknown;
+};
+
+/**
+ * Configuration for one reusable live loader factory.
+ */
+interface LiveLoaderDefinition<TEntry extends IdentifiableEntry, TFilter> {
+  name: string;
+  collectionError: string;
+  entryError: string;
+  notFoundError: string;
+  loadCollectionData: (client: WordPressClient, filter: TFilter | undefined) => Promise<TEntry[]>;
+  loadEntryData: (client: WordPressClient, filter: TFilter | undefined) => Promise<TEntry | undefined>;
+  renderHtml?: (entry: TEntry) => string | undefined;
 }
 
 /**
- * Filter options for posts (live loader)
+ * Unwraps Astro's optional nested `filter` shape into the real loader filter.
  */
-export interface PostFilter {
-  id?: number;
-  slug?: string;
-  status?: string;
-  categories?: number[];
-  tags?: number[];
-  terms?: string;
-  orderby?: 'date' | 'id' | 'title' | 'slug' | 'modified' | 'relevance';
-  order?: 'asc' | 'desc';
+function normalizeLoaderFilter<TFilter>(filter: unknown): TFilter | undefined {
+  if (typeof filter === 'object' && filter !== null && 'filter' in filter) {
+    return (filter as { filter?: TFilter }).filter;
+  }
+
+  return filter as TFilter | undefined;
 }
 
 /**
- * Filter options for pages (live loader)
+ * Converts one thrown value into Astro's expected loader error shape.
  */
-export interface PageFilter {
-  id?: number;
-  slug?: string;
-  status?: string;
+function createLoaderError(message: string, error: unknown): { error: Error } {
+  return {
+    error: error instanceof Error ? error : new Error(message),
+  };
 }
 
 /**
- * Filter options for media (live loader)
+ * Builds one Astro live loader entry with optional rendered HTML.
  */
-export interface LiveMediaFilter {
-  id?: number;
-  slug?: string;
+function createLiveEntry<TEntry extends IdentifiableEntry>(
+  entry: TEntry,
+  renderHtml?: (entry: TEntry) => string | undefined,
+): {
+  id: string;
+  data: TEntry;
+  rendered?: { html: string };
+} {
+  const html = renderHtml?.(entry);
+
+  if (!html) {
+    return {
+      id: String(entry.id),
+      data: entry,
+    };
+  }
+
+  return {
+    id: String(entry.id),
+    data: entry,
+    rendered: { html },
+  };
 }
 
 /**
- * Filter options for categories/taxonomies (live loader)
+ * Creates one reusable live loader backed by `WordPressClient` methods.
  */
-export interface CategoryFilter {
-  id?: number;
-  slug?: string;
-  taxonomy?: string;
-  hide_empty?: boolean;
-  parent?: number;
-  orderby?: 'id' | 'name' | 'slug' | 'count' | 'term_group';
-  order?: 'asc' | 'desc';
+function createLiveWordPressLoader<TEntry extends IdentifiableEntry, TFilter>(
+  config: WordPressLoaderConfig,
+  definition: LiveLoaderDefinition<TEntry, TFilter>,
+): {
+  name: string;
+  loadCollection: (context: LiveLoaderContext) => Promise<{ entries: ReturnType<typeof createLiveEntry<TEntry>>[] } | { error: Error }>;
+  loadEntry: (context: LiveLoaderContext) => Promise<ReturnType<typeof createLiveEntry<TEntry>> | { error: Error }>;
+} {
+  const client = new WordPressClient(config);
+
+  return {
+    name: definition.name,
+    loadCollection: async ({ filter }: LiveLoaderContext) => {
+      try {
+        const resolvedFilter = normalizeLoaderFilter<TFilter>(filter);
+        const entries = await definition.loadCollectionData(client, resolvedFilter);
+
+        return {
+          entries: entries.map((entry) => createLiveEntry(entry, definition.renderHtml)),
+        };
+      } catch (error) {
+        return createLoaderError(definition.collectionError, error);
+      }
+    },
+    loadEntry: async ({ filter }: LiveLoaderContext) => {
+      try {
+        const resolvedFilter = normalizeLoaderFilter<TFilter>(filter);
+        const entry = await definition.loadEntryData(client, resolvedFilter);
+
+        if (!entry) {
+          return createLoaderError(definition.notFoundError, new Error(definition.notFoundError));
+        }
+
+        return createLiveEntry(entry, definition.renderHtml);
+      } catch (error) {
+        return createLoaderError(definition.entryError, error);
+      }
+    },
+  };
 }
 
 /**
- * Filter options for users (live loader)
+ * Resolves one post from either `id` or `slug` filter input.
  */
-export interface UserFilter {
-  id?: number;
-  slug?: string;
-  roles?: string[];
-  orderby?: 'id' | 'name' | 'slug' | 'email' | 'url' | 'registered_date';
-  order?: 'asc' | 'desc';
+async function loadPostEntry(
+  client: WordPressClient,
+  filter: PostFilter | undefined,
+): Promise<WordPressPost | undefined> {
+  if (filter?.id) {
+    return client.getPost(filter.id);
+  }
+
+  if (filter?.slug) {
+    return client.getPostBySlug(filter.slug);
+  }
+
+  return undefined;
 }
 
 /**
- * Live Loaders for WordPress content
- * Use with Astro's defineLiveCollection for server-side rendering
+ * Resolves one page from either `id` or `slug` filter input.
  */
+async function loadPageEntry(
+  client: WordPressClient,
+  filter: PageFilter | undefined,
+): Promise<WordPressPage | undefined> {
+  if (filter?.id) {
+    return client.getPage(filter.id);
+  }
+
+  if (filter?.slug) {
+    return client.getPageBySlug(filter.slug);
+  }
+
+  return undefined;
+}
 
 /**
- * Creates a live loader for WordPress posts
- * 
- * @example
- * import { defineLiveCollection } from 'astro:content';
- * import { wordPressPostLoader, postSchema } from 'wp-astrojs-integration';
- * 
- * const posts = defineLiveCollection({
- *   loader: wordPressPostLoader({ baseUrl: 'https://example.com' }),
- *   schema: postSchema,
- * });
+ * Resolves one media item from either `id` or `slug` filter input.
+ */
+async function loadMediaEntry(
+  client: WordPressClient,
+  filter: MediaFilter | undefined,
+): Promise<WordPressMedia | undefined> {
+  if (filter?.id) {
+    return client.getMediaItem(filter.id);
+  }
+
+  if (filter?.slug) {
+    return client.getMediaBySlug(filter.slug);
+  }
+
+  return undefined;
+}
+
+/**
+ * Resolves one category from either `id` or `slug` filter input.
+ */
+async function loadCategoryEntry(
+  client: WordPressClient,
+  filter: CategoryFilter | undefined,
+): Promise<WordPressCategory | undefined> {
+  if (filter?.id) {
+    return client.getCategory(filter.id);
+  }
+
+  if (filter?.slug) {
+    return client.getCategoryBySlug(filter.slug);
+  }
+
+  return undefined;
+}
+
+/**
+ * Resolves one user from either `id` or `slug` filter input.
+ */
+async function loadUserEntry(
+  client: WordPressClient,
+  filter: UserFilter | undefined,
+): Promise<WordPressAuthor | undefined> {
+  if (filter?.id) {
+    return client.getUser(filter.id);
+  }
+
+  if (!filter?.slug) {
+    return undefined;
+  }
+
+  const users = await client.getUsers({ search: filter.slug });
+  return users.find((candidate) => candidate.slug === filter.slug);
+}
+
+/**
+ * Creates a live loader for WordPress posts.
  */
 export function wordPressPostLoader(
-  config: WordPressLoaderConfig
+  config: WordPressLoaderConfig,
 ): LiveLoader<WordPressPost, PostFilter> {
-  const client = new WordPressClient(config);
-
-  return {
+  return createLiveWordPressLoader(config, {
     name: 'wordpress-post-loader',
-    loadCollection: async ({ filter }) => {
-      try {
-        const postFilter = (filter as any)?.filter || (filter as PostFilter | undefined);
-
-        const posts = await client.getPosts({
-          status: postFilter?.status as any,
-          categories: postFilter?.categories,
-          tags: postFilter?.tags,
-          orderby: postFilter?.orderby,
-          order: postFilter?.order,
-        });
-
-        return {
-          entries: posts.map((post) => ({
-            id: String(post.id),
-            data: post,
-          })),
-        };
-      } catch (error) {
-        console.error('Error in loadCollection:', error);
-        return {
-          error: error instanceof Error ? error : new Error('Failed to load posts'),
-        };
-      }
-    },
-    loadEntry: async ({ filter }) => {
-      try {
-        let post: WordPressPost | undefined;
-
-        if (typeof filter === 'object' && 'id' in filter && filter.id) {
-          post = await client.getPost(filter.id);
-        } else if (typeof filter === 'object' && 'slug' in filter && filter.slug) {
-          post = await client.getPostBySlug(filter.slug);
-        }
-
-        if (!post) {
-          return { error: new Error('Post not found') };
-        }
-
-        return {
-          id: String(post.id),
-          data: post,
-          rendered: { html: post.content.rendered },
-        };
-      } catch (error) {
-        return {
-          error: error instanceof Error ? error : new Error('Failed to load post'),
-        };
-      }
-    },
-  };
+    collectionError: 'Failed to load posts',
+    entryError: 'Failed to load post',
+    notFoundError: 'Post not found',
+    loadCollectionData: (client, filter) => client.getPosts({
+      status: filter?.status as never,
+      categories: filter?.categories,
+      tags: filter?.tags,
+      orderby: filter?.orderby,
+      order: filter?.order,
+    }),
+    loadEntryData: loadPostEntry,
+    renderHtml: (entry) => entry.content.rendered,
+  }) as LiveLoader<WordPressPost, PostFilter>;
 }
 
 /**
- * Creates a live loader for WordPress pages
- * 
- * @example
- * import { defineLiveCollection } from 'astro:content';
- * import { wordPressPageLoader, pageSchema } from 'wp-astrojs-integration';
- * 
- * const pages = defineLiveCollection({
- *   loader: wordPressPageLoader({ baseUrl: 'https://example.com' }),
- *   schema: pageSchema,
- * });
+ * Creates a live loader for WordPress pages.
  */
 export function wordPressPageLoader(
-  config: WordPressLoaderConfig
+  config: WordPressLoaderConfig,
 ): LiveLoader<WordPressPage, PageFilter> {
-  const client = new WordPressClient(config);
-
-  return {
+  return createLiveWordPressLoader(config, {
     name: 'wordpress-page-loader',
-    loadCollection: async ({ filter }) => {
-      try {
-        const pageFilter = filter as PageFilter | undefined;
-
-        const pages = await client.getPages({
-          status: pageFilter?.status as any,
-        });
-
-        return {
-          entries: pages.map((page) => ({
-            id: String(page.id),
-            data: page,
-          })),
-        };
-      } catch (error) {
-        return {
-          error: error instanceof Error ? error : new Error('Failed to load pages'),
-        };
-      }
-    },
-    loadEntry: async ({ filter }) => {
-      try {
-        let page: WordPressPage | undefined;
-
-        if (typeof filter === 'object' && 'id' in filter && filter.id) {
-          page = await client.getPage(filter.id);
-        } else if (typeof filter === 'object' && 'slug' in filter && filter.slug) {
-          page = await client.getPageBySlug(filter.slug);
-        }
-
-        if (!page) {
-          return { error: new Error('Page not found') };
-        }
-
-        return {
-          id: String(page.id),
-          data: page,
-          rendered: { html: page.content.rendered },
-        };
-      } catch (error) {
-        return {
-          error: error instanceof Error ? error : new Error('Failed to load page'),
-        };
-      }
-    },
-  };
+    collectionError: 'Failed to load pages',
+    entryError: 'Failed to load page',
+    notFoundError: 'Page not found',
+    loadCollectionData: (client, filter) => client.getPages({
+      status: filter?.status as never,
+    }),
+    loadEntryData: loadPageEntry,
+    renderHtml: (entry) => entry.content.rendered,
+  }) as LiveLoader<WordPressPage, PageFilter>;
 }
 
 /**
- * Creates a live loader for WordPress media items
- * 
- * @example
- * import { defineLiveCollection } from 'astro:content';
- * import { wordPressMediaLoader, mediaSchema } from 'wp-astrojs-integration';
- * 
- * const media = defineLiveCollection({
- *   loader: wordPressMediaLoader({ baseUrl: 'https://example.com' }),
- *   schema: mediaSchema,
- * });
+ * Creates a live loader for WordPress media items.
  */
 export function wordPressMediaLoader(
-  config: WordPressLoaderConfig
-): LiveLoader<WordPressMedia, LiveMediaFilter> {
-  const client = new WordPressClient(config);
-
-  return {
+  config: WordPressLoaderConfig,
+): LiveLoader<WordPressMedia, MediaFilter> {
+  return createLiveWordPressLoader(config, {
     name: 'wordpress-media-loader',
-    loadCollection: async () => {
-      try {
-        const media = await client.getAllMedia();
-
-        return {
-          entries: media.map((item) => ({
-            id: String(item.id),
-            data: item,
-          })),
-        };
-      } catch (error) {
-        return {
-          error: error instanceof Error ? error : new Error('Failed to load media'),
-        };
-      }
-    },
-    loadEntry: async ({ filter }) => {
-      try {
-        let mediaItem: WordPressMedia | undefined;
-
-        if (typeof filter === 'object' && 'id' in filter && filter.id) {
-          mediaItem = await client.getMediaItem(filter.id);
-        } else if (typeof filter === 'object' && 'slug' in filter && filter.slug) {
-          mediaItem = await client.getMediaBySlug(filter.slug);
-        }
-
-        if (!mediaItem) {
-          return { error: new Error('Media not found') };
-        }
-
-        return {
-          id: String(mediaItem.id),
-          data: mediaItem,
-        };
-      } catch (error) {
-        return {
-          error: error instanceof Error ? error : new Error('Failed to load media'),
-        };
-      }
-    },
-  };
+    collectionError: 'Failed to load media',
+    entryError: 'Failed to load media',
+    notFoundError: 'Media not found',
+    loadCollectionData: (client) => client.getAllMedia(),
+    loadEntryData: loadMediaEntry,
+  }) as LiveLoader<WordPressMedia, MediaFilter>;
 }
 
 /**
- * Creates a live loader for WordPress categories/taxonomies
- * 
- * @example
- * import { defineLiveCollection } from 'astro:content';
- * import { wordPressCategoryLoader, categorySchema } from 'wp-astrojs-integration';
- * 
- * const categories = defineLiveCollection({
- *   loader: wordPressCategoryLoader({ baseUrl: 'https://example.com' }),
- *   schema: categorySchema,
- * });
+ * Creates a live loader for WordPress categories and taxonomies.
  */
 export function wordPressCategoryLoader(
-  config: WordPressLoaderConfig
+  config: WordPressLoaderConfig,
 ): LiveLoader<WordPressCategory, CategoryFilter> {
-  const client = new WordPressClient(config);
-
-  return {
+  return createLiveWordPressLoader(config, {
     name: 'wordpress-category-loader',
-    loadCollection: async ({ filter }) => {
-      try {
-        const categoryFilter = (filter as any)?.filter || (filter as CategoryFilter | undefined);
-
-        const categories = await client.getCategories({
-          hideEmpty: categoryFilter?.hide_empty,
-          parent: categoryFilter?.parent,
-          orderby: categoryFilter?.orderby,
-          order: categoryFilter?.order,
-        });
-
-        return {
-          entries: categories.map((category) => ({
-            id: String(category.id),
-            data: category,
-          })),
-        };
-      } catch (error) {
-        return {
-          error: error instanceof Error ? error : new Error('Failed to load categories'),
-        };
-      }
-    },
-    loadEntry: async ({ filter }) => {
-      try {
-        let category: WordPressCategory | undefined;
-        const categoryFilter = filter as CategoryFilter | undefined;
-
-        if (categoryFilter?.id) {
-          category = await client.getCategory(categoryFilter.id);
-        } else if (categoryFilter?.slug) {
-          category = await client.getCategoryBySlug(categoryFilter.slug);
-        }
-
-        if (!category) {
-          return { error: new Error('Category not found') };
-        }
-
-        return {
-          id: String(category.id),
-          data: category,
-        };
-      } catch (error) {
-        return {
-          error: error instanceof Error ? error : new Error('Failed to load category'),
-        };
-      }
-    },
-  };
+    collectionError: 'Failed to load categories',
+    entryError: 'Failed to load category',
+    notFoundError: 'Category not found',
+    loadCollectionData: (client, filter) => client.getCategories({
+      hideEmpty: filter?.hide_empty,
+      parent: filter?.parent,
+      orderby: filter?.orderby,
+      order: filter?.order,
+    }),
+    loadEntryData: loadCategoryEntry,
+  }) as LiveLoader<WordPressCategory, CategoryFilter>;
 }
 
 /**
- * Creates a live loader for WordPress users
- *
- * @example
- * import { defineLiveCollection } from 'astro:content';
- * import { wordPressUserLoader } from 'wp-astrojs-integration';
- *
- * const users = defineLiveCollection({
- *   loader: wordPressUserLoader({ baseUrl: 'https://example.com' }),
- * });
+ * Creates a live loader for WordPress users.
  */
 export function wordPressUserLoader(
-  config: WordPressLoaderConfig
+  config: WordPressLoaderConfig,
 ): LiveLoader<WordPressAuthor, UserFilter> {
-  const client = new WordPressClient(config);
-
-  return {
+  return createLiveWordPressLoader(config, {
     name: 'wordpress-user-loader',
-    loadCollection: async ({ filter }) => {
-      try {
-        const userFilter = (filter as any)?.filter || (filter as UserFilter | undefined);
-
-        const users = await client.getUsers({
-          roles: userFilter?.roles,
-          orderby: userFilter?.orderby,
-          order: userFilter?.order,
-        });
-
-        return {
-          entries: users.map((user) => ({
-            id: String(user.id),
-            data: user,
-          })),
-        };
-      } catch (error) {
-        return {
-          error: error instanceof Error ? error : new Error('Failed to load users'),
-        };
-      }
-    },
-    loadEntry: async ({ filter }) => {
-      try {
-        let user: WordPressAuthor | undefined;
-
-        if (typeof filter === 'object' && 'id' in filter && filter.id) {
-          user = await client.getUser(filter.id);
-        } else if (typeof filter === 'object' && 'slug' in filter && filter.slug) {
-          const users = await client.getUsers({ search: filter.slug });
-          user = users.find((candidate) => candidate.slug === filter.slug);
-        }
-
-        if (!user) {
-          return { error: new Error('User not found') };
-        }
-
-        return {
-          id: String(user.id),
-          data: user,
-        };
-      } catch (error) {
-        return {
-          error: error instanceof Error ? error : new Error('Failed to load user'),
-        };
-      }
-    },
-  };
+    collectionError: 'Failed to load users',
+    entryError: 'Failed to load user',
+    notFoundError: 'User not found',
+    loadCollectionData: (client, filter) => client.getUsers({
+      roles: filter?.roles,
+      orderby: filter?.orderby,
+      order: filter?.order,
+    }),
+    loadEntryData: loadUserEntry,
+  }) as LiveLoader<WordPressAuthor, UserFilter>;
 }

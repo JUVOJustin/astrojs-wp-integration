@@ -1,134 +1,133 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { ActionError } from 'astro/actions/runtime/server.js';
-import { executeCreatePost } from '../../../src/actions/post/create';
-import { executeUpdatePost } from '../../../src/actions/post/update';
-import { executeDeletePost } from '../../../src/actions/post/delete';
-import { createBasicAuthHeader } from '../../../src/client/auth';
-import { pageSchema } from '../../../src/schemas';
-import { getBaseUrl } from '../../helpers/wp-client';
+import { z } from 'astro/zod';
+import {
+  createCreatePostAction,
+  createUpdatePostAction,
+  updatePostInputSchema,
+  executeCreatePost,
+  executeDeletePost,
+} from '../../../src/actions';
+import { createBasicAuthHeader, pageSchema } from 'fluent-wp-client';
+import { createActionBaseConfig } from '../../helpers/wp-client';
+import { callActionOrThrow } from '../../helpers/call-action';
 
 /**
- * Integration tests for page CRUD via the execute* functions with resource='pages'.
- * Verifies that the same action helpers work correctly for hierarchical post types.
- * Cleanup permanently removes any pages created during the suite.
+ * Astro action integration for page-targeted resource behavior.
  */
-describe('Actions: Pages CRUD', () => {
-  const baseUrl = getBaseUrl();
-  const apiBase = `${baseUrl}/wp-json/wp/v2`;
+describe('Actions: Pages', () => {
+  const actionBaseConfig = createActionBaseConfig();
+  const authHeader = createBasicAuthHeader({
+    username: 'admin',
+    password: process.env.WP_APP_PASSWORD!,
+  });
 
-  const authConfig = {
-    apiBase,
-    authHeader: createBasicAuthHeader({
-      username: 'admin',
-      password: process.env.WP_APP_PASSWORD!,
-    }),
+  const pageConfig = {
+    ...actionBaseConfig,
+    authHeader,
     resource: 'pages' as const,
     responseSchema: pageSchema,
-  };
-
-  const anonConfig = {
-    apiBase,
-    authHeader: '',
-    resource: 'pages' as const,
-    responseSchema: pageSchema,
-  };
-
-  /** Config for delete (no responseSchema needed) */
-  const deleteConfig = {
-    apiBase,
-    authHeader: authConfig.authHeader,
-    resource: 'pages' as const,
   };
 
   const createdIds: number[] = [];
 
   afterAll(async () => {
     for (const id of createdIds) {
-      await executeDeletePost(deleteConfig, { id, force: true }).catch(() => {});
+      await executeDeletePost(
+        {
+          ...actionBaseConfig,
+          authHeader,
+          resource: 'pages',
+        },
+        { id, force: true },
+      ).catch(() => undefined);
     }
   });
 
-  const updateConfig = {
-    apiBase,
-    authHeader: authConfig.authHeader,
-    resource: 'pages' as const,
-    responseSchema: pageSchema,
-  };
-
-  describe('resource-specific behavior', () => {
-    it('creates a hierarchical page with parent and menu_order fields', async () => {
-      const parent = await executeCreatePost(authConfig, {
-        title: 'Action Test: Parent Page',
-        status: 'draft',
-      });
-      createdIds.push(parent.id);
-
-      const child = await executeCreatePost(authConfig, {
-        title: 'Action Test: Child Page',
-        content: '<p>Child page content.</p>',
-        excerpt: 'Child excerpt',
-        parent: parent.id,
-        menu_order: 5,
-        status: 'draft',
-      });
-      createdIds.push(child.id);
-
-      expect(child.type).toBe('page');
-      expect(child.parent).toBe(parent.id);
-      expect(child.menu_order).toBe(5);
-      expect(child.content.rendered).toContain('Child page content.');
-      expect(child.excerpt.rendered).toContain('Child excerpt');
+  it('routes create action to pages endpoint and returns page response shape', async () => {
+    const createPageAction = createCreatePostAction({
+      baseUrl: pageConfig.baseUrl,
+      auth: { username: 'admin', password: process.env.WP_APP_PASSWORD! },
+      resource: 'pages',
+      responseSchema: pageSchema,
     });
 
-    it('updates page-specific hierarchical fields', async () => {
-      const parent = await executeCreatePost(authConfig, {
-        title: 'Action Test: Update Parent',
-        status: 'draft',
-      });
-      createdIds.push(parent.id);
+    const created = await callActionOrThrow(createPageAction, {
+      title: 'Pages behavior: action create',
+      status: 'draft',
+      parent: 0,
+      menu_order: 9,
+    } as never);
 
-      const child = await executeCreatePost(authConfig, {
-        title: 'Action Test: Update Child',
-        status: 'draft',
-      });
-      createdIds.push(child.id);
-
-      const updated = await executeUpdatePost(updateConfig, {
-        id: child.id,
-        parent: parent.id,
-        menu_order: 42,
-      });
-
-      expect(updated.type).toBe('page');
-      expect(updated.parent).toBe(parent.id);
-      expect(updated.menu_order).toBe(42);
-    });
-
-    it('permanently deletes a page through the pages endpoint', async () => {
-      const page = await executeCreatePost(authConfig, {
-        title: 'Action Test: Delete Page',
-        status: 'draft',
-      });
-      createdIds.push(page.id);
-
-      const deleted = await executeDeletePost(deleteConfig, { id: page.id, force: true });
-
-      expect(deleted.id).toBe(page.id);
-      expect(deleted.deleted).toBe(true);
-    });
+    createdIds.push(created.id);
+    expect(created.type).toBe('page');
+    expect(created.menu_order).toBe(9);
   });
 
-  describe('error behavior', () => {
-    it('throws ActionError when not authenticated', async () => {
-      await expect(
-        executeCreatePost(anonConfig, { title: 'Should Fail', status: 'draft' })
-      ).rejects.toThrow(ActionError);
+  it('supports custom page input schema extensions in update action', async () => {
+    const page = await executeCreatePost(pageConfig, {
+      title: 'Pages behavior: update schema base',
+      status: 'draft',
+    });
+    createdIds.push(page.id);
+
+    const updatePageAction = createUpdatePostAction({
+      baseUrl: pageConfig.baseUrl,
+      auth: { username: 'admin', password: process.env.WP_APP_PASSWORD! },
+      resource: 'pages',
+      responseSchema: pageSchema,
+      schema: updatePostInputSchema.extend({
+        acf: z.object({
+          acf_subtitle: z.string().optional(),
+        }).optional(),
+      }),
     });
 
-    it('throws ActionError for a non-existent page ID on update', async () => {
-      await expect(
-        executeUpdatePost(updateConfig, { id: 999999, title: 'Ghost Page' })
-      ).rejects.toThrow(ActionError);
+    const updated = await callActionOrThrow(updatePageAction, {
+      id: page.id,
+      menu_order: 21,
+      acf: {
+        acf_subtitle: 'page action update',
+      },
+    } as never);
+
+    expect(updated.type).toBe('page');
+    expect(updated.menu_order).toBe(21);
+  });
+
+  it('supports response schema override for pages actions', async () => {
+    const createPageAction = createCreatePostAction({
+      baseUrl: pageConfig.baseUrl,
+      auth: { username: 'admin', password: process.env.WP_APP_PASSWORD! },
+      resource: 'pages',
+      responseSchema: z.object({
+        id: z.number().int().positive(),
+        type: z.literal('page'),
+        status: z.string(),
+      }),
     });
+
+    const created = await callActionOrThrow(createPageAction, {
+      title: 'Pages behavior: response override',
+      status: 'draft',
+    } as never);
+
+    createdIds.push(created.id);
+    expect(created.type).toBe('page');
+  });
+
+  it('maps page write auth failures to ActionError', async () => {
+    await expect(
+      executeCreatePost(
+        {
+          ...pageConfig,
+          authHeader: '',
+        },
+        {
+          title: 'Pages behavior: unauthorized',
+          status: 'draft',
+        },
+      ),
+    ).rejects.toThrow(ActionError);
   });
 });

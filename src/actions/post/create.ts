@@ -1,13 +1,20 @@
-import { defineAction, ActionError, type ActionAPIContext, type ActionClient } from 'astro/actions/runtime/server.js';
+import { defineAction, type ActionAPIContext, type ActionClient } from 'astro/actions/runtime/server.js';
 import { z } from 'astro/zod';
-import { postWriteBaseSchema, wordPressErrorSchema, postSchema, pageSchema, contentWordPressSchema } from '../../schemas';
-import type { WordPressPost, WordPressPage, WordPressContent } from '../../schemas';
+import {
+  postWriteBaseSchema,
+  postSchema,
+  pageSchema,
+  contentWordPressSchema,
+  type WordPressPost,
+  type WordPressPage,
+  type WordPressContent,
+} from 'fluent-wp-client';
 import {
   resolveActionRequestAuth,
   type ActionAuthConfig,
   type ResolvableActionAuthHeaders,
 } from '../auth';
-import { executeActionRequest, type ExecuteActionAuthConfig } from './client';
+import { withActionClient, type ExecuteActionAuthConfig } from './client';
 
 /**
  * Input schema for creating a new WordPress post (or page / custom post type).
@@ -33,7 +40,7 @@ export type CreatePostInput = z.infer<typeof createPostInputSchema>;
  * `postSchema` so the response can be parsed as a different type.
  */
 export interface ExecuteCreateConfig<T = WordPressPost> extends ExecuteActionAuthConfig {
-  /** REST resource path appended to `apiBase` (default: 'posts') */
+  /** REST resource path appended to the published client base URL (default: 'posts') */
   resource?: string;
   /** Zod schema used to parse the response (default: postSchema) */
   responseSchema?: z.ZodType<T>;
@@ -90,30 +97,15 @@ export async function executeCreatePost<T = WordPressPost>(
 ): Promise<T> {
   const resource = config.resource ?? 'posts';
 
-  // Only include fields that were explicitly provided
-  const body: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(input)) {
-    if (value !== undefined) {
-      body[key] = value;
-    }
-  }
+  return withActionClient(config, async (client) => {
+    const responseSchema = (config.responseSchema ?? getDefaultResponseSchema(resource)) as z.ZodType<T>;
 
-  const { data, response } = await executeActionRequest<unknown>(config, {
-    method: 'POST',
-    endpoint: `/${resource}`,
-    body,
+    return client.createContent<T, CreatePostInput & Record<string, unknown>>(
+      resource,
+      input,
+      responseSchema,
+    );
   });
-
-  if (!response.ok) {
-    const wpError = wordPressErrorSchema.safeParse(data);
-    const message = wpError.success
-      ? wpError.data.message
-      : `WordPress API error: ${response.status} ${response.statusText}`;
-    throw new ActionError({ code: ActionError.statusToCode(response.status), message });
-  }
-
-  const responseSchema = (config.responseSchema ?? getDefaultResponseSchema(resource)) as z.ZodType<T>;
-  return responseSchema.parse(data);
 }
 
 /**
@@ -149,7 +141,6 @@ export function createCreatePostAction<
   TSchema extends typeof createPostInputSchema = typeof createPostInputSchema
 >(config: CreatePostActionConfig<TResponse> & { schema?: TSchema }): ActionClient<TResponse, undefined, TSchema> & string {
   const inputSchema = (config.schema ?? createPostInputSchema) as TSchema;
-  const apiBase = `${config.baseUrl.replace(/\/$/, '')}/wp-json/wp/v2`;
   const resource = config.resource;
   const responseSchema = config.responseSchema;
 
@@ -163,7 +154,7 @@ export function createCreatePostAction<
       }, context);
 
       return executeCreatePost<TResponse>(
-        { apiBase, ...requestAuth, resource, responseSchema },
+        { baseUrl: config.baseUrl, ...requestAuth, resource, responseSchema },
         input as CreatePostInput & Record<string, unknown>,
       );
     },

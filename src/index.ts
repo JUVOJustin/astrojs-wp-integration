@@ -34,7 +34,7 @@ export type {
   UserFilter,
 } from './loaders';
 
-// Export schemas
+// Export schemas and core WP types from standalone client package
 export {
   baseWordPressSchema,
   contentWordPressSchema,
@@ -43,11 +43,16 @@ export {
   mediaSchema,
   categorySchema,
   embeddedMediaSchema,
+  abilityAnnotationsSchema,
+  abilitySchema,
+  abilityCategorySchema,
   settingsSchema,
   wordPressErrorSchema,
   updatePostFieldsSchema,
   postWriteBaseSchema,
-} from './schemas';
+  commentSchema,
+  authorSchema,
+} from 'fluent-wp-client';
 
 export type {
   WordPressBase,
@@ -59,11 +64,19 @@ export type {
   WordPressTag,
   WordPressAuthor,
   WordPressEmbeddedMedia,
+  WordPressAbilityAnnotations,
+  WordPressAbility,
+  WordPressAbilityCategory,
   WordPressSettings,
   WordPressError,
   WordPressPostWriteFields,
   WordPressPostWriteBase,
-} from './schemas';
+  WordPressComment,
+  WordPressAbilityRuntime,
+  GetAbilityInput,
+  RunAbilityInput,
+  DeleteAbilityInput,
+} from 'fluent-wp-client';
 
 // Export predefined server actions
 export {
@@ -73,6 +86,12 @@ export {
   createPostInputSchema,
   createDeletePostAction,
   deletePostInputSchema,
+  createGetAbilityAction,
+  getAbilityInputSchema,
+  createRunAbilityAction,
+  runAbilityInputSchema,
+  createDeleteAbilityAction,
+  deleteAbilityInputSchema,
 } from './actions';
 export type {
   ActionAuthConfig,
@@ -89,16 +108,31 @@ export type {
   DeletePostActionConfig,
   DeletePostResult,
   ExecuteDeleteConfig,
+  GetAbilityActionConfig,
+  ExecuteGetAbilityConfig,
+  RunAbilityActionConfig,
+  ExecuteRunAbilityConfig,
+  DeleteAbilityActionConfig,
+  ExecuteDeleteAbilityConfig,
 } from './actions';
 
-// Export client
-export { WordPressClient } from './client';
+// Export runtime-agnostic standalone client
+export { WordPressClient, WordPressRequestBuilder, PostRelationQueryBuilder, WordPressAbilityBuilder } from 'fluent-wp-client';
 export type {
   WordPressClientConfig,
+  WordPressNamespaceClient,
   FetchResult,
   WordPressRequestOptions,
   WordPressRequestResult,
-} from './client';
+  WordPressRequestDeleteOptions,
+  WordPressMediaUploadInput,
+  PostRelation,
+  SelectedPostRelations,
+  DeleteOptions,
+  WordPressDeleteResult,
+  UserDeleteOptions,
+  UserWriteInput,
+} from 'fluent-wp-client';
 
 // Export client filter types for typesafe API calls
 export type {
@@ -110,7 +144,8 @@ export type {
   CategoriesFilter,
   TagsFilter,
   UsersFilter,
-} from './client/types';
+  CommentsFilter,
+} from 'fluent-wp-client';
 
 // Export auth utilities
 export {
@@ -118,20 +153,34 @@ export {
   createJwtAuthHeader,
   createWordPressAuthHeader,
   resolveWordPressAuth,
+  resolveWordPressRequestCredentials,
   resolveWordPressRequestHeaders,
-} from './client/auth';
+} from 'fluent-wp-client';
+
+export {
+  WordPressSchemaValidationError,
+  isStandardSchema,
+  validateWithStandardSchema,
+} from 'fluent-wp-client';
 export type {
   BasicAuthCredentials,
+  CookieNonceAuthCredentials,
   JwtAuthCredentials,
   HeaderAuthCredentials,
+  JwtLoginCredentials,
+  JwtAuthTokenResponse,
+  JwtAuthValidationResponse,
+  WordPressAuthorizationInput,
   WordPressAuthRequest,
   WordPressAuthHeaders,
   WordPressAuthHeadersProvider,
   WordPressAuthConfig,
   WordPressAuthInput,
   WordPressAuthResolver,
+  WordPressSchemaIssue,
+  WordPressStandardSchema,
   ResolvableWordPressAuth,
-} from './client/auth';
+} from 'fluent-wp-client';
 
 // Export server auth bridge helpers
 export {

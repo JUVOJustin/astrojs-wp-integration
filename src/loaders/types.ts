@@ -6,7 +6,7 @@ import type {
   WordPressAuthConfig,
   WordPressAuthHeaders,
   WordPressAuthHeadersProvider,
-} from '../client/auth';
+} from 'fluent-wp-client';
 
 /**
  * Configuration for WordPress loaders

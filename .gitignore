@@ -3,6 +3,7 @@ dist
 
 # wp-env local data
 .wp-env-home
+.wp-env
 
 # Temporary env file created by test global-setup
 .test-env.json
