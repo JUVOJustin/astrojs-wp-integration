@@ -21,6 +21,16 @@ export type { UpdatePostInput, UpdatePostActionConfig, ExecuteUpdateConfig } fro
 export { createDeletePostAction, deletePostInputSchema, executeDeletePost } from './post/delete';
 export type { DeletePostInput, DeletePostActionConfig, DeletePostResult, ExecuteDeleteConfig } from './post/delete';
 
+// User actions
+export { createCreateUserAction, createUserInputSchema, executeCreateUser } from './user/create';
+export type { CreateUserInput, CreateUserActionConfig, ExecuteCreateUserConfig } from './user/create';
+
+export { createUpdateUserAction, updateUserInputSchema, executeUpdateUser } from './user/update';
+export type { UpdateUserInput, UpdateUserActionConfig, ExecuteUpdateUserConfig } from './user/update';
+
+export { createDeleteUserAction, deleteUserInputSchema, executeDeleteUser } from './user/delete';
+export type { DeleteUserInput, DeleteUserActionConfig, DeleteUserResult, ExecuteDeleteUserConfig } from './user/delete';
+
 // Ability actions
 export { createGetAbilityAction, getAbilityInputSchema, executeGetAbility } from './ability/get';
 export type { GetAbilityInput, GetAbilityActionConfig, ExecuteGetAbilityConfig } from './ability/get';

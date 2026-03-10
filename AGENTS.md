@@ -100,6 +100,7 @@ Reference suites:
 - `tests/integration/loaders/live-loaders.test.ts`
 - `tests/integration/actions/posts.test.ts`
 - `tests/integration/actions/pages.test.ts`
+- `tests/integration/actions/users.test.ts`
 - `tests/integration/actions/books.test.ts`
 - `tests/integration/actions/meta.test.ts`
 - `tests/integration/actions/acf.test.ts`

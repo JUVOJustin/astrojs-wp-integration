@@ -3,6 +3,7 @@ import {
   wordPressPostStaticLoader,
   wordPressCategoryStaticLoader,
   wordPressTagStaticLoader,
+  wordPressUserStaticLoader,
 } from '../../../src/loaders/static';
 import { createMockStore } from '../../helpers/mock-store';
 import { createMockLogger } from '../../helpers/mock-logger';
@@ -90,6 +91,23 @@ describe('Static Loaders', () => {
 
       expect(entries.size).toBeGreaterThan(0);
       expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Loaded'));
+    });
+  });
+
+  describe('wordPressUserStaticLoader', () => {
+    it('stores user entries using string ids and no rendered html', async () => {
+      const loader = wordPressUserStaticLoader({ baseUrl });
+      const { store, entries } = createMockStore();
+      const logger = createMockLogger();
+
+      await loader.load({ store, logger } as never);
+
+      expect(entries.size).toBeGreaterThan(0);
+      for (const [key, entry] of entries) {
+        expect(typeof key).toBe('string');
+        expect(Number.isFinite(Number(key))).toBe(true);
+        expect(entry.rendered).toBeUndefined();
+      }
     });
   });
 });
