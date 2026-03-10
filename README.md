@@ -27,6 +27,7 @@ npm install wp-astrojs-integration
 | Media | `mediaSchema` | `wordPressMediaLoader` | `wordPressMediaStaticLoader` | |
 | Categories | `categorySchema` | `wordPressCategoryLoader` | `wordPressCategoryStaticLoader` | |
 | Tags | `categorySchema` | - | `wordPressTagStaticLoader` | Static only |
+| Custom Post Types | - | `wordPressCPTLoader` | `wordPressCPTStaticLoader` | Generic factory-based support |
 | Users | `WordPressAuthor` | `wordPressUserLoader` | `wordPressUserStaticLoader` | |
 
 ## Quick start
