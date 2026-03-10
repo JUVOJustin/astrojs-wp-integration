@@ -1,0 +1,11 @@
+---
+import type { WordPressParsedBlock } from 'fluent-wp-client';
+
+interface Props {
+  block: WordPressParsedBlock;
+}
+
+const { block } = Astro.props;
+---
+
+<Fragment set:html={block.innerHTML} />

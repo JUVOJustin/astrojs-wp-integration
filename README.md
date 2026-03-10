@@ -14,6 +14,7 @@ npm install wp-astrojs-integration
 |---|---|---|
 | Live content collections | Request-time WordPress data for SSR routes | `defineLiveCollection` + `wordPress*Loader` |
 | Static content collections | Build-time WordPress snapshots for SSG | `defineCollection` + `wordPress*StaticLoader` |
+| Gutenberg block mapping | Parsed raw Gutenberg blocks ready for Astro component mapping | `blocks: true` + `WPBlocks` + `defineWordPressBlockRegistry` |
 | Server actions | Typed create/update/delete actions for posts, pages, users, and abilities | `create*Action` factories |
 | Auth bridge | Login/session helpers for Astro server actions and middleware | `createWordPressAuthBridge` |
 | Rendering components | Gutenberg-friendly HTML and media rendering in Astro | `WPContent`, `WPImage` |
@@ -28,7 +29,7 @@ npm install wp-astrojs-integration
 | Categories | `categorySchema` | `wordPressCategoryLoader` | `wordPressCategoryStaticLoader` | |
 | Tags | `categorySchema` | `wordPressTagLoader` | `wordPressTagStaticLoader` | |
 | Custom taxonomies | `categorySchema` | `wordPressTermLoader` | `wordPressTermStaticLoader` | Pass custom REST `resource` |
-| Custom Post Types | - | `wordPressCPTLoader` | `wordPressCPTStaticLoader` | Pass custom REST `postType` |
+| Custom post types | `WordPressCustomPost` | `wordPressContentLoader` | `wordPressContentStaticLoader` | Pass custom REST `resource` like `books` |
 | Users | `WordPressAuthor` | `wordPressUserLoader` | `wordPressUserStaticLoader` | |
 
 ## Quick start
@@ -84,6 +85,55 @@ const featuredMedia = post.data._embedded?.['wp:featuredmedia']?.[0];
   <WPContent content={post.data.content.rendered} baseUrl={import.meta.env.PUBLIC_WORDPRESS_BASE_URL} />
 </article>
 ```
+
+### 4) Opt-in Gutenberg block mapping (requires auth)
+
+Raw Gutenberg content is only available through WordPress edit-context requests, so enable `blocks` only when your loader has auth.
+
+```ts
+import { defineCollection } from 'astro:content';
+import {
+  postSchema,
+  wordPressPostStaticLoader,
+  defineWordPressBlockRegistry,
+} from 'wp-astrojs-integration';
+
+export const blockRegistry = defineWordPressBlockRegistry({
+  // full key and short key both work
+  'core/paragraph': ParagraphBlock,
+  image: ImageBlock,
+});
+
+const posts = defineCollection({
+  loader: wordPressPostStaticLoader({
+    baseUrl: import.meta.env.WP_URL,
+    auth: {
+      username: import.meta.env.WP_USERNAME,
+      password: import.meta.env.WP_APP_PASSWORD,
+    },
+    blocks: true,
+  }),
+  schema: postSchema,
+});
+```
+
+```astro
+---
+import { getEntry } from 'astro:content';
+import WPBlocks from 'wp-astrojs-integration/components/WPBlocks.astro';
+import { blockRegistry } from '../lib/wp-blocks';
+
+const post = await getEntry('posts', Astro.params.id!);
+---
+
+<WPBlocks
+  blocks={post?.data.blocks ?? []}
+  registry={blockRegistry}
+  fallbackHtml={post?.rendered?.html}
+/>
+```
+
+`WPBlocks` includes built-in mappings for `core/heading`, `core/paragraph`, and `core/image` by default. You can override any of these defaults by registering the same block keys in your registry, or disable all defaults with `useDefaultCoreBlocks={false}`.
 
 ## Astro actions
 
@@ -220,6 +270,7 @@ Local integration test environment:
 ## Docs
 
 - Auth bridge: `docs/auth-action-bridge.md`
+- Gutenberg block mapping: `docs/gutenberg-blocks.mdx`
 - Action overview: `docs/actions/index.mdx`
 - Post actions: `docs/actions/posts.mdx`
 - Term actions: `docs/actions/terms.mdx`

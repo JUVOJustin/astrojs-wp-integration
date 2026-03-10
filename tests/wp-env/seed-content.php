@@ -152,26 +152,37 @@ for ( $i = 1; $i <= 150; $i++ ) {
 	$slug     = "test-post-$padded";
 	$existing = get_page_by_path( $slug, OBJECT, 'post' );
 
-	if ( $existing ) {
-		$post_count++;
-		continue;
-	}
-
 	// Determine category group (0-based index)
 	$group_index = intdiv( $i - 1, 30 );
 	$cat_slug    = $category_slugs[ $group_index ];
 	$cat_id      = $category_ids[ $cat_slug ];
 	$assigned_tags = $tag_assignments[ $group_index ];
 
-	$post_id = wp_insert_post([
-		'post_title'   => "Test Post $padded",
-		'post_name'    => $slug,
-		'post_content' => "<!-- wp:paragraph -->\n<p>Content for test post $padded in category $cat_slug. This is deterministic seed data for integration testing.</p>\n<!-- /wp:paragraph -->",
-		'post_excerpt' => "Excerpt for test post $padded",
-		'post_status'  => 'publish',
-		'post_type'    => 'post',
-		'post_date'    => gmdate( 'Y-m-d H:i:s', strtotime( "2025-01-01 +{$i} hours" ) ),
-	], true );
+	$post_content = "<!-- wp:paragraph -->\n<p>Content for test post $padded in category $cat_slug. This is deterministic seed data for integration testing.</p>\n<!-- /wp:paragraph -->";
+
+	if ( 1 === $i ) {
+		$post_content = "<!-- wp:heading {\"level\":2} -->\n<h2 class=\"wp-block-heading\">Seed heading for Gutenberg mapping tests</h2>\n<!-- /wp:heading -->\n\n<!-- wp:paragraph -->\n<p>Content for test post $padded in category $cat_slug. This post includes multiple block types for integration tests.</p>\n<!-- /wp:paragraph -->\n\n<!-- wp:image {\"url\":\"https://example.com/seed-image.jpg\",\"alt\":\"Seed image alt text\",\"width\":1200,\"height\":800} -->\n<figure class=\"wp-block-image\"><img src=\"https://example.com/seed-image.jpg\" alt=\"Seed image alt text\" width=\"1200\" height=\"800\"/></figure>\n<!-- /wp:image -->";
+	}
+
+	$post_id = null;
+
+	if ( $existing ) {
+		$post_id = $existing->ID;
+		wp_update_post([
+			'ID'           => $post_id,
+			'post_content' => $post_content,
+		]);
+	} else {
+		$post_id = wp_insert_post([
+			'post_title'   => "Test Post $padded",
+			'post_name'    => $slug,
+			'post_content' => $post_content,
+			'post_excerpt' => "Excerpt for test post $padded",
+			'post_status'  => 'publish',
+			'post_type'    => 'post',
+			'post_date'    => gmdate( 'Y-m-d H:i:s', strtotime( "2025-01-01 +{$i} hours" ) ),
+		], true );
+	}
 
 	if ( is_wp_error( $post_id ) ) {
 		WP_CLI::warning( "Failed to create post $padded: " . $post_id->get_error_message() );

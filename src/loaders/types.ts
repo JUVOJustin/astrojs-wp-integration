@@ -12,6 +12,7 @@ import type {
   QueryParams,
   UsersFilter 
 } from 'fluent-wp-client';
+import type { WordPressLoaderBlocksOption } from '../blocks';
 
 /**
  * Configuration for WordPress loaders
@@ -19,7 +20,10 @@ import type {
 export interface WordPressLoaderConfig extends Pick<
   WordPressClientConfig,
   'baseUrl' | 'auth' | 'authHeader' | 'authHeaders' | 'cookies'
-> {}
+> {
+  /** Enables Gutenberg block parsing from raw content (requires auth). */
+  blocks?: WordPressLoaderBlocksOption;
+}
 
 /**
  * Configuration for static WordPress loaders (build-time only)
@@ -32,10 +36,26 @@ export interface WordPressStaticLoaderConfig extends WordPressLoaderConfig {
 }
 
 /**
+ * Configuration for generic static content loaders.
+ */
+export interface WordPressContentStaticLoaderConfig extends WordPressStaticLoaderConfig {
+  /** REST resource path (examples: 'posts', 'pages', 'books') */
+  resource: string;
+}
+
+/**
  * Configuration for generic taxonomy loaders targeting one REST term resource.
  */
 export interface WordPressTermLoaderConfig extends WordPressLoaderConfig {
   /** REST resource path (examples: 'categories', 'tags', 'genres') */
+  resource: string;
+}
+
+/**
+ * Configuration for generic post-like resource loaders.
+ */
+export interface WordPressContentLoaderConfig extends WordPressLoaderConfig {
+  /** REST resource path (examples: 'posts', 'pages', 'books') */
   resource: string;
 }
 
@@ -110,3 +130,8 @@ export type TermFilter = QueryParams & LoaderEntryLookup & {
  * Based on fluent-wp-client UsersFilter with entry lookup extensions.
  */
 export type UserFilter = UsersFilter & LoaderEntryLookup;
+
+/**
+ * Filter options for generic content resources (custom post types).
+ */
+export type ContentFilter = QueryParams & LoaderEntryLookup;

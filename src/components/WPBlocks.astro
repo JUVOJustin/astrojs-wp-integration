@@ -1,0 +1,59 @@
+---
+import type { WordPressParsedBlock } from 'fluent-wp-client';
+import type { WordPressBlockRegistry } from '../blocks/types';
+import WPBlockNode from './WPBlockNode.astro';
+import CoreHeading from './blocks/CoreHeading.astro';
+import CoreParagraph from './blocks/CoreParagraph.astro';
+import CoreImage from './blocks/CoreImage.astro';
+
+interface Props {
+  blocks: WordPressParsedBlock[];
+  registry?: WordPressBlockRegistry;
+  class?: string;
+  fallbackHtml?: string;
+  renderUnknownAsHtml?: boolean;
+  useDefaultCoreBlocks?: boolean;
+}
+
+const {
+  blocks,
+  registry = {},
+  class: className = '',
+  fallbackHtml,
+  renderUnknownAsHtml = true,
+  useDefaultCoreBlocks = true,
+} = Astro.props;
+
+const defaultRegistry: WordPressBlockRegistry = useDefaultCoreBlocks
+  ? {
+    'core/paragraph': CoreParagraph,
+    paragraph: CoreParagraph,
+    'core/heading': CoreHeading,
+    heading: CoreHeading,
+    'core/image': CoreImage,
+    image: CoreImage,
+  }
+  : {};
+
+const mergedRegistry: WordPressBlockRegistry = {
+  ...defaultRegistry,
+  ...registry,
+};
+
+const hasBlocks = Array.isArray(blocks) && blocks.length > 0;
+---
+
+{hasBlocks ? (
+  <div class:list={['wp-block-content', className]}>
+    {blocks.map((block, index) => (
+      <WPBlockNode
+        block={block}
+        index={index}
+        registry={mergedRegistry}
+        renderUnknownAsHtml={renderUnknownAsHtml}
+      />
+    ))}
+  </div>
+) : (
+  fallbackHtml && <div class:list={['wp-block-content', className]} set:html={fallbackHtml} />
+)}

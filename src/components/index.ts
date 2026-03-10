@@ -7,3 +7,4 @@
 // Re-export components for named imports
 export { default as WPImage } from './WPImage.astro';
 export { default as WPContent } from './WPContent.astro';
+export { default as WPBlocks } from './WPBlocks.astro';

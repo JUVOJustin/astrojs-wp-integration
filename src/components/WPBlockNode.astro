@@ -1,0 +1,48 @@
+---
+import type { WordPressParsedBlock } from 'fluent-wp-client';
+import type { WordPressBlockRegistry } from '../blocks/types';
+import { resolveWordPressBlockComponent } from '../blocks/registry';
+
+interface Props {
+  block: WordPressParsedBlock;
+  index: number;
+  registry?: WordPressBlockRegistry;
+  renderUnknownAsHtml?: boolean;
+}
+
+const {
+  block,
+  index,
+  registry,
+  renderUnknownAsHtml = true,
+} = Astro.props;
+
+const BlockComponent = resolveWordPressBlockComponent(registry, block.blockName) as any;
+const shouldRenderFallbackHtml = !BlockComponent && renderUnknownAsHtml && block.innerHTML.trim().length > 0;
+const shouldRenderNestedFallback = !BlockComponent && block.innerBlocks.length > 0;
+---
+
+{BlockComponent ? (
+  <BlockComponent block={block} attrs={block.attrs} innerBlocks={block.innerBlocks} index={index}>
+    {block.innerBlocks.map((innerBlock, innerIndex) => (
+      <Astro.self
+        block={innerBlock}
+        index={innerIndex}
+        registry={registry}
+        renderUnknownAsHtml={renderUnknownAsHtml}
+      />
+    ))}
+  </BlockComponent>
+) : (
+  <>
+    {shouldRenderFallbackHtml && <div set:html={block.innerHTML} />}
+    {shouldRenderNestedFallback && block.innerBlocks.map((innerBlock, innerIndex) => (
+      <Astro.self
+        block={innerBlock}
+        index={innerIndex}
+        registry={registry}
+        renderUnknownAsHtml={renderUnknownAsHtml}
+      />
+    ))}
+  </>
+)}

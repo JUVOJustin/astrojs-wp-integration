@@ -14,6 +14,8 @@ This repository ships one npm package:
 - Prefer Standard Schema-compatible validators for client response validation interfaces so consumers can use Zod or any other compliant schema library.
 - Validate and require only the minimum data needed for a feature to work.
 - Avoid hard-coding assumptions that only fit default posts/pages.
+- Gutenberg block parsing in loaders is opt-in and requires authenticated edit-context requests; keep auth validation strict and error messages explicit.
+- Block-to-component rendering should stay registry-driven so consumers own component decisions while the package provides strong defaults and fallback behavior.
 
 ## Testing
 
