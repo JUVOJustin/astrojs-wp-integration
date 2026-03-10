@@ -1,12 +1,36 @@
-# Actions
+---
+title: Actions
+description: Configure Astro server actions for WordPress content, terms, users, and abilities with shared auth and consistent error handling.
+---
+
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
 
 Actions are Astro server actions that wrap the WordPress REST API, providing type-safe authenticated operations from any server-side Astro context.
 
 Every action is a factory function that binds a WordPress auth config and returns a reusable Astro `ActionClient`. Under the hood, each action calls an `execute*` function that delegates to `fluent-wp-client` and maps failures to `ActionError`.
 
+<CardGrid>
+  <Card title="Post actions" icon="seti:file">
+    Create, update, and delete posts, pages, and custom post types. See [Post actions](./posts.mdx).
+  </Card>
+  <Card title="Term actions" icon="seti:book">
+    Manage categories, tags, and custom taxonomies. See [Term actions](./terms.mdx).
+  </Card>
+  <Card title="User actions" icon="seti:user">
+    Create, update, and delete users. See [User actions](./users.mdx).
+  </Card>
+  <Card title="Ability actions" icon="seti:settings">
+    Execute WordPress abilities via Astro actions. See [Ability actions](./abilities.mdx).
+  </Card>
+</CardGrid>
+
 ---
 
 ## Authentication
+
+<Aside type="note" title="Use one shared action config">
+Define `wpConfig` once and reuse it across all action factories to keep auth and base URL consistent.
+</Aside>
 
 All write operations need auth headers. The action factories support four auth styles:
 
