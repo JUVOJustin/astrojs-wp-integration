@@ -1,16 +1,30 @@
-# Term Actions
+---
+title: Term Actions
+description: Create, update, and delete WordPress categories, tags, and custom taxonomy terms from Astro server actions.
+---
 
-Term actions let you **create, update, and delete WordPress taxonomy terms** from Astro server-side code.
+import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
+
+Term actions let you create, update, and delete WordPress taxonomy terms from Astro server-side code.
 
 They support built-in taxonomies (`categories`, `tags`) and custom taxonomies by passing the taxonomy REST `resource`.
 
-For shared auth setup, validation behavior, and error handling see [Actions overview](./index.mdx).
-
----
+<CardGrid>
+  <Card title="Shared auth and errors" icon="seti:shield">
+    See the [Actions overview](./index.mdx) for auth patterns, validation layers, and ActionError behavior.
+  </Card>
+  <Card title="Post/page actions" icon="seti:file">
+    For content resources, see [Post actions](./posts.mdx).
+  </Card>
+</CardGrid>
 
 ## Setup
 
-Register term actions in your Astro `src/actions/index.ts`:
+<Steps>
+1. Register term action factories in your Astro `src/actions/index.ts`.
+2. Choose the target taxonomy endpoint via `resource`.
+3. Call the actions from server components, endpoints, or form handlers.
+</Steps>
 
 ```ts
 import {
@@ -34,9 +48,7 @@ export const server = {
 };
 ```
 
----
-
-## Creating a term
+## Creating and updating terms
 
 ### Category
 
@@ -72,11 +84,11 @@ const created = await Astro.callAction(createGenre, {
 });
 ```
 
----
-
 ## Deleting a term
 
-Term deletion is permanent in WordPress REST APIs.
+<Aside type="caution" title="Term deletion behavior">
+WordPress term deletion is permanent in REST workflows. Use delete actions carefully in production.
+</Aside>
 
 ```ts
 const { data } = await Astro.callAction(actions.deleteGenre, {
@@ -86,8 +98,6 @@ const { data } = await Astro.callAction(actions.deleteGenre, {
 
 // data -> { id: 42, deleted: true }
 ```
-
----
 
 ## Typed input and response overrides
 
@@ -112,18 +122,17 @@ const createGenre = createCreateTermAction({
 });
 ```
 
----
-
 ## Execute helpers
 
-The raw execute helpers are useful in tests and custom wrappers:
+The raw execute helpers are useful in tests and custom wrappers.
 
 ```ts
 import {
+  createBasicAuthHeader,
   executeCreateTerm,
   executeUpdateTerm,
   executeDeleteTerm,
-} from 'wp-astrojs-integration/actions';
+} from 'wp-astrojs-integration';
 
 const config = {
   baseUrl: 'https://example.com',
