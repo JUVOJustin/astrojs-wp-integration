@@ -100,6 +100,9 @@ import {
   createCreateTermAction,
   createUpdateTermAction,
   createDeleteTermAction,
+  createCreateUserAction,
+  createUpdateUserAction,
+  createDeleteUserAction,
   createGetAbilityAction,
   createRunAbilityAction,
   createDeleteAbilityAction,
@@ -112,11 +115,17 @@ export const server = {
   createCategory: createCreateTermAction({ ...wpConfig, resource: 'categories' }),
   updateTag: createUpdateTermAction({ ...wpConfig, resource: 'tags' }),
   deleteGenre: createDeleteTermAction({ ...wpConfig, resource: 'genres' }),
+  createUser: createCreateUserAction(wpConfig),
+  updateUser: createUpdateUserAction(wpConfig),
+  deleteUser: createDeleteUserAction(wpConfig),
   getAbility: createGetAbilityAction(wpConfig),
   runAbility: createRunAbilityAction(wpConfig),
   deleteAbility: createDeleteAbilityAction(wpConfig),
 };
 ```
+
+For user action specifics (including required `reassign` on delete), see [User actions](./users.mdx).
+For term action specifics across categories, tags, and custom taxonomies, see [Term actions](./terms.mdx).
 
 ---
 
