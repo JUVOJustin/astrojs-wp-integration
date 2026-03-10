@@ -26,7 +26,8 @@ npm install wp-astrojs-integration
 | Pages | `pageSchema` | `wordPressPageLoader` | `wordPressPageStaticLoader` | |
 | Media | `mediaSchema` | `wordPressMediaLoader` | `wordPressMediaStaticLoader` | |
 | Categories | `categorySchema` | `wordPressCategoryLoader` | `wordPressCategoryStaticLoader` | |
-| Tags | `categorySchema` | - | `wordPressTagStaticLoader` | Static only |
+| Tags | `categorySchema` | `wordPressTagLoader` | `wordPressTagStaticLoader` | |
+| Custom taxonomies | `categorySchema` | `wordPressTermLoader` | `wordPressTermStaticLoader` | Pass custom REST `resource` |
 | Users | `WordPressAuthor` | `wordPressUserLoader` | `wordPressUserStaticLoader` | |
 
 ## Quick start
@@ -141,6 +142,34 @@ The package re-exports auth helpers from `fluent-wp-client`, including:
 
 Use these when building custom login/session flows so you can share the same runtime validation and context-auth patterns as the built-in bridge.
 
+## Term actions (categories, tags, custom taxonomies)
+
+```ts
+import {
+  createCreateTermAction,
+  createUpdateTermAction,
+  createDeleteTermAction,
+} from 'wp-astrojs-integration';
+
+export const server = {
+  createCategory: createCreateTermAction({
+    baseUrl: import.meta.env.WP_URL,
+    auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
+    resource: 'categories',
+  }),
+  updateTag: createUpdateTermAction({
+    baseUrl: import.meta.env.WP_URL,
+    auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
+    resource: 'tags',
+  }),
+  deleteGenre: createDeleteTermAction({
+    baseUrl: import.meta.env.WP_URL,
+    auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
+    resource: 'genres',
+  }),
+};
+```
+
 ## Extending schemas
 
 ```ts
@@ -200,6 +229,7 @@ Local integration test environment:
 - Auth bridge: `docs/auth-action-bridge.md`
 - Action overview: `docs/actions/index.mdx`
 - Post actions: `docs/actions/posts.mdx`
+- Term actions: `docs/actions/terms.mdx`
 - Ability actions: `docs/actions/abilities.mdx`
 
 ## License
