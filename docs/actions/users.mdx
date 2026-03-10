@@ -1,8 +1,17 @@
-# User Actions
+---
+title: User Actions
+description: Create, update, and delete WordPress users from Astro server actions with typed schemas and required reassignment on delete.
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 User actions let you create, update, and delete WordPress users from Astro server-side code.
 
-For shared authentication setup and error behavior see [Actions overview](./index.mdx).
+<CardGrid>
+  <LinkCard title="Actions Overview" href="./index.mdx" description="Shared auth strategies, validation model, and error mapping for all actions." />
+  <LinkCard title="Post Actions" href="./posts.mdx" description="Reference patterns for resource actions and custom schema extension." />
+  <LinkCard title="Ability Actions" href="./abilities.mdx" description="Run WordPress abilities from Astro actions." />
+</CardGrid>
 
 ---
 
