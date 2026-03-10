@@ -19,13 +19,20 @@ export interface AbilityActionConfig<T = unknown> {
 }
 
 /**
+ * Shared execute config used by all ability execute helpers.
+ */
+export type ExecuteAbilityConfig<T = unknown> = ExecuteActionAuthConfig & {
+  responseSchema?: WordPressStandardSchema<T>;
+};
+
+/**
  * Internal parameter object for creating one typed ability action.
  */
 interface CreateAbilityActionParams<TInput, TResponse, TSchema extends z.ZodType> extends AbilityActionConfig<TResponse> {
   schema?: TSchema;
   defaultSchema: TSchema;
   execute: (
-    config: ExecuteActionAuthConfig & { responseSchema?: WordPressStandardSchema<TResponse> },
+    config: ExecuteAbilityConfig<TResponse>,
     input: TInput,
   ) => Promise<TResponse>;
 }

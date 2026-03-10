@@ -130,6 +130,17 @@ export const wordPressAuthBridge = createWordPressAuthBridge({
 });
 ```
 
+## Auth utility exports
+
+The package re-exports auth helpers from `fluent-wp-client`, including:
+
+- `createAuthResolver`
+- `jwtAuthTokenResponseSchema`
+- `jwtAuthErrorResponseSchema`
+- `jwtAuthValidationResponseSchema`
+
+Use these when building custom login/session flows so you can share the same runtime validation and context-auth patterns as the built-in bridge.
+
 ## Extending schemas
 
 ```ts

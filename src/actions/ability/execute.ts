@@ -2,13 +2,18 @@ import type { ActionClient } from 'astro/actions/runtime/server.js';
 import {
   runAbilityInputSchema,
   type RunAbilityInput,
-  type WordPressStandardSchema,
 } from 'fluent-wp-client';
-import { withActionClient, type ExecuteActionAuthConfig } from '../post/client';
-import { createAbilityAction, type AbilityActionConfig } from './factory';
+import { withActionClient } from '../post/client';
+import {
+  createAbilityAction,
+  type AbilityActionConfig,
+  type ExecuteAbilityConfig,
+} from './factory';
 
 /**
  * Input schema for executing one regular WordPress ability via POST.
+ * Re-exported from fluent-wp-client for backward compatibility.
+ * @deprecated Import directly from 'fluent-wp-client' in new code.
  */
 export { runAbilityInputSchema };
 export type { RunAbilityInput };
@@ -16,14 +21,13 @@ export type { RunAbilityInput };
 /**
  * Low-level config accepted by `executeRunAbility`.
  */
-export interface ExecuteRunAbilityConfig<T = unknown> extends ExecuteActionAuthConfig {
-  responseSchema?: WordPressStandardSchema<T>;
-}
+export type ExecuteRunAbilityConfig<T = unknown> = ExecuteAbilityConfig<T>;
 
 /**
  * Configuration required to create the run-ability action factory.
+ * @deprecated Use AbilityActionConfig directly from factory.
  */
-export interface RunAbilityActionConfig<T = unknown> extends AbilityActionConfig<T> {}
+export type RunAbilityActionConfig<T = unknown> = AbilityActionConfig<T>;
 
 /**
  * Executes one regular WordPress ability via the standalone client.
@@ -41,7 +45,7 @@ export async function executeRunAbility<T = unknown>(
 export function createRunAbilityAction<
   TResponse = unknown,
   TSchema extends typeof runAbilityInputSchema = typeof runAbilityInputSchema,
->(config: RunAbilityActionConfig<TResponse> & { schema?: TSchema }): ActionClient<TResponse, undefined, TSchema> & string {
+>(config: AbilityActionConfig<TResponse> & { schema?: TSchema }): ActionClient<TResponse, undefined, TSchema> & string {
   return createAbilityAction<RunAbilityInput, TResponse, TSchema>({
     ...config,
     defaultSchema: runAbilityInputSchema as TSchema,
