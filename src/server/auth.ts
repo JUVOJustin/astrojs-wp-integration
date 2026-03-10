@@ -9,6 +9,8 @@ import { z } from 'astro/zod';
 import {
   WordPressClient,
   createJwtAuthHeader,
+  jwtAuthErrorResponseSchema,
+  jwtAuthTokenResponseSchema,
   wordPressErrorSchema,
   type JwtAuthCredentials,
   type JwtAuthTokenResponse,
@@ -21,23 +23,7 @@ const DEFAULT_COOKIE_SAME_SITE: 'lax' = 'lax';
 const DEFAULT_SESSION_DURATION_SECONDS = 60 * 60 * 12;
 const loginUsernameOrEmailSchema = z.string().trim().min(1).max(320);
 
-const jwtAuthTokenResponseSchema = z.object({
-  token: z.string().trim().min(1),
-  user_email: z.string().optional(),
-  user_nicename: z.string().optional(),
-  user_display_name: z.string().optional(),
-});
-
-const jwtAuthErrorSchema = z.object({
-  code: z.string().trim().min(1).optional(),
-  message: z.string().trim().min(1),
-  statusCode: z.number().int().optional(),
-  data: z.object({
-    status: z.number().int().optional(),
-  }).optional(),
-});
-
-type JwtAuthErrorResponse = z.infer<typeof jwtAuthErrorSchema>;
+type JwtAuthErrorResponse = z.infer<typeof jwtAuthErrorResponseSchema>;
 
 /**
  * Input schema for WordPress login requests handled by Astro server actions.
@@ -364,7 +350,7 @@ async function loginWithWordPressJwt(
       });
     }
 
-    const parsedJwtError = jwtAuthErrorSchema.safeParse(responseBody);
+    const parsedJwtError = jwtAuthErrorResponseSchema.safeParse(responseBody);
     const jwtError = parsedJwtError.success ? parsedJwtError.data : null;
     const jwtErrorStatus = jwtError?.data?.status ?? jwtError?.statusCode ?? responseStatus;
 

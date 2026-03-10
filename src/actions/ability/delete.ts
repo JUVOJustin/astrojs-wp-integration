@@ -1,39 +1,33 @@
-import { defineAction, type ActionAPIContext, type ActionClient } from 'astro/actions/runtime/server.js';
-import { z } from 'astro/zod';
+import type { ActionClient } from 'astro/actions/runtime/server.js';
 import {
-  deleteAbilityInputSchema as clientDeleteAbilityInputSchema,
-  type DeleteAbilityInput as ClientDeleteAbilityInput,
+  deleteAbilityInputSchema,
+  type DeleteAbilityInput,
 } from 'fluent-wp-client';
+import { withActionClient } from '../post/client';
 import {
-  resolveActionRequestAuth,
-  type ActionAuthConfig,
-  type ResolvableActionAuthHeaders,
-} from '../auth';
-import { withActionClient, type ExecuteActionAuthConfig } from '../post/client';
+  createAbilityAction,
+  type AbilityActionConfig,
+  type ExecuteAbilityConfig,
+} from './factory';
 
 /**
  * Input schema for executing one destructive WordPress ability via DELETE.
+ * Re-exported from fluent-wp-client for backward compatibility.
+ * @deprecated Import directly from 'fluent-wp-client' in new code.
  */
-export const deleteAbilityInputSchema = clientDeleteAbilityInputSchema;
-
-export type DeleteAbilityInput = ClientDeleteAbilityInput;
+export { deleteAbilityInputSchema };
+export type { DeleteAbilityInput };
 
 /**
  * Low-level config accepted by `executeDeleteAbility`.
  */
-export interface ExecuteDeleteAbilityConfig<T = unknown> extends ExecuteActionAuthConfig {
-  responseSchema?: z.ZodType<T>;
-}
+export type ExecuteDeleteAbilityConfig<T = unknown> = ExecuteAbilityConfig<T>;
 
 /**
  * Configuration required to create the destructive-ability action factory.
+ * @deprecated Use AbilityActionConfig directly from factory.
  */
-export interface DeleteAbilityActionConfig<T = unknown> {
-  baseUrl: string;
-  auth?: ActionAuthConfig;
-  authHeaders?: ResolvableActionAuthHeaders;
-  responseSchema?: z.ZodType<T>;
-}
+export type DeleteAbilityActionConfig<T = unknown> = AbilityActionConfig<T>;
 
 /**
  * Executes one destructive WordPress ability via the standalone client.
@@ -51,23 +45,10 @@ export async function executeDeleteAbility<T = unknown>(
 export function createDeleteAbilityAction<
   TResponse = unknown,
   TSchema extends typeof deleteAbilityInputSchema = typeof deleteAbilityInputSchema,
->(config: DeleteAbilityActionConfig<TResponse> & { schema?: TSchema }): ActionClient<TResponse, undefined, TSchema> & string {
-  const inputSchema = (config.schema ?? deleteAbilityInputSchema) as TSchema;
-  const responseSchema = config.responseSchema;
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return defineAction({
-    input: inputSchema,
-    handler: async (input: z.infer<TSchema>, context: ActionAPIContext) => {
-      const requestAuth = await resolveActionRequestAuth({
-        auth: config.auth,
-        authHeaders: config.authHeaders,
-      }, context);
-
-      return executeDeleteAbility<TResponse>(
-        { baseUrl: config.baseUrl, ...requestAuth, responseSchema },
-        input as DeleteAbilityInput,
-      );
-    },
-  } as any) as ActionClient<TResponse, undefined, TSchema> & string;
+>(config: AbilityActionConfig<TResponse> & { schema?: TSchema }): ActionClient<TResponse, undefined, TSchema> & string {
+  return createAbilityAction<DeleteAbilityInput, TResponse, TSchema>({
+    ...config,
+    defaultSchema: deleteAbilityInputSchema as TSchema,
+    execute: (executeConfig, input) => executeDeleteAbility<TResponse>(executeConfig, input),
+  });
 }

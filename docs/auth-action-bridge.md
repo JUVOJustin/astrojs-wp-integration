@@ -15,6 +15,7 @@ It uses web-standard runtime APIs so the same bridge works in Node and non-Node 
 - `loginAction` to exchange username/password for a WordPress JWT
 - `resolveUser(context)` and `isAuthenticated(context)` for Astro middleware checks
 - `getActionAuth(context)` to reuse the JWT in `create*PostAction` factories
+- Re-exported client auth primitives like `createAuthResolver`, `jwtAuthTokenResponseSchema`, and `jwtAuthErrorResponseSchema` for custom auth flows
 
 The bridge now relies on the published client's `loginWithJwt()` and `getCurrentUser()` helpers instead of duplicating request handling.
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { APIContext } from 'astro';
 import { createWordPressAuthBridge } from '../../../src/server/auth';
-import { getBaseUrl } from '../../helpers/wp-client';
+import { createCookieAuthClient, getBaseUrl } from '../../helpers/wp-client';
 
 /**
  * Creates one cookie stub that optionally exposes a session token.
@@ -112,5 +112,12 @@ describe('Actions: Auth Bridge', () => {
     expect(response.status).toBe(403);
     expect(data.code).toBe('[jwt_auth] incorrect_password');
     expect(data.data?.status).toBe(403);
+  });
+
+  it('authenticates one client using the seeded cookie + nonce session', async () => {
+    const client = createCookieAuthClient();
+    const user = await client.getCurrentUser();
+
+    expect(user.slug).toBe('admin');
   });
 });

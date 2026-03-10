@@ -11,11 +11,12 @@ import type {
 } from 'fluent-wp-client';
 
 /**
- * Shared auth config used by low-level post action execute helpers.
+ * Shared auth config used by all action execute helpers.
+ * Mirrors WordPressClientConfig with slight adjustments for action context.
  */
-export interface ExecuteActionAuthConfig extends Omit<
-  Pick<WordPressClientConfig, 'baseUrl' | 'authHeader' | 'authHeaders' | 'cookies' | 'credentials'>,
-  'authHeader'
+export interface ExecuteActionAuthConfig extends Pick<
+  WordPressClientConfig,
+  'baseUrl' | 'authHeaders' | 'cookies' | 'credentials'
 > {
   auth?: WordPressAuthInput;
   authHeader?: string;

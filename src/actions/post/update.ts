@@ -2,12 +2,8 @@ import { defineAction, type ActionAPIContext, type ActionClient } from 'astro/ac
 import { z } from 'astro/zod';
 import {
   postWriteBaseSchema,
-  postSchema,
-  pageSchema,
-  contentWordPressSchema,
   type WordPressPost,
-  type WordPressPage,
-  type WordPressContent,
+  type WordPressStandardSchema,
 } from 'fluent-wp-client';
 import {
   resolveActionRequestAuth,
@@ -15,6 +11,7 @@ import {
   type ResolvableActionAuthHeaders,
 } from '../auth';
 import { withActionClient, type ExecuteActionAuthConfig } from './client';
+import { getDefaultContentResponseSchema } from './response-schema';
 
 /**
  * Full input schema for updating an existing WordPress post (or page / CPT).
@@ -43,8 +40,8 @@ export type UpdatePostInput = z.infer<typeof updatePostInputSchema>;
 export interface ExecuteUpdateConfig<T = WordPressPost> extends ExecuteActionAuthConfig {
   /** REST resource path appended to the published client base URL (default: 'posts') */
   resource?: string;
-  /** Zod schema used to parse the response (default: postSchema) */
-  responseSchema?: z.ZodType<T>;
+  /** Standard Schema-compatible parser used for the response (default: postSchema) */
+  responseSchema?: WordPressStandardSchema<T>;
 }
 
 /**
@@ -61,25 +58,7 @@ export interface UpdatePostActionConfig<T = WordPressPost> {
   /** REST resource path (default: 'posts') — set to 'pages' or a CPT rest_base */
   resource?: string;
   /** Optional parser override for the action response */
-  responseSchema?: z.ZodType<T>;
-}
-
-/**
- * Resolves the default response schema for a given resource endpoint.
- *
- * Posts map to `postSchema`, pages map to `pageSchema`, and other post-like
- * resources (CPTs) fall back to `contentWordPressSchema`.
- */
-function getDefaultResponseSchema(resource: string): z.ZodType<WordPressPost | WordPressPage | WordPressContent> {
-  if (resource === 'posts') {
-    return postSchema;
-  }
-
-  if (resource === 'pages') {
-    return pageSchema;
-  }
-
-  return contentWordPressSchema;
+  responseSchema?: WordPressStandardSchema<T>;
 }
 
 /**
@@ -87,7 +66,7 @@ function getDefaultResponseSchema(resource: string): z.ZodType<WordPressPost | W
  *
  * Set `config.resource` to target a different endpoint (e.g. `'pages'`,
  * `'books'`) and `config.responseSchema` to parse the response with a
- * matching Zod schema.  Defaults to `'posts'` / `postSchema`.
+ * matching Standard Schema-compatible validator.  Defaults to `'posts'` / `postSchema`.
  *
  * Exported for direct use in integration tests without the Astro runtime.
  * Throws `ActionError` on API failure.
@@ -99,7 +78,7 @@ export async function executeUpdatePost<T = WordPressPost>(
   const resource = config.resource ?? 'posts';
 
   return withActionClient(config, async (client) => {
-    const responseSchema = (config.responseSchema ?? getDefaultResponseSchema(resource)) as z.ZodType<T>;
+    const responseSchema = (config.responseSchema ?? getDefaultContentResponseSchema(resource)) as WordPressStandardSchema<T>;
     const { id, ...fields } = input;
 
     return client.updateContent<T, Record<string, unknown>>(
@@ -150,7 +129,7 @@ export function createUpdatePostAction<
 
   // TypeScript defers evaluation of ActionHandler<TSchema, …> when TSchema is a
   // generic parameter — `as any` is scoped to this call site only and does not
-  // affect callers who still receive the full ActionClient<WordPressPost, undefined, TSchema> type.
+  // affect callers who still receive the full ActionClient<TResponse, undefined, TSchema> type.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return defineAction({
     input: inputSchema,

@@ -69,6 +69,7 @@ const { data, error } = await Astro.callAction(actions.deleteAbility, {
 ## Typed responses
 
 Pass a `responseSchema` when you want the action result parsed and typed locally.
+Any Standard Schema-compatible validator works (including Zod).
 
 ```ts
 import { z } from 'astro/zod';

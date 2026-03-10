@@ -117,6 +117,8 @@ export const server = {
 };
 ```
 
+Action factories accept an optional `responseSchema` that follows the Standard Schema spec (for example Zod schemas).
+
 ## Auth bridge
 
 ```ts
@@ -127,6 +129,17 @@ export const wordPressAuthBridge = createWordPressAuthBridge({
   cookieName: 'wp_user_session',
 });
 ```
+
+## Auth utility exports
+
+The package re-exports auth helpers from `fluent-wp-client`, including:
+
+- `createAuthResolver`
+- `jwtAuthTokenResponseSchema`
+- `jwtAuthErrorResponseSchema`
+- `jwtAuthValidationResponseSchema`
+
+Use these when building custom login/session flows so you can share the same runtime validation and context-auth patterns as the built-in bridge.
 
 ## Extending schemas
 
