@@ -97,6 +97,9 @@ import {
   createCreatePostAction,
   createUpdatePostAction,
   createDeletePostAction,
+  createCreateUserAction,
+  createUpdateUserAction,
+  createDeleteUserAction,
   createGetAbilityAction,
   createRunAbilityAction,
   createDeleteAbilityAction,
@@ -106,11 +109,16 @@ export const server = {
   createPost: createCreatePostAction(wpConfig),
   updatePost: createUpdatePostAction(wpConfig),
   deletePost: createDeletePostAction(wpConfig),
+  createUser: createCreateUserAction(wpConfig),
+  updateUser: createUpdateUserAction(wpConfig),
+  deleteUser: createDeleteUserAction(wpConfig),
   getAbility: createGetAbilityAction(wpConfig),
   runAbility: createRunAbilityAction(wpConfig),
   deleteAbility: createDeleteAbilityAction(wpConfig),
 };
 ```
+
+For user action specifics (including required `reassign` on delete), see [User actions](./users.mdx).
 
 ---
 
