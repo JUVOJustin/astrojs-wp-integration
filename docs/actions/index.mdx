@@ -1,12 +1,36 @@
-# Actions
+---
+title: Actions
+description: Configure Astro server actions for WordPress content, terms, users, and abilities with shared auth and consistent error handling.
+---
+
+import { Aside, Card, CardGrid } from '@astrojs/starlight/components';
 
 Actions are Astro server actions that wrap the WordPress REST API, providing type-safe authenticated operations from any server-side Astro context.
 
 Every action is a factory function that binds a WordPress auth config and returns a reusable Astro `ActionClient`. Under the hood, each action calls an `execute*` function that delegates to `fluent-wp-client` and maps failures to `ActionError`.
 
+<CardGrid>
+  <Card title="Post actions" icon="seti:file">
+    Create, update, and delete posts, pages, and custom post types. See [Post actions](./posts.mdx).
+  </Card>
+  <Card title="Term actions" icon="seti:book">
+    Manage categories, tags, and custom taxonomies. See [Term actions](./terms.mdx).
+  </Card>
+  <Card title="User actions" icon="seti:user">
+    Create, update, and delete users. See [User actions](./users.mdx).
+  </Card>
+  <Card title="Ability actions" icon="seti:settings">
+    Execute WordPress abilities via Astro actions. See [Ability actions](./abilities.mdx).
+  </Card>
+</CardGrid>
+
 ---
 
 ## Authentication
+
+<Aside type="note" title="Use one shared action config">
+Define `wpConfig` once and reuse it across all action factories to keep auth and base URL consistent.
+</Aside>
 
 All write operations need auth headers. The action factories support four auth styles:
 
@@ -97,6 +121,9 @@ import {
   createCreatePostAction,
   createUpdatePostAction,
   createDeletePostAction,
+  createCreateTermAction,
+  createUpdateTermAction,
+  createDeleteTermAction,
   createCreateUserAction,
   createUpdateUserAction,
   createDeleteUserAction,
@@ -109,6 +136,9 @@ export const server = {
   createPost: createCreatePostAction(wpConfig),
   updatePost: createUpdatePostAction(wpConfig),
   deletePost: createDeletePostAction(wpConfig),
+  createCategory: createCreateTermAction({ ...wpConfig, resource: 'categories' }),
+  updateTag: createUpdateTermAction({ ...wpConfig, resource: 'tags' }),
+  deleteGenre: createDeleteTermAction({ ...wpConfig, resource: 'genres' }),
   createUser: createCreateUserAction(wpConfig),
   updateUser: createUpdateUserAction(wpConfig),
   deleteUser: createDeleteUserAction(wpConfig),
@@ -119,6 +149,7 @@ export const server = {
 ```
 
 For user action specifics (including required `reassign` on delete), see [User actions](./users.mdx).
+For term action specifics across categories, tags, and custom taxonomies, see [Term actions](./terms.mdx).
 
 ---
 
@@ -242,6 +273,6 @@ const product = await executeCreatePost(config, { title: 'My Product', status: '
 
 If you use JWT, build the header with `createJwtAuthHeader(token)` instead.
 
-When `resource` is omitted it defaults to `'posts'`. See [Post actions — Pages and custom post types](./posts.mdx#pages-and-custom-post-types) for that pattern, or [Ability actions](./abilities.mdx) for the WordPress Abilities API.
+When `resource` is omitted it defaults to `'posts'` for content actions and `'categories'` for term actions. See [Post actions — Pages and custom post types](./posts.mdx#pages-and-custom-post-types), [Term actions](./terms.mdx), or [Ability actions](./abilities.mdx) for the WordPress Abilities API.
 
 This is also how integration tests call actions directly — without needing the Astro runtime.

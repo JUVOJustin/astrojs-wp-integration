@@ -26,7 +26,8 @@ npm install wp-astrojs-integration
 | Pages | `pageSchema` | `wordPressPageLoader` | `wordPressPageStaticLoader` | |
 | Media | `mediaSchema` | `wordPressMediaLoader` | `wordPressMediaStaticLoader` | |
 | Categories | `categorySchema` | `wordPressCategoryLoader` | `wordPressCategoryStaticLoader` | |
-| Tags | `categorySchema` | - | `wordPressTagStaticLoader` | Static only |
+| Tags | `categorySchema` | `wordPressTagLoader` | `wordPressTagStaticLoader` | |
+| Custom taxonomies | `categorySchema` | `wordPressTermLoader` | `wordPressTermStaticLoader` | Pass custom REST `resource` |
 | Users | `WordPressAuthor` | `wordPressUserLoader` | `wordPressUserStaticLoader` | |
 
 ## Quick start
@@ -95,49 +96,21 @@ import {
   createUpdateUserAction,
 } from 'wp-astrojs-integration';
 
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
+};
+
 export const server = {
-  createPost: createCreatePostAction({
-    baseUrl: import.meta.env.WP_URL,
-    auth: {
-      username: import.meta.env.WP_USERNAME,
-      password: import.meta.env.WP_APP_PASSWORD,
-    },
-  }),
-  updatePost: createUpdatePostAction({
-    baseUrl: import.meta.env.WP_URL,
-    auth: {
-      username: import.meta.env.WP_USERNAME,
-      password: import.meta.env.WP_APP_PASSWORD,
-    },
-  }),
-  deletePost: createDeletePostAction({
-    baseUrl: import.meta.env.WP_URL,
-    auth: {
-      username: import.meta.env.WP_USERNAME,
-      password: import.meta.env.WP_APP_PASSWORD,
-    },
-  }),
-  createUser: createCreateUserAction({
-    baseUrl: import.meta.env.WP_URL,
-    auth: {
-      username: import.meta.env.WP_USERNAME,
-      password: import.meta.env.WP_APP_PASSWORD,
-    },
-  }),
-  updateUser: createUpdateUserAction({
-    baseUrl: import.meta.env.WP_URL,
-    auth: {
-      username: import.meta.env.WP_USERNAME,
-      password: import.meta.env.WP_APP_PASSWORD,
-    },
-  }),
-  deleteUser: createDeleteUserAction({
-    baseUrl: import.meta.env.WP_URL,
-    auth: {
-      username: import.meta.env.WP_USERNAME,
-      password: import.meta.env.WP_APP_PASSWORD,
-    },
-  }),
+  createPost: createCreatePostAction(wpConfig),
+  updatePost: createUpdatePostAction(wpConfig),
+  deletePost: createDeletePostAction(wpConfig),
+  createUser: createCreateUserAction(wpConfig),
+  updateUser: createUpdateUserAction(wpConfig),
+  deleteUser: createDeleteUserAction(wpConfig),
 };
 ```
 
@@ -164,6 +137,30 @@ The package re-exports auth helpers from `fluent-wp-client`, including:
 - `jwtAuthValidationResponseSchema`
 
 Use these when building custom login/session flows so you can share the same runtime validation and context-auth patterns as the built-in bridge.
+
+## Term actions (categories, tags, custom taxonomies)
+
+```ts
+import {
+  createCreateTermAction,
+  createUpdateTermAction,
+  createDeleteTermAction,
+} from 'wp-astrojs-integration';
+
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
+};
+
+export const server = {
+  createCategory: createCreateTermAction({ ...wpConfig, resource: 'categories' }),
+  updateTag: createUpdateTermAction({ ...wpConfig, resource: 'tags' }),
+  deleteGenre: createDeleteTermAction({ ...wpConfig, resource: 'genres' }),
+};
+```
 
 ## Extending schemas
 
@@ -224,7 +221,9 @@ Local integration test environment:
 - Auth bridge: `docs/auth-action-bridge.md`
 - Action overview: `docs/actions/index.mdx`
 - Post actions: `docs/actions/posts.mdx`
+- Term actions: `docs/actions/terms.mdx`
 - User actions: `docs/actions/users.mdx`
+- Term actions: `docs/actions/terms.mdx`
 - Ability actions: `docs/actions/abilities.mdx`
 
 ## License

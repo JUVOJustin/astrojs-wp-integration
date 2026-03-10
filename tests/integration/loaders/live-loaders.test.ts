@@ -3,6 +3,8 @@ import {
   wordPressPostLoader,
   wordPressPageLoader,
   wordPressCategoryLoader,
+  wordPressTagLoader,
+  wordPressTermLoader,
   wordPressUserLoader,
 } from '../../../src/loaders/live';
 import { createJwtAuthHeader } from 'fluent-wp-client';
@@ -122,6 +124,37 @@ describe('Live Loaders', () => {
         expect(typeof entry.id).toBe('string');
         expect(entry.rendered).toBeUndefined();
       }
+    });
+  });
+
+  describe('wordPressTagLoader', () => {
+    it('loads tag entries by slug with non-rendered term payloads', async () => {
+      const loader = wordPressTagLoader({ baseUrl });
+      const result = await loader.loadEntry!({ filter: { slug: 'featured' } } as never) as {
+        id: string;
+        data: { slug: string; taxonomy: string };
+        rendered?: { html: string };
+      };
+
+      expect(result.data.slug).toBe('featured');
+      expect(result.data.taxonomy).toBe('post_tag');
+      expect(result.rendered).toBeUndefined();
+    });
+  });
+
+  describe('wordPressTermLoader', () => {
+    it('loads custom taxonomy collection through resource config', async () => {
+      const loader = wordPressTermLoader({
+        baseUrl,
+        resource: 'genres',
+      });
+
+      const result = await loader.loadCollection!({ filter: undefined } as never) as {
+        entries: Array<{ id: string; data: { taxonomy: string } }>;
+      };
+
+      expect(result.entries.length).toBeGreaterThan(0);
+      expect(result.entries[0].data.taxonomy).toBe('genre');
     });
   });
 

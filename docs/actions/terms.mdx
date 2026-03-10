@@ -1,0 +1,146 @@
+---
+title: Term Actions
+description: Create, update, and delete WordPress categories, tags, and custom taxonomy terms from Astro server actions.
+---
+
+import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
+
+Term actions let you create, update, and delete WordPress taxonomy terms from Astro server-side code.
+
+They support built-in taxonomies (`categories`, `tags`) and custom taxonomies by passing the taxonomy REST `resource`.
+
+<CardGrid>
+  <Card title="Shared auth and errors" icon="seti:shield">
+    See the [Actions overview](./index.mdx) for auth patterns, validation layers, and ActionError behavior.
+  </Card>
+  <Card title="Post/page actions" icon="seti:file">
+    For content resources, see [Post actions](./posts.mdx).
+  </Card>
+</CardGrid>
+
+## Setup
+
+<Steps>
+1. Register term action factories in your Astro `src/actions/index.ts`.
+2. Choose the target taxonomy endpoint via `resource`.
+3. Call the actions from server components, endpoints, or form handlers.
+</Steps>
+
+```ts
+import {
+  createCreateTermAction,
+  createUpdateTermAction,
+  createDeleteTermAction,
+} from 'wp-astrojs-integration';
+
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
+};
+
+export const server = {
+  createCategory: createCreateTermAction({ ...wpConfig, resource: 'categories' }),
+  updateTag: createUpdateTermAction({ ...wpConfig, resource: 'tags' }),
+  deleteGenre: createDeleteTermAction({ ...wpConfig, resource: 'genres' }),
+};
+```
+
+## Creating and updating terms
+
+### Category
+
+```ts
+const { data } = await Astro.callAction(actions.createCategory, {
+  name: 'Newsroom',
+  slug: 'newsroom',
+  description: 'Editorial updates and announcements.',
+});
+```
+
+### Tag
+
+```ts
+const { data } = await Astro.callAction(actions.updateTag, {
+  id: 25,
+  name: 'editorial',
+});
+```
+
+### Custom taxonomy term
+
+```ts
+const createGenre = createCreateTermAction({
+  baseUrl: import.meta.env.WP_URL,
+  auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
+  resource: 'genres',
+});
+
+const created = await Astro.callAction(createGenre, {
+  name: 'Science Fiction',
+  slug: 'science-fiction',
+});
+```
+
+## Deleting a term
+
+<Aside type="caution" title="Term deletion behavior">
+WordPress term deletion is permanent in REST workflows. Use delete actions carefully in production.
+</Aside>
+
+```ts
+const { data } = await Astro.callAction(actions.deleteGenre, {
+  id: 42,
+  force: true,
+});
+
+// data -> { id: 42, deleted: true }
+```
+
+## Typed input and response overrides
+
+Use `schema` to validate custom term payload fields and `responseSchema` for typed result parsing.
+
+```ts
+import { z } from 'astro/zod';
+import { createCreateTermAction, createTermInputSchema } from 'wp-astrojs-integration';
+
+const createGenre = createCreateTermAction({
+  baseUrl: import.meta.env.WP_URL,
+  auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
+  resource: 'genres',
+  schema: createTermInputSchema.extend({
+    custom_label: z.string().optional(),
+  }),
+  responseSchema: z.object({
+    id: z.number().int().positive(),
+    taxonomy: z.literal('genre'),
+    name: z.string(),
+  }),
+});
+```
+
+## Execute helpers
+
+The raw execute helpers are useful in tests and custom wrappers.
+
+```ts
+import {
+  createBasicAuthHeader,
+  executeCreateTerm,
+  executeUpdateTerm,
+  executeDeleteTerm,
+} from 'wp-astrojs-integration';
+
+const config = {
+  baseUrl: 'https://example.com',
+  authHeader: createBasicAuthHeader({ username: 'admin', password: 'app-password' }),
+  resource: 'tags',
+};
+
+const created = await executeCreateTerm(config, { name: 'Release Notes' });
+await executeUpdateTerm(config, { id: created.id, slug: 'release-notes' });
+await executeDeleteTerm(config, { id: created.id, force: true });
+```

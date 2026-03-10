@@ -7,6 +7,7 @@
  * Creates:
  *  - 5 categories (Technology, Science, Travel, Food, Health)
  *  - 8 tags (featured, trending, tutorial, review, guide, news, opinion, update)
+ *  - 4 genres taxonomy terms (sci-fi, fantasy, mystery, biography)
  *  - 150 posts ("Test Post 001" – "Test Post 150"), 30 per category
  *  - 10 pages (About, Contact, Services, FAQ, Team, Blog, Portfolio, Testimonials, Privacy Policy, Terms of Service)
  *  - 10 books ("Test Book 001" – "Test Book 010") — custom post type registered by mu-plugin
@@ -98,6 +99,36 @@ foreach ( $tag_names as $name ) {
 }
 
 WP_CLI::success( 'Tags created: ' . implode( ', ', array_keys( $tag_ids ) ) );
+
+/* ------------------------------------------------------------------ */
+/* Genres (custom taxonomy)                                           */
+/* ------------------------------------------------------------------ */
+
+$genre_names = [ 'Sci-Fi', 'Fantasy', 'Mystery', 'Biography' ];
+$genre_ids   = [];
+
+foreach ( $genre_names as $name ) {
+	$slug = sanitize_title( $name );
+	$existing = get_term_by( 'slug', $slug, 'genre' );
+
+	if ( $existing ) {
+		$genre_ids[ $slug ] = $existing->term_id;
+		continue;
+	}
+
+	$result = wp_insert_term( $name, 'genre', [
+		'slug'        => $slug,
+		'description' => "Integration test genre: $name",
+	]);
+
+	if ( is_wp_error( $result ) ) {
+		WP_CLI::error( "Failed to create genre '$name': " . $result->get_error_message() );
+	}
+
+	$genre_ids[ $slug ] = $result['term_id'];
+}
+
+WP_CLI::success( 'Genres created: ' . implode( ', ', array_keys( $genre_ids ) ) );
 
 /* ------------------------------------------------------------------ */
 /* Posts — 150 total, 30 per category                                 */
@@ -225,28 +256,33 @@ for ( $i = 1; $i <= 10; $i++ ) {
 	$padded   = str_pad( $i, 3, '0', STR_PAD_LEFT );
 	$slug     = "test-book-$padded";
 	$existing = get_page_by_path( $slug, OBJECT, 'book' );
+	$book_id  = null;
 
 	if ( $existing ) {
+		$book_id = $existing->ID;
 		$book_count++;
-		continue;
+	} else {
+		$book_id = wp_insert_post([
+			'post_title'   => "Test Book $padded",
+			'post_name'    => $slug,
+			'post_content' => "<!-- wp:paragraph -->\n<p>Content for test book $padded. This is deterministic seed data for CPT integration testing.</p>\n<!-- /wp:paragraph -->",
+			'post_excerpt' => "Excerpt for test book $padded",
+			'post_status'  => 'publish',
+			'post_type'    => 'book',
+			'post_date'    => gmdate( 'Y-m-d H:i:s', strtotime( "2025-01-01 +{$i} hours" ) ),
+		], true );
+
+		if ( is_wp_error( $book_id ) ) {
+			WP_CLI::warning( "Failed to create book $padded: " . $book_id->get_error_message() );
+			continue;
+		}
+
+		$book_count++;
 	}
 
-	$book_id = wp_insert_post([
-		'post_title'   => "Test Book $padded",
-		'post_name'    => $slug,
-		'post_content' => "<!-- wp:paragraph -->\n<p>Content for test book $padded. This is deterministic seed data for CPT integration testing.</p>\n<!-- /wp:paragraph -->",
-		'post_excerpt' => "Excerpt for test book $padded",
-		'post_status'  => 'publish',
-		'post_type'    => 'book',
-		'post_date'    => gmdate( 'Y-m-d H:i:s', strtotime( "2025-01-01 +{$i} hours" ) ),
-	], true );
-
-	if ( is_wp_error( $book_id ) ) {
-		WP_CLI::warning( "Failed to create book $padded: " . $book_id->get_error_message() );
-		continue;
-	}
-
-	$book_count++;
+	$genre_slugs = array_keys( $genre_ids );
+	$genre_slug = $genre_slugs[ ( $i - 1 ) % count( $genre_slugs ) ];
+	wp_set_object_terms( $book_id, [ $genre_ids[ $genre_slug ] ], 'genre', false );
 }
 
 WP_CLI::success( "Books created/verified: $book_count" );
@@ -419,6 +455,7 @@ if ( ! function_exists( 'update_field' ) ) {
 WP_CLI::success( 'Seed data generation complete.' );
 WP_CLI::log( "  Categories: " . count( $category_ids ) );
 WP_CLI::log( "  Tags:       " . count( $tag_ids ) );
+WP_CLI::log( "  Genres:     " . count( $genre_ids ) );
 WP_CLI::log( "  Posts:      $post_count" );
 WP_CLI::log( "  Pages:      $page_count" );
 WP_CLI::log( "  Books:      $book_count" );

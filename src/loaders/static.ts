@@ -1,6 +1,6 @@
 import type { Loader } from 'astro/loaders';
 import { WordPressClient } from 'fluent-wp-client';
-import type { WordPressStaticLoaderConfig } from './types';
+import type { WordPressStaticLoaderConfig, WordPressTermStaticLoaderConfig } from './types';
 
 /**
  * Shared shape for static loader entries stored in Astro's content store.
@@ -148,6 +148,19 @@ export function wordPressTagStaticLoader(config: WordPressStaticLoaderConfig): L
     name: 'wordpress-tag-static-loader',
     logLabel: 'tags',
     loadEntries: (client) => client.getAllTags(),
+  });
+}
+
+/**
+ * Creates a static loader for custom taxonomy term resources.
+ */
+export function wordPressTermStaticLoader(config: WordPressTermStaticLoaderConfig): Loader {
+  const { resource, ...clientConfig } = config;
+
+  return createStaticWordPressLoader(clientConfig, {
+    name: 'wordpress-term-static-loader',
+    logLabel: resource,
+    loadEntries: (client) => client.getAllTermCollection(resource),
   });
 }
 
