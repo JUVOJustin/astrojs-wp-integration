@@ -9,10 +9,14 @@
 export type {
   WordPressLoaderConfig,
   WordPressStaticLoaderConfig,
+  WordPressTermLoaderConfig,
+  WordPressTermStaticLoaderConfig,
   PostFilter,
   PageFilter,
   MediaFilter,
   CategoryFilter,
+  TagFilter,
+  TermFilter,
   UserFilter,
 } from './types';
 
@@ -22,6 +26,8 @@ export {
   wordPressPageLoader,
   wordPressMediaLoader,
   wordPressCategoryLoader,
+  wordPressTagLoader,
+  wordPressTermLoader,
   wordPressUserLoader,
 } from './live';
 
@@ -32,5 +38,6 @@ export {
   wordPressMediaStaticLoader,
   wordPressCategoryStaticLoader,
   wordPressTagStaticLoader,
+  wordPressTermStaticLoader,
   wordPressUserStaticLoader,
 } from './static';

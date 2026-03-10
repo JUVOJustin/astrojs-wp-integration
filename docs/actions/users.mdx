@@ -1,0 +1,126 @@
+---
+title: User Actions
+description: Create, update, and delete WordPress users from Astro server actions with typed schemas and required reassignment on delete.
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+User actions let you create, update, and delete WordPress users from Astro server-side code.
+
+<CardGrid>
+  <LinkCard title="Actions Overview" href="./index.mdx" description="Shared auth strategies, validation model, and error mapping for all actions." />
+  <LinkCard title="Post Actions" href="./posts.mdx" description="Reference patterns for resource actions and custom schema extension." />
+  <LinkCard title="Ability Actions" href="./abilities.mdx" description="Run WordPress abilities from Astro actions." />
+</CardGrid>
+
+---
+
+## Setup
+
+Register the three user action factories in your Astro project's `src/actions/index.ts`:
+
+```ts
+import {
+  createCreateUserAction,
+  createUpdateUserAction,
+  createDeleteUserAction,
+} from 'wp-astrojs-integration';
+
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
+};
+
+export const server = {
+  createUser: createCreateUserAction(wpConfig),
+  updateUser: createUpdateUserAction(wpConfig),
+  deleteUser: createDeleteUserAction(wpConfig),
+};
+```
+
+---
+
+## Creating a user
+
+```ts
+const { data, error } = await Astro.callAction(actions.createUser, {
+  username: 'editor-jane',
+  email: 'jane@example.com',
+  password: 'strong-password',
+  name: 'Jane Editor',
+  roles: ['editor'],
+});
+```
+
+Required fields are `username`, `email`, and `password`.
+
+---
+
+## Updating a user
+
+`updateUser` accepts a required `id` and any writable user fields.
+
+```ts
+const { data, error } = await Astro.callAction(actions.updateUser, {
+  id: 15,
+  name: 'Jane E.',
+  description: 'Editorial lead',
+});
+```
+
+---
+
+## Deleting a user
+
+WordPress requires user deletion to be force-delete and requires reassignment of existing content.
+
+This action enforces that with a required `reassign` field:
+
+```ts
+const { data, error } = await Astro.callAction(actions.deleteUser, {
+  id: 15,
+  reassign: 1,
+  force: true,
+});
+
+// data -> { id: 15, deleted: true, reassignedTo: 1 }
+```
+
+If `reassign` is omitted, input validation fails before any request reaches WordPress.
+
+---
+
+## Typed schemas
+
+User actions expose base schemas for extension:
+
+- `createUserInputSchema`
+- `updateUserInputSchema`
+- `deleteUserInputSchema`
+
+You can extend input validation and response parsing:
+
+```ts
+import { createCreateUserAction, createUserInputSchema } from 'wp-astrojs-integration';
+import { z } from 'astro/zod';
+
+export const server = {
+  createUser: createCreateUserAction({
+    baseUrl: import.meta.env.WP_URL,
+    auth: {
+      username: import.meta.env.WP_USERNAME,
+      password: import.meta.env.WP_APP_PASSWORD,
+    },
+    schema: createUserInputSchema.extend({
+      app_source: z.string().optional(),
+    }),
+    responseSchema: z.object({
+      id: z.number().int().positive(),
+      slug: z.string(),
+    }),
+  }),
+};
+```

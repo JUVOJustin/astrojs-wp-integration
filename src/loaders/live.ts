@@ -5,6 +5,7 @@ import type {
   WordPressMedia,
   WordPressPage,
   WordPressPost,
+  WordPressTag,
 } from 'fluent-wp-client';
 import { WordPressClient } from 'fluent-wp-client';
 import type {
@@ -12,6 +13,9 @@ import type {
   MediaFilter,
   PageFilter,
   PostFilter,
+  TagFilter,
+  TermFilter,
+  WordPressTermLoaderConfig,
   UserFilter,
   WordPressLoaderConfig,
 } from './types';
@@ -207,6 +211,65 @@ async function loadCategoryEntry(
 }
 
 /**
+ * Resolves one tag from either `id` or `slug` filter input.
+ */
+async function loadTagEntry(
+  client: WordPressClient,
+  filter: TagFilter | undefined,
+): Promise<WordPressTag | undefined> {
+  if (filter?.id) {
+    return client.getTag(filter.id);
+  }
+
+  if (filter?.slug) {
+    return client.getTagBySlug(filter.slug);
+  }
+
+  return undefined;
+}
+
+/**
+ * Maps one term filter to generic query params accepted by custom taxonomies.
+ */
+function createTermQueryFilter(filter: TermFilter | undefined): TermFilter {
+  if (!filter) {
+    return {};
+  }
+
+  const {
+    id: _id,
+    slug: _slug,
+    hide_empty,
+    hideEmpty,
+    ...rest
+  } = filter;
+
+  return {
+    ...rest,
+    hideEmpty: hideEmpty ?? hide_empty,
+  };
+}
+
+/**
+ * Resolves one term from either `id` or `slug` for custom taxonomy resources.
+ */
+async function loadTermEntry(
+  client: WordPressClient,
+  resource: string,
+  filter: TermFilter | undefined,
+): Promise<WordPressCategory | undefined> {
+  if (filter?.id) {
+    return client.getTerm(resource, filter.id);
+  }
+
+  if (filter?.slug) {
+    return client.getTermBySlug(resource, filter.slug);
+  }
+
+  return undefined;
+}
+
+/**
  * Resolves one user from either `id` or `slug` filter input.
  */
 async function loadUserEntry(
@@ -295,13 +358,56 @@ export function wordPressCategoryLoader(
     entryError: 'Failed to load category',
     notFoundError: 'Category not found',
     loadCollectionData: (client, filter) => client.getCategories({
-      hideEmpty: filter?.hide_empty,
+      hideEmpty: filter?.hideEmpty ?? filter?.hide_empty,
       parent: filter?.parent,
       orderby: filter?.orderby,
       order: filter?.order,
     }),
     loadEntryData: loadCategoryEntry,
   }) as LiveLoader<WordPressCategory, CategoryFilter>;
+}
+
+/**
+ * Creates a live loader for WordPress tags.
+ */
+export function wordPressTagLoader(
+  config: WordPressLoaderConfig,
+): LiveLoader<WordPressTag, TagFilter> {
+  return createLiveWordPressLoader(config, {
+    name: 'wordpress-tag-loader',
+    collectionError: 'Failed to load tags',
+    entryError: 'Failed to load tag',
+    notFoundError: 'Tag not found',
+    loadCollectionData: (client, filter) => client.getTags({
+      hideEmpty: filter?.hideEmpty ?? filter?.hide_empty,
+      exclude: filter?.exclude,
+      include: filter?.include,
+      search: filter?.search,
+      orderby: filter?.orderby,
+      order: filter?.order,
+      page: filter?.page,
+      perPage: filter?.perPage,
+    }),
+    loadEntryData: loadTagEntry,
+  }) as LiveLoader<WordPressTag, TagFilter>;
+}
+
+/**
+ * Creates a live loader for custom taxonomy term resources.
+ */
+export function wordPressTermLoader(
+  config: WordPressTermLoaderConfig,
+): LiveLoader<WordPressCategory, TermFilter> {
+  const { resource, ...clientConfig } = config;
+
+  return createLiveWordPressLoader(clientConfig, {
+    name: 'wordpress-term-loader',
+    collectionError: `Failed to load ${resource}`,
+    entryError: `Failed to load ${resource} term`,
+    notFoundError: `${resource} term not found`,
+    loadCollectionData: (client, filter: TermFilter | undefined) => client.getTermCollection(resource, createTermQueryFilter(filter)),
+    loadEntryData: (client, filter: TermFilter | undefined) => loadTermEntry(client, resource, filter),
+  }) as LiveLoader<WordPressCategory, TermFilter>;
 }
 
 /**

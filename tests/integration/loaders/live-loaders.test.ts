@@ -3,6 +3,9 @@ import {
   wordPressPostLoader,
   wordPressPageLoader,
   wordPressCategoryLoader,
+  wordPressTagLoader,
+  wordPressTermLoader,
+  wordPressUserLoader,
 } from '../../../src/loaders/live';
 import { createJwtAuthHeader } from 'fluent-wp-client';
 import { getBaseUrl } from '../../helpers/wp-client';
@@ -121,6 +124,92 @@ describe('Live Loaders', () => {
         expect(typeof entry.id).toBe('string');
         expect(entry.rendered).toBeUndefined();
       }
+    });
+  });
+
+  describe('wordPressTagLoader', () => {
+    it('loads tag entries by slug with non-rendered term payloads', async () => {
+      const loader = wordPressTagLoader({ baseUrl });
+      const result = await loader.loadEntry!({ filter: { slug: 'featured' } } as never) as {
+        id: string;
+        data: { slug: string; taxonomy: string };
+        rendered?: { html: string };
+      };
+
+      expect(result.data.slug).toBe('featured');
+      expect(result.data.taxonomy).toBe('post_tag');
+      expect(result.rendered).toBeUndefined();
+    });
+  });
+
+  describe('wordPressTermLoader', () => {
+    it('loads custom taxonomy collection through resource config', async () => {
+      const loader = wordPressTermLoader({
+        baseUrl,
+        resource: 'genres',
+      });
+
+      const result = await loader.loadCollection!({ filter: undefined } as never) as {
+        entries: Array<{ id: string; data: { taxonomy: string } }>;
+      };
+
+      expect(result.entries.length).toBeGreaterThan(0);
+      expect(result.entries[0].data.taxonomy).toBe('genre');
+    });
+  });
+
+  describe('wordPressUserLoader', () => {
+    it('loads users publicly as Astro live entries with normalized ids', async () => {
+      const loader = wordPressUserLoader({ baseUrl });
+      const result = await loader.loadCollection!({ filter: undefined } as never) as {
+        entries: Array<{ id: string; data: { id: number; slug: string; _links?: unknown } }>;
+      };
+
+      expect(result.entries.length).toBeGreaterThan(0);
+      expect(result.entries[0].id).toBe(String(result.entries[0].data.id));
+      expect(typeof result.entries[0].data.slug).toBe('string');
+
+      const publicAllow = ((result.entries[0].data._links as {
+        self?: Array<{ targetHints?: { allow?: string[] } }>;
+      })?.self?.[0]?.targetHints?.allow) ?? [];
+
+      expect(publicAllow).toContain('GET');
+      expect(publicAllow).not.toContain('POST');
+    });
+
+    it('resolves one user by slug in loadEntry', async () => {
+      const loader = wordPressUserLoader({ baseUrl });
+      const collection = await loader.loadCollection!({ filter: undefined } as never) as {
+        entries: Array<{ data: { slug: string } }>;
+      };
+
+      const slug = collection.entries[0].data.slug;
+      const result = await loader.loadEntry!({ filter: { slug } } as never) as {
+        data: { slug: string };
+      };
+
+      expect(result.data.slug).toBe(slug);
+    });
+
+    it('loads users with auth and exposes auth-only capability hints', async () => {
+      const loader = wordPressUserLoader({
+        baseUrl,
+        authHeaders: () => ({
+          Authorization: createJwtAuthHeader(process.env.WP_JWT_TOKEN!),
+        }),
+      });
+
+      const result = await loader.loadEntry!({ filter: { id: 1 } } as never) as {
+        data: { id: number; _links?: unknown };
+      };
+
+      const authAllow = ((result.data._links as {
+        self?: Array<{ targetHints?: { allow?: string[] } }>;
+      })?.self?.[0]?.targetHints?.allow) ?? [];
+
+      expect(result.data.id).toBe(1);
+      expect(authAllow).toContain('GET');
+      expect(authAllow).toContain('POST');
     });
   });
 });

@@ -8,6 +8,8 @@ import type {
   PagesFilter,
   MediaFilter as ClientMediaFilter,
   CategoriesFilter,
+  TagsFilter,
+  QueryParams,
   UsersFilter 
 } from 'fluent-wp-client';
 
@@ -27,6 +29,22 @@ export interface WordPressStaticLoaderConfig extends WordPressLoaderConfig {
   perPage?: number;
   /** Additional query parameters */
   params?: Record<string, string>;
+}
+
+/**
+ * Configuration for generic taxonomy loaders targeting one REST term resource.
+ */
+export interface WordPressTermLoaderConfig extends WordPressLoaderConfig {
+  /** REST resource path (examples: 'categories', 'tags', 'genres') */
+  resource: string;
+}
+
+/**
+ * Configuration for generic static taxonomy loaders.
+ */
+export interface WordPressTermStaticLoaderConfig extends WordPressStaticLoaderConfig {
+  /** REST resource path (examples: 'categories', 'tags', 'genres') */
+  resource: string;
 }
 
 /**
@@ -65,6 +83,25 @@ export type MediaFilter = ClientMediaFilter & LoaderEntryLookup;
  */
 export type CategoryFilter = CategoriesFilter & LoaderEntryLookup & {
   /** Legacy field, will be deprecated in favor of hideEmpty */
+  hide_empty?: boolean;
+};
+
+/**
+ * Filter options for tags (live loader).
+ * Based on fluent-wp-client TagsFilter with entry lookup extensions.
+ * @deprecated Use 'hideEmpty' instead of 'hide_empty' (kept for backward compatibility)
+ */
+export type TagFilter = TagsFilter & LoaderEntryLookup & {
+  /** Legacy field, will be deprecated in favor of hideEmpty */
+  hide_empty?: boolean;
+};
+
+/**
+ * Filter options for generic term resources (custom taxonomies).
+ * Supports the common term query keys with passthrough params.
+ */
+export type TermFilter = QueryParams & LoaderEntryLookup & {
+  hideEmpty?: boolean;
   hide_empty?: boolean;
 };
 

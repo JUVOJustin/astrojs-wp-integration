@@ -14,7 +14,7 @@ npm install wp-astrojs-integration
 |---|---|---|
 | Live content collections | Request-time WordPress data for SSR routes | `defineLiveCollection` + `wordPress*Loader` |
 | Static content collections | Build-time WordPress snapshots for SSG | `defineCollection` + `wordPress*StaticLoader` |
-| Server actions | Typed create/update/delete actions for WordPress content and abilities | `create*Action` factories |
+| Server actions | Typed create/update/delete actions for posts, pages, users, and abilities | `create*Action` factories |
 | Auth bridge | Login/session helpers for Astro server actions and middleware | `createWordPressAuthBridge` |
 | Rendering components | Gutenberg-friendly HTML and media rendering in Astro | `WPContent`, `WPImage` |
 
@@ -26,8 +26,9 @@ npm install wp-astrojs-integration
 | Pages | `pageSchema` | `wordPressPageLoader` | `wordPressPageStaticLoader` | |
 | Media | `mediaSchema` | `wordPressMediaLoader` | `wordPressMediaStaticLoader` | |
 | Categories | `categorySchema` | `wordPressCategoryLoader` | `wordPressCategoryStaticLoader` | |
-| Tags | `categorySchema` | - | `wordPressTagStaticLoader` | Static only |
-| Custom Post Types | - | `wordPressCPTLoader` | `wordPressCPTStaticLoader` | Generic factory-based support |
+| Tags | `categorySchema` | `wordPressTagLoader` | `wordPressTagStaticLoader` | |
+| Custom taxonomies | `categorySchema` | `wordPressTermLoader` | `wordPressTermStaticLoader` | Pass custom REST `resource` |
+| Custom Post Types | - | `wordPressCPTLoader` | `wordPressCPTStaticLoader` | Pass custom REST `postType` |
 | Users | `WordPressAuthor` | `wordPressUserLoader` | `wordPressUserStaticLoader` | |
 
 ## Quick start
@@ -91,30 +92,26 @@ import {
   createCreatePostAction,
   createDeletePostAction,
   createUpdatePostAction,
+  createCreateUserAction,
+  createDeleteUserAction,
+  createUpdateUserAction,
 } from 'wp-astrojs-integration';
 
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
+};
+
 export const server = {
-  createPost: createCreatePostAction({
-    baseUrl: import.meta.env.WP_URL,
-    auth: {
-      username: import.meta.env.WP_USERNAME,
-      password: import.meta.env.WP_APP_PASSWORD,
-    },
-  }),
-  updatePost: createUpdatePostAction({
-    baseUrl: import.meta.env.WP_URL,
-    auth: {
-      username: import.meta.env.WP_USERNAME,
-      password: import.meta.env.WP_APP_PASSWORD,
-    },
-  }),
-  deletePost: createDeletePostAction({
-    baseUrl: import.meta.env.WP_URL,
-    auth: {
-      username: import.meta.env.WP_USERNAME,
-      password: import.meta.env.WP_APP_PASSWORD,
-    },
-  }),
+  createPost: createCreatePostAction(wpConfig),
+  updatePost: createUpdatePostAction(wpConfig),
+  deletePost: createDeletePostAction(wpConfig),
+  createUser: createCreateUserAction(wpConfig),
+  updateUser: createUpdateUserAction(wpConfig),
+  deleteUser: createDeleteUserAction(wpConfig),
 };
 ```
 
@@ -141,6 +138,30 @@ The package re-exports auth helpers from `fluent-wp-client`, including:
 - `jwtAuthValidationResponseSchema`
 
 Use these when building custom login/session flows so you can share the same runtime validation and context-auth patterns as the built-in bridge.
+
+## Term actions (categories, tags, custom taxonomies)
+
+```ts
+import {
+  createCreateTermAction,
+  createUpdateTermAction,
+  createDeleteTermAction,
+} from 'wp-astrojs-integration';
+
+const wpConfig = {
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
+};
+
+export const server = {
+  createCategory: createCreateTermAction({ ...wpConfig, resource: 'categories' }),
+  updateTag: createUpdateTermAction({ ...wpConfig, resource: 'tags' }),
+  deleteGenre: createDeleteTermAction({ ...wpConfig, resource: 'genres' }),
+};
+```
 
 ## Extending schemas
 
@@ -201,6 +222,9 @@ Local integration test environment:
 - Auth bridge: `docs/auth-action-bridge.md`
 - Action overview: `docs/actions/index.mdx`
 - Post actions: `docs/actions/posts.mdx`
+- Term actions: `docs/actions/terms.mdx`
+- User actions: `docs/actions/users.mdx`
+- Term actions: `docs/actions/terms.mdx`
 - Ability actions: `docs/actions/abilities.mdx`
 
 ## License
