@@ -2,6 +2,8 @@
 
 Astro-first integration for WordPress with content loaders, server actions, auth bridge helpers, and rendering components.
 
+This package is built against `fluent-wp-client` `^2.0.0`.
+
 ## Install
 
 ```bash
@@ -192,6 +194,7 @@ const posts = defineLiveCollection({
 | Best for | SSR and frequently changing content | SSG and stable content |
 | Astro API | `defineLiveCollection` | `defineCollection` |
 | Content APIs | `getLiveEntry`, `getLiveCollection` | `getEntry`, `getCollection` |
+| Post/page payload shape | Plain serializable objects | Plain serializable objects |
 
 ## Development and testing
 
@@ -224,7 +227,6 @@ Local integration test environment:
 - Post actions: `docs/actions/posts.mdx`
 - Term actions: `docs/actions/terms.mdx`
 - User actions: `docs/actions/users.mdx`
-- Term actions: `docs/actions/terms.mdx`
 - Ability actions: `docs/actions/abilities.mdx`
 
 ## License

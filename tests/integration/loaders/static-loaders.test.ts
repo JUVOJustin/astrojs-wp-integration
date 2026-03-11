@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import {
   wordPressPostStaticLoader,
+  wordPressPageStaticLoader,
   wordPressCategoryStaticLoader,
   wordPressTagStaticLoader,
   wordPressTermStaticLoader,
@@ -9,6 +10,24 @@ import {
 import { createMockStore } from '../../helpers/mock-store';
 import { createMockLogger } from '../../helpers/mock-logger';
 import { getBaseUrl } from '../../helpers/wp-client';
+
+/**
+ * Legacy helper method keys from fluent-wp-client v1 content wrappers.
+ */
+const LEGACY_CONTENT_METHOD_KEYS = ['get', 'getContent', 'getBlocks', 'then'] as const;
+
+/**
+ * Asserts one loader record data object is plain and serialization-safe.
+ */
+function expectSerializableContentData(data: Record<string, unknown>): void {
+  for (const value of Object.values(data)) {
+    expect(typeof value).not.toBe('function');
+  }
+
+  for (const key of LEGACY_CONTENT_METHOD_KEYS) {
+    expect(Object.prototype.hasOwnProperty.call(data, key)).toBe(false);
+  }
+}
 
 /**
  * Astro static-loader integration focused on build-time store behavior.
@@ -65,6 +84,42 @@ describe('Static Loaders', () => {
       for (const key of entries.keys()) {
         expect(typeof key).toBe('string');
         expect(Number.isFinite(Number(key))).toBe(true);
+      }
+    });
+
+    /**
+     * Serialization test: static loaders must return plain serializable data
+     * without function properties. This ensures compatibility with Astro's
+     * devalue-based content store serialization (issue #19).
+     */
+    it('stores plain serializable data without function properties', async () => {
+      const loader = wordPressPostStaticLoader({ baseUrl });
+      const { store, entries } = createMockStore();
+      const logger = createMockLogger();
+
+      await loader.load({ store, logger } as never);
+
+      expect(entries.size).toBeGreaterThan(0);
+      for (const entry of entries.values()) {
+        expectSerializableContentData(entry.data as Record<string, unknown>);
+      }
+    });
+  });
+
+  describe('wordPressPageStaticLoader', () => {
+    /**
+     * Serialization test: pages must also be plain serializable data.
+     */
+    it('stores plain serializable data without function properties', async () => {
+      const loader = wordPressPageStaticLoader({ baseUrl });
+      const { store, entries } = createMockStore();
+      const logger = createMockLogger();
+
+      await loader.load({ store, logger } as never);
+
+      expect(entries.size).toBeGreaterThan(0);
+      for (const entry of entries.values()) {
+        expectSerializableContentData(entry.data as Record<string, unknown>);
       }
     });
   });

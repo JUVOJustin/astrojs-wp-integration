@@ -11,6 +11,24 @@ import { createJwtAuthHeader } from 'fluent-wp-client';
 import { getBaseUrl } from '../../helpers/wp-client';
 
 /**
+ * Legacy helper method keys from fluent-wp-client v1 content wrappers.
+ */
+const LEGACY_CONTENT_METHOD_KEYS = ['get', 'getContent', 'getBlocks', 'then'] as const;
+
+/**
+ * Asserts one live loader record data object is plain and serialization-safe.
+ */
+function expectSerializableContentData(data: Record<string, unknown>): void {
+  for (const value of Object.values(data)) {
+    expect(typeof value).not.toBe('function');
+  }
+
+  for (const key of LEGACY_CONTENT_METHOD_KEYS) {
+    expect(Object.prototype.hasOwnProperty.call(data, key)).toBe(false);
+  }
+}
+
+/**
  * Astro live-loader integration focused on loader contract behavior.
  *
  * This suite verifies wrapper-level guarantees (entry shape, rendered content,
@@ -38,6 +56,19 @@ describe('Live Loaders', () => {
       expect(typeof first.id).toBe('string');
       expect(first.id).toBe(String(first.data.id));
       expect(first.rendered?.html).toBe(first.data.content.rendered);
+    });
+
+    it('returns plain data objects suitable for serialization', async () => {
+      const loader = wordPressPostLoader({ baseUrl });
+      const result = await loader.loadCollection!({ filter: undefined } as never) as {
+        entries: Array<{ id: string; data: Record<string, unknown> }>;
+      };
+
+      expect(result.entries.length).toBeGreaterThan(0);
+
+      for (const entry of result.entries) {
+        expectSerializableContentData(entry.data);
+      }
     });
 
     it('normalizes nested Astro filter input for loadEntry', async () => {
@@ -109,6 +140,19 @@ describe('Live Loaders', () => {
       };
 
       expect(result.rendered?.html).toBe(result.data.content.rendered);
+    });
+
+    it('returns plain data objects suitable for serialization', async () => {
+      const loader = wordPressPageLoader({ baseUrl });
+      const result = await loader.loadCollection!({ filter: undefined } as never) as {
+        entries: Array<{ id: string; data: Record<string, unknown> }>;
+      };
+
+      expect(result.entries.length).toBeGreaterThan(0);
+
+      for (const entry of result.entries) {
+        expectSerializableContentData(entry.data);
+      }
     });
   });
 
