@@ -1,0 +1,156 @@
+---
+title: Gutenberg Block Mapping
+description: Parse raw Gutenberg content through authenticated loaders and map blocks to Astro components with optional custom overrides.
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+Use this feature when you want Gutenberg blocks mapped to Astro components instead of rendering only `content.rendered` HTML.
+
+## Why this is opt-in
+
+WordPress raw Gutenberg content (`content.raw`) is returned through edit-context REST requests. Those requests require credentials with edit permissions.
+
+Because of that, block parsing is disabled by default and must be enabled explicitly with `blocks: true`.
+
+## Enable block parsing in loaders
+
+<Tabs>
+  <TabItem label="Posts and Pages">
+    ```ts
+    import { wordPressPostLoader, wordPressPostStaticLoader } from 'wp-astrojs-integration';
+
+    const liveLoader = wordPressPostLoader({
+      baseUrl: import.meta.env.WP_URL,
+      auth: {
+        username: import.meta.env.WP_USERNAME,
+        password: import.meta.env.WP_APP_PASSWORD,
+      },
+      blocks: true,
+    });
+
+    const staticLoader = wordPressPostStaticLoader({
+      baseUrl: import.meta.env.WP_URL,
+      authHeaders: () => ({
+        Authorization: `Bearer ${import.meta.env.WP_JWT_TOKEN}`,
+      }),
+      blocks: true,
+    });
+    ```
+  </TabItem>
+  <TabItem label="Custom Post Types">
+    ```ts
+    import { wordPressContentLoader, wordPressContentStaticLoader } from 'wp-astrojs-integration';
+
+    const booksLive = wordPressContentLoader({
+      baseUrl: import.meta.env.WP_URL,
+      resource: 'books',
+      auth: {
+        username: import.meta.env.WP_USERNAME,
+        password: import.meta.env.WP_APP_PASSWORD,
+      },
+      blocks: true,
+    });
+
+    const booksStatic = wordPressContentStaticLoader({
+      baseUrl: import.meta.env.WP_URL,
+      resource: 'books',
+      auth: {
+        username: import.meta.env.WP_USERNAME,
+        password: import.meta.env.WP_APP_PASSWORD,
+      },
+      blocks: true,
+    });
+    ```
+  </TabItem>
+</Tabs>
+
+When `blocks` is enabled and auth is missing, loaders throw (static) or return an error object (live loader contract).
+
+## Map blocks to Astro components
+
+`WPBlocks` already maps core heading, paragraph, and image blocks by default, so you only need a registry for blocks you want to customize.
+You can fully override shipped defaults by registering the same block keys in your own registry.
+
+```ts
+import { defineWordPressBlockRegistry } from 'wp-astrojs-integration';
+import HeroBlock from '../components/wp/HeroBlock.astro';
+
+export const blockRegistry = defineWordPressBlockRegistry({
+  'acf/hero': HeroBlock,
+});
+```
+
+Then render with `WPBlocks`:
+
+```astro
+---
+import WPBlocks from 'wp-astrojs-integration/components/WPBlocks.astro';
+---
+
+<WPBlocks blocks={entry.data.blocks ?? []} registry={blockRegistry} fallbackHtml={entry.rendered?.html} />
+```
+
+## Built-in defaults
+
+`WPBlocks` automatically maps:
+
+- `core/heading` / `heading`
+- `core/paragraph` / `paragraph`
+- `core/image` / `image`
+
+Disable built-ins if you want full manual control:
+
+```astro
+<WPBlocks blocks={entry.data.blocks ?? []} registry={blockRegistry} useDefaultCoreBlocks={false} />
+```
+
+Override example (keep defaults enabled, replace only heading):
+
+```ts
+export const blockRegistry = defineWordPressBlockRegistry({
+  'core/heading': HeadingBlock,
+  heading: HeadingBlock,
+});
+```
+
+## Data shape
+
+With `blocks: true`, post-like loader entries include `data.blocks` as parsed `WordPressParsedBlock[]`.
+
+## Example: custom heading component
+
+```astro
+---
+import type { WordPressParsedBlock } from 'fluent-wp-client';
+
+interface Props {
+  block: WordPressParsedBlock;
+  attrs?: Record<string, unknown> | null;
+}
+
+const { block, attrs = null } = Astro.props;
+const level = typeof attrs?.level === 'number' ? attrs.level : 2;
+const textAlign = typeof attrs?.textAlign === 'string' ? attrs.textAlign : undefined;
+
+const className = [
+  'wp-heading',
+  textAlign ? `has-text-align-${textAlign}` : '',
+].filter(Boolean).join(' ');
+---
+
+{level === 1 && <h1 class={className} set:html={block.innerHTML} />}
+{level === 2 && <h2 class={className} set:html={block.innerHTML} />}
+{level === 3 && <h3 class={className} set:html={block.innerHTML} />}
+{level === 4 && <h4 class={className} set:html={block.innerHTML} />}
+{level === 5 && <h5 class={className} set:html={block.innerHTML} />}
+{level >= 6 && <h6 class={className} set:html={block.innerHTML} />}
+```
+
+Use it in your registry:
+
+```ts
+export const blockRegistry = defineWordPressBlockRegistry({
+  heading: HeadingBlock,
+});
+```

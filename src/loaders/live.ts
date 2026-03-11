@@ -2,19 +2,24 @@ import type { LiveLoader } from 'astro/loaders';
 import type {
   WordPressAuthor,
   WordPressCategory,
+  WordPressCustomPost,
   WordPressMedia,
   WordPressPage,
+  WordPressParsedBlock,
   WordPressPost,
   WordPressTag,
 } from 'fluent-wp-client';
 import { WordPressClient } from 'fluent-wp-client';
+import { assertLoaderBlockAuth, loadResourceBlocks, resolveLoaderBlocksConfig } from './blocks';
 import type {
   CategoryFilter,
+  ContentFilter,
   MediaFilter,
   PageFilter,
   PostFilter,
   TagFilter,
   TermFilter,
+  WordPressContentLoaderConfig,
   WordPressTermLoaderConfig,
   UserFilter,
   WordPressLoaderConfig,
@@ -39,6 +44,7 @@ type LiveLoaderContext = {
  */
 interface LiveLoaderDefinition<TEntry extends IdentifiableEntry, TFilter> {
   name: string;
+  resource?: string;
   collectionError: string;
   entryError: string;
   notFoundError: string;
@@ -73,23 +79,28 @@ function createLoaderError(message: string, error: unknown): { error: Error } {
 function createLiveEntry<TEntry extends IdentifiableEntry>(
   entry: TEntry,
   renderHtml?: (entry: TEntry) => string | undefined,
+  blocks?: WordPressParsedBlock[],
 ): {
   id: string;
-  data: TEntry;
+  data: TEntry & { blocks?: WordPressParsedBlock[] };
   rendered?: { html: string };
 } {
   const html = renderHtml?.(entry);
+  const data = {
+    ...(entry as Record<string, unknown>),
+    ...(blocks ? { blocks } : {}),
+  } as TEntry & { blocks?: WordPressParsedBlock[] };
 
   if (!html) {
     return {
       id: String(entry.id),
-      data: entry,
+      data,
     };
   }
 
   return {
     id: String(entry.id),
-    data: entry,
+    data,
     rendered: { html },
   };
 }
@@ -106,16 +117,29 @@ function createLiveWordPressLoader<TEntry extends IdentifiableEntry, TFilter>(
   loadEntry: (context: LiveLoaderContext) => Promise<ReturnType<typeof createLiveEntry<TEntry>> | { error: Error }>;
 } {
   const client = new WordPressClient(config);
+  const blocksConfig = resolveLoaderBlocksConfig(config.blocks);
 
   return {
     name: definition.name,
     loadCollection: async ({ filter }: LiveLoaderContext) => {
       try {
+        if (blocksConfig && definition.resource) {
+          assertLoaderBlockAuth(config, definition.name);
+        }
+
         const resolvedFilter = normalizeLoaderFilter<TFilter>(filter);
         const entries = await definition.loadCollectionData(client, resolvedFilter);
 
+        const entriesWithBlocks = await Promise.all(entries.map(async (entry) => {
+          const blocks = (blocksConfig && definition.resource)
+            ? await loadResourceBlocks(client, definition.resource, entry.id, blocksConfig)
+            : undefined;
+
+          return createLiveEntry(entry, definition.renderHtml, blocks);
+        }));
+
         return {
-          entries: entries.map((entry) => createLiveEntry(entry, definition.renderHtml)),
+          entries: entriesWithBlocks,
         };
       } catch (error) {
         return createLoaderError(definition.collectionError, error);
@@ -123,6 +147,10 @@ function createLiveWordPressLoader<TEntry extends IdentifiableEntry, TFilter>(
     },
     loadEntry: async ({ filter }: LiveLoaderContext) => {
       try {
+        if (blocksConfig && definition.resource) {
+          assertLoaderBlockAuth(config, definition.name);
+        }
+
         const resolvedFilter = normalizeLoaderFilter<TFilter>(filter);
         const entry = await definition.loadEntryData(client, resolvedFilter);
 
@@ -130,7 +158,11 @@ function createLiveWordPressLoader<TEntry extends IdentifiableEntry, TFilter>(
           return createLoaderError(definition.notFoundError, new Error(definition.notFoundError));
         }
 
-        return createLiveEntry(entry, definition.renderHtml);
+        const blocks = (blocksConfig && definition.resource)
+          ? await loadResourceBlocks(client, definition.resource, entry.id, blocksConfig)
+          : undefined;
+
+        return createLiveEntry(entry, definition.renderHtml, blocks);
       } catch (error) {
         return createLoaderError(definition.entryError, error);
       }
@@ -296,6 +328,7 @@ export function wordPressPostLoader(
 ): LiveLoader<WordPressPost, PostFilter> {
   return createLiveWordPressLoader(config, {
     name: 'wordpress-post-loader',
+    resource: 'posts',
     collectionError: 'Failed to load posts',
     entryError: 'Failed to load post',
     notFoundError: 'Post not found',
@@ -319,6 +352,7 @@ export function wordPressPageLoader(
 ): LiveLoader<WordPressPage, PageFilter> {
   return createLiveWordPressLoader(config, {
     name: 'wordpress-page-loader',
+    resource: 'pages',
     collectionError: 'Failed to load pages',
     entryError: 'Failed to load page',
     notFoundError: 'Page not found',
@@ -328,6 +362,43 @@ export function wordPressPageLoader(
     loadEntryData: loadPageEntry,
     renderHtml: (entry) => entry.content.rendered,
   }) as LiveLoader<WordPressPage, PageFilter>;
+}
+
+/**
+ * Creates a live loader for one custom post-like resource.
+ */
+export function wordPressContentLoader(
+  config: WordPressContentLoaderConfig,
+): LiveLoader<WordPressCustomPost, ContentFilter> {
+  const { resource, ...clientConfig } = config;
+
+  return createLiveWordPressLoader<WordPressCustomPost, ContentFilter>(clientConfig, {
+    name: 'wordpress-content-loader',
+    resource,
+    collectionError: `Failed to load ${resource}`,
+    entryError: `Failed to load ${resource} entry`,
+    notFoundError: `${resource} entry not found`,
+    loadCollectionData: (client, filter: ContentFilter | undefined) => {
+      if (!filter) {
+        return client.getContentCollection(resource);
+      }
+
+      const { id: _id, slug: _slug, ...rest } = filter;
+      return client.getContentCollection(resource, rest);
+    },
+    loadEntryData: async (client, filter: ContentFilter | undefined) => {
+      if (filter?.id) {
+        return client.getContent(resource, filter.id);
+      }
+
+      if (filter?.slug) {
+        return client.getContentBySlug(resource, filter.slug);
+      }
+
+      return undefined;
+    },
+    renderHtml: (entry) => entry.content.rendered,
+  }) as LiveLoader<WordPressCustomPost, ContentFilter>;
 }
 
 /**

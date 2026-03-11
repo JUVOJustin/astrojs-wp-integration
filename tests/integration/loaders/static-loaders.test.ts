@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import {
+  wordPressContentStaticLoader,
   wordPressPostStaticLoader,
   wordPressCategoryStaticLoader,
   wordPressTagStaticLoader,
@@ -66,6 +67,86 @@ describe('Static Loaders', () => {
         expect(typeof key).toBe('string');
         expect(Number.isFinite(Number(key))).toBe(true);
       }
+    });
+
+    it('loads parsed Gutenberg blocks when block mode is enabled with auth', async () => {
+      const password = process.env.WP_APP_PASSWORD;
+
+      if (!password) {
+        throw new Error('WP_APP_PASSWORD not set — did global-setup run?');
+      }
+
+      const loader = wordPressPostStaticLoader({
+        baseUrl,
+        auth: {
+          username: 'admin',
+          password,
+        },
+        blocks: true,
+      });
+
+      const { store, entries } = createMockStore();
+      const logger = createMockLogger();
+
+      await loader.load({ store, logger } as never);
+
+      const match = [...entries.values()].find((entry) => {
+        const data = entry.data as { slug?: string };
+        return data.slug === 'test-post-001';
+      }) as {
+        data: { blocks?: Array<{ blockName: string | null }> };
+      } | undefined;
+
+      expect(match).toBeDefined();
+      expect(Array.isArray(match?.data.blocks)).toBe(true);
+      expect(match?.data.blocks?.some((block) => block.blockName === 'core/heading')).toBe(true);
+      expect(match?.data.blocks?.some((block) => block.blockName === 'core/paragraph')).toBe(true);
+      expect(match?.data.blocks?.some((block) => block.blockName === 'core/image')).toBe(true);
+    });
+
+    it('throws one auth error when block mode is enabled without credentials', async () => {
+      const loader = wordPressPostStaticLoader({
+        baseUrl,
+        blocks: true,
+      });
+
+      const { store } = createMockStore();
+      const logger = createMockLogger();
+
+      await expect(loader.load({ store, logger } as never)).rejects.toThrow(/requires authentication/i);
+    });
+  });
+
+  describe('wordPressContentStaticLoader', () => {
+    it('loads custom post type entries and parsed blocks by REST resource', async () => {
+      const password = process.env.WP_APP_PASSWORD;
+
+      if (!password) {
+        throw new Error('WP_APP_PASSWORD not set — did global-setup run?');
+      }
+
+      const loader = wordPressContentStaticLoader({
+        baseUrl,
+        resource: 'books',
+        auth: {
+          username: 'admin',
+          password,
+        },
+        blocks: true,
+      });
+
+      const { store, entries } = createMockStore();
+      const logger = createMockLogger();
+
+      await loader.load({ store, logger } as never);
+
+      const first = entries.values().next().value as {
+        data: { type: string; blocks?: Array<{ blockName: string | null }> };
+      };
+
+      expect(entries.size).toBeGreaterThan(0);
+      expect(first.data.type).toBe('book');
+      expect(first.data.blocks?.some((block) => block.blockName === 'core/paragraph')).toBe(true);
     });
   });
 

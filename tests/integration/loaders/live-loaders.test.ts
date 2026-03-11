@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import {
+  wordPressContentLoader,
   wordPressPostLoader,
   wordPressPageLoader,
   wordPressCategoryLoader,
@@ -97,6 +98,67 @@ describe('Live Loaders', () => {
 
       expect(result.error).toBeUndefined();
       expect(Array.isArray(result.entries)).toBe(true);
+    });
+
+    it('loads parsed blocks in entry mode when block parsing is enabled', async () => {
+      const loader = wordPressPostLoader({
+        baseUrl,
+        authHeaders: () => ({
+          Authorization: createJwtAuthHeader(process.env.WP_JWT_TOKEN!),
+        }),
+        blocks: true,
+      });
+
+      const result = await loader.loadEntry!({ filter: { slug: 'test-post-001' } } as never) as {
+        data: {
+          blocks?: Array<{ blockName: string | null }>;
+        };
+        error?: Error;
+      };
+
+      expect(result.error).toBeUndefined();
+      expect(result.data.blocks?.some((block) => block.blockName === 'core/heading')).toBe(true);
+      expect(result.data.blocks?.some((block) => block.blockName === 'core/paragraph')).toBe(true);
+      expect(result.data.blocks?.some((block) => block.blockName === 'core/image')).toBe(true);
+    });
+
+    it('returns an auth error when block parsing is enabled without credentials', async () => {
+      const loader = wordPressPostLoader({
+        baseUrl,
+        blocks: true,
+      });
+
+      const result = await loader.loadEntry!({ filter: { slug: 'test-post-001' } } as never) as {
+        error?: Error;
+      };
+
+      expect(result.error).toBeInstanceOf(Error);
+      expect(result.error?.message).toMatch(/requires authentication/i);
+    });
+  });
+
+  describe('wordPressContentLoader', () => {
+    it('loads custom post type entries and parsed blocks by resource', async () => {
+      const loader = wordPressContentLoader({
+        baseUrl,
+        resource: 'books',
+        authHeaders: () => ({
+          Authorization: createJwtAuthHeader(process.env.WP_JWT_TOKEN!),
+        }),
+        blocks: true,
+      });
+
+      const result = await loader.loadEntry!({ filter: { slug: 'test-book-001' } } as never) as {
+        data: {
+          type: string;
+          blocks?: Array<{ blockName: string | null }>;
+        };
+        error?: Error;
+      };
+
+      expect(result.error).toBeUndefined();
+      expect(result.data.type).toBe('book');
+      expect(result.data.blocks?.some((block) => block.blockName === 'core/paragraph')).toBe(true);
     });
   });
 

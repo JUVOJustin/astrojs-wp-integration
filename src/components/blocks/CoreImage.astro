@@ -1,0 +1,38 @@
+---
+import type { WordPressParsedBlock } from 'fluent-wp-client';
+
+interface Props {
+  block: WordPressParsedBlock;
+  attrs?: Record<string, unknown> | null;
+}
+
+const { block, attrs = null } = Astro.props;
+
+const imageAttrs = (attrs ?? block.attrs ?? null) as Record<string, unknown> | null;
+
+const src = typeof imageAttrs?.url === 'string'
+  ? imageAttrs.url
+  : undefined;
+
+const alt = typeof imageAttrs?.alt === 'string'
+  ? imageAttrs.alt
+  : '';
+
+const width = typeof imageAttrs?.width === 'number'
+  ? imageAttrs.width
+  : undefined;
+
+const height = typeof imageAttrs?.height === 'number'
+  ? imageAttrs.height
+  : undefined;
+
+const hasImageData = Boolean(src);
+---
+
+{hasImageData ? (
+  <figure class="wp-block-image">
+    <img src={src} alt={alt} width={width} height={height} loading="lazy" decoding="async" />
+  </figure>
+) : (
+  <div set:html={block.innerHTML} />
+)}

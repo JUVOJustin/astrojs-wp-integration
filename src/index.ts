@@ -9,6 +9,7 @@
 export {
   wordPressPostLoader,
   wordPressPageLoader,
+  wordPressContentLoader,
   wordPressMediaLoader,
   wordPressCategoryLoader,
   wordPressTagLoader,
@@ -20,6 +21,7 @@ export {
 export {
   wordPressPostStaticLoader,
   wordPressPageStaticLoader,
+  wordPressContentStaticLoader,
   wordPressMediaStaticLoader,
   wordPressCategoryStaticLoader,
   wordPressTagStaticLoader,
@@ -30,8 +32,11 @@ export {
 export type {
   WordPressLoaderConfig,
   WordPressStaticLoaderConfig,
+  WordPressContentLoaderConfig,
+  WordPressContentStaticLoaderConfig,
   WordPressTermLoaderConfig,
   WordPressTermStaticLoaderConfig,
+  ContentFilter,
   PostFilter,
   PageFilter,
   MediaFilter,
@@ -40,6 +45,19 @@ export type {
   TermFilter,
   UserFilter,
 } from './loaders';
+
+export {
+  defineWordPressBlockRegistry,
+  resolveWordPressBlockComponent,
+} from './blocks';
+
+export type {
+  WordPressLoaderBlocksConfig,
+  WordPressLoaderBlocksOption,
+  WordPressBlockComponentProps,
+  WordPressBlockRegistry,
+  WordPressBlockRegistryEntry,
+} from './blocks';
 
 // Export schemas and core WP types from standalone client package
 export {
@@ -67,6 +85,7 @@ export {
 export type {
   WordPressBase,
   WordPressContent,
+  WordPressCustomPost,
   WordPressPost,
   WordPressPage,
   WordPressMedia,
@@ -245,3 +264,4 @@ export type {
 // Components are imported directly via:
 // import WPImage from 'wp-astrojs-integration/components/WPImage.astro';
 // import WPContent from 'wp-astrojs-integration/components/WPContent.astro';
+// import WPBlocks from 'wp-astrojs-integration/components/WPBlocks.astro';
