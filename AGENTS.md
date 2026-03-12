@@ -20,7 +20,7 @@ This repository ships one npm package:
 
 - All Astro Actions imports **must** use the public `astro:actions` virtual module.
   Never import from internal paths like `astro/actions/runtime/server.js` or `astro/actions/runtime/entrypoints/server.js`.
-  The virtual module is resolved for `tsc` via the triple-slash reference in `src/env.d.ts`.
+  The virtual module is resolved for `tsc` via the type declarations configured in `src/env.d.ts`.
 
 ## Testing
 
