@@ -14,7 +14,7 @@ import { cp, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-const fixtureRoot = fileURLToPath(new URL('../../fixtures/astro-actions-site', import.meta.url));
+const fixtureRoot = fileURLToPath(new URL('../../fixtures/astro-site', import.meta.url));
 
 describe('Astro build integration', () => {
   it('builds a minimal site with WordPress static loaders', async () => {

@@ -41,7 +41,7 @@ This repository ships one npm package:
 | `tests/wp-env/seed-content.php` | Idempotent PHP script that generates all test content on startup |
 | `tests/setup/global-setup.ts` | Waits for WP API, creates app password + JWT token, seeds cookie+nonce auth env vars, and boots the shared Astro dev server fixture |
 | `tests/setup/env-loader.ts` | Loads `.test-env.json` into Vitest workers |
-| `tests/fixtures/astro-actions-site/` | Shared Astro server fixture that exposes real `/_actions/*` RPC endpoints for integration tests |
+| `tests/fixtures/astro-site/` | Shared Astro server fixture that exposes real `/_actions/*` RPC endpoints for integration tests |
 | `tests/helpers/` | Shared test utilities |
 
 ### Seed data
@@ -99,7 +99,7 @@ npm run wp:clean
 ### Astro build integration test
 
 `tests/integration/build/astro-build.test.ts` runs a real `astro build` against
-the shared fixture project in `tests/fixtures/astro-actions-site/`.
+the shared fixture project in `tests/fixtures/astro-site/`.
 The fixture defines content collections backed by the package's static loaders
 and an Astro page that renders the fetched data. The test sets
 `ASTRO_TEST_MODE=build` so the shared `astro.config.mjs` switches to static
@@ -119,7 +119,7 @@ because it only needs the public WordPress REST API.
 4. Prefer assertions about Astro-facing behavior and package contracts over exhaustive endpoint semantics.
 5. Use exact counts and known slugs from the seeded content only when they validate Astro integration behavior.
 6. Cover success paths and error paths.
-7. Route action integration tests through the shared Astro dev server fixture (`tests/fixtures/astro-actions-site/`) and real `/_actions/*` RPC endpoints.
+7. Route action integration tests through the shared Astro dev server fixture (`tests/fixtures/astro-site/`) and real `/_actions/*` RPC endpoints.
    Do not execute package action helpers directly inside test workers.
 
 Reference suites:
@@ -127,6 +127,7 @@ Reference suites:
 - `tests/integration/build/astro-build.test.ts`
 - `tests/integration/loaders/static-loaders.test.ts`
 - `tests/integration/loaders/live-loaders.test.ts`
+- `tests/integration/loaders/live-loader-runtime.test.ts`
 - `tests/integration/actions/posts.test.ts`
 - `tests/integration/actions/pages.test.ts`
 - `tests/integration/actions/users.test.ts`

@@ -12,7 +12,7 @@ interface AstroDevServer {
 const ENV_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../.test-env.json');
 
 /** Astro fixture project root for action integration tests */
-const ASTRO_FIXTURE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../fixtures/astro-actions-site');
+const ASTRO_FIXTURE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../fixtures/astro-site');
 
 /** Port hint for the Astro dev server. `0` asks the OS for one free port. */
 const ASTRO_DEV_PORT = 0;
