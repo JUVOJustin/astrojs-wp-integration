@@ -5,20 +5,22 @@ const astroActionsRuntimeShim = fileURLToPath(
   new URL('./tests/helpers/astro-actions-runtime.ts', import.meta.url),
 );
 
+const resolveAlias = {
+  alias: {
+    'astro:actions': astroActionsRuntimeShim,
+  },
+};
+
 /**
  * Vitest configuration with dedicated projects for integration and build coverage.
  */
 export default defineConfig({
-  resolve: {
-    alias: {
-      'astro:actions': astroActionsRuntimeShim,
-    },
-  },
   test: {
     passWithNoTests: false,
     reporters: ['verbose'],
     projects: [
       {
+        resolve: resolveAlias,
         test: {
           name: 'integration',
           include: ['tests/integration/**/*.test.ts'],
@@ -31,6 +33,7 @@ export default defineConfig({
         },
       },
       {
+        resolve: resolveAlias,
         test: {
           name: 'astro-build',
           include: ['tests/integration/build/**/*.test.ts'],
