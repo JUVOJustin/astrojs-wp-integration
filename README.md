@@ -200,7 +200,9 @@ const posts = defineLiveCollection({
 
 ```bash
 npm run wp:start
-npm test
+npm test                    # Run all test projects
+npm run test:integration    # Integration project (actions/loaders/auth)
+npm run test:build          # Astro build project
 npm run wp:stop
 ```
 
@@ -217,8 +219,9 @@ Local integration test environment:
 
 - `.wp-env.json` defines the local WordPress setup.
 - `tests/wp-env/` contains mu-plugins and seeded content.
-- `tests/setup/global-setup.ts` provisions app password, JWT, and cookie+nonce fixtures.
-- `tests/integration/` contains Astro-facing integration coverage for loaders, actions, auth bridge behavior, meta, ACF, and abilities.
+- `tests/setup/global-setup.ts` provisions app password, JWT, and cookie+nonce fixtures for the `integration` Vitest project.
+- `tests/setup/env-loader.ts` loads `.test-env.json` values for both `integration` and `astro-build` projects.
+- `tests/integration/` contains Astro-facing integration coverage for loaders, actions, auth bridge behavior, meta, ACF, abilities, and real `astro build` validation.
 
 ## Docs
 

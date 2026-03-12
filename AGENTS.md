@@ -29,7 +29,7 @@ This repository ships one npm package:
 | Component | Purpose |
 |---|---|
 | `@wordpress/env` | Spawns a local WordPress Docker container |
-| `Vitest` | Root integration test runner (`vitest.config.ts`) |
+| `Vitest` | Root test runner with projects (`integration`, `astro-build`) in `vitest.config.ts` |
 | `.wp-env.json` | wp-env config — PHP version, mu-plugin mappings, lifecycle scripts |
 | `tests/wp-env/mu-plugins/` | Must-use plugins mounted into the WP container |
 | `tests/wp-env/seed-content.php` | Idempotent PHP script that generates all test content on startup |
@@ -82,8 +82,9 @@ ACF fields are registered by `tests/wp-env/mu-plugins/register-acf-fields.php` w
 
 ```bash
 npm run wp:start
-npm test              # All integration tests (loaders, actions, auth)
-npm run test:build    # Astro build integration test only
+npm test                    # All test projects (integration + astro-build)
+npm run test:integration    # Integration project only (loaders, actions, auth)
+npm run test:build          # Astro build project only
 npm run wp:stop
 npm run wp:clean
 ```
@@ -97,10 +98,10 @@ and an Astro page that renders the fetched data. The test verifies the full
 Astro pipeline (content config, loader execution, page rendering) works
 end-to-end.
 
-The build test uses its own vitest config (`tests/integration/build/vitest.config.ts`)
-that loads `WP_BASE_URL` from `.test-env.json` but skips the heavy global setup
-(wp-cli password reset, app-password creation) since it only needs the public
-WordPress REST API.
+The build test runs through the `astro-build` project in `vitest.config.ts`.
+It loads `WP_BASE_URL` via `tests/setup/env-loader.ts` but skips the heavy
+integration `globalSetup` (wp-cli password reset, app-password creation)
+because it only needs the public WordPress REST API.
 
 ### How to write new tests
 

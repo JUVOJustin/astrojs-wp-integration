@@ -209,3 +209,17 @@ if (Astro.request.method === 'POST') {
   <button type="submit">Update post</button>
 </form>
 ```
+
+## Testing
+
+The auth bridge is exercised in the `integration` Vitest project and runs
+against the real local `wp-env` WordPress instance.
+
+```bash
+npm run wp:start
+npm run test:integration
+npm run wp:stop
+```
+
+Run `npm test` to execute both the integration project and the separate
+`astro-build` project in one command.
