@@ -39,8 +39,9 @@ This repository ships one npm package:
 | `.wp-env.json` | wp-env config — PHP version, mu-plugin mappings, lifecycle scripts |
 | `tests/wp-env/mu-plugins/` | Must-use plugins mounted into the WP container |
 | `tests/wp-env/seed-content.php` | Idempotent PHP script that generates all test content on startup |
-| `tests/setup/global-setup.ts` | Waits for WP API, creates app password + JWT token, and seeds cookie+nonce auth session env vars |
+| `tests/setup/global-setup.ts` | Waits for WP API, creates app password + JWT token, seeds cookie+nonce auth env vars, and boots the shared Astro dev server fixture |
 | `tests/setup/env-loader.ts` | Loads `.test-env.json` into Vitest workers |
+| `tests/fixtures/astro-actions-site/` | Shared Astro server fixture that exposes real `/_actions/*` RPC endpoints for integration tests |
 | `tests/helpers/` | Shared test utilities |
 
 ### Seed data
@@ -112,11 +113,13 @@ because it only needs the public WordPress REST API.
 ### How to write new tests
 
 1. Always write integration tests.
-2. Place Astro-facing coverage in `tests/integration/`.
+2. Place Astro-facing integration tests in `tests/integration/`.
 3. Use helpers from `tests/helpers/wp-client.ts`.
 4. Prefer assertions about Astro-facing behavior and package contracts over exhaustive endpoint semantics.
 5. Use exact counts and known slugs from the seeded content only when they validate Astro integration behavior.
 6. Cover success paths and error paths.
+7. Route action integration tests through the shared Astro dev server fixture (`tests/fixtures/astro-actions-site/`) and real `/_actions/*` RPC endpoints.
+   Do not execute package action helpers directly inside test workers.
 
 Reference suites:
 

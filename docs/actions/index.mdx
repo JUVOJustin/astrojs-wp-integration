@@ -24,6 +24,13 @@ Every action is a factory function that binds a WordPress auth config and return
   </Card>
 </CardGrid>
 
+## Integration testing
+
+Action integration tests run through a real Astro fixture app and call `/_actions/*` endpoints over HTTP.
+This validates routing, input parsing, handler execution, and serialized responses as one end-to-end flow.
+
+Use `npm run test:integration` for action/loaders/auth integration checks through the real Astro fixture app.
+
 ---
 
 ## Authentication

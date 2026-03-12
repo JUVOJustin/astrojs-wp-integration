@@ -220,9 +220,11 @@ Local integration test environment:
 
 - `.wp-env.json` defines the local WordPress setup.
 - `tests/wp-env/` contains mu-plugins and seeded content.
-- `tests/setup/global-setup.ts` provisions app password, JWT, and cookie+nonce fixtures for the `integration` Vitest project.
+- `tests/setup/global-setup.ts` provisions app password, JWT, cookie+nonce fixtures, and boots a real Astro dev server for the `integration` Vitest project.
 - `tests/setup/env-loader.ts` loads `.test-env.json` values for both `integration` and `astro-build` projects.
-- `tests/integration/` contains Astro-facing integration coverage for loaders, actions, auth bridge behavior, meta, ACF, abilities, and real `astro build` validation.
+- `tests/fixtures/astro-actions-site/` is the shared Astro server fixture that exposes real `/_actions/*` endpoints during integration tests.
+- Action integration suites call fixture `/_actions/*` endpoints via HTTP; tests do not execute package action helpers directly in Vitest workers.
+- `tests/integration/` contains Astro-facing integration tests for loaders, actions, auth bridge behavior, meta, ACF, abilities, and real `astro build` validation.
 
 ## Docs
 
