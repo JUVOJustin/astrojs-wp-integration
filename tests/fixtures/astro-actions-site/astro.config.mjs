@@ -1,11 +1,11 @@
 /**
- * Astro config for the action integration test fixture.
+ * Shared Astro config for integration fixtures.
  *
- * Uses on-demand rendering so the dev server can handle action RPC requests.
- * No adapter is needed for dev mode.
+ * - Action suites run against `astro dev` and need `output: 'server'`.
+ * - Build suites run `astro build` and need `output: 'static'` without an adapter.
  */
 import { defineConfig } from 'astro/config';
 
 export default defineConfig({
-  output: 'server',
+  output: process.env.ASTRO_TEST_MODE === 'build' ? 'static' : 'server',
 });

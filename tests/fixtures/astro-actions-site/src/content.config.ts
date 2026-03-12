@@ -1,18 +1,14 @@
 /**
- * Minimal Astro content config exercising static and live loaders.
- * 
- * This fixture tests the full WordPress integration:
- * - Static loaders (posts, pages, categories) for build-time content
- * - Live loaders (posts with auth) for runtime content
- * - Middleware/auth bridge for session management
- * - Actions for creating content
+ * Shared content config for build and action integration fixtures.
+ *
+ * Build tests use these static collections to verify end-to-end content loading.
  */
 import { defineCollection } from 'astro:content';
 import {
   wordPressPostStaticLoader,
   wordPressPageStaticLoader,
   wordPressCategoryStaticLoader,
-} from '../../../../../src/loaders/static';
+} from '../../../../src/loaders/static';
 
 const baseUrl = process.env.WP_BASE_URL ?? 'http://localhost:8888';
 

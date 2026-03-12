@@ -216,6 +216,10 @@ if (Astro.request.method === 'POST') {
 The auth bridge is exercised in the `integration` Vitest project and runs
 against the real local `wp-env` WordPress instance.
 
+Integration action tests use the shared Astro fixture at
+`tests/fixtures/astro-actions-site/`, which is booted by
+`tests/setup/global-setup.ts` and exposed through real `/_actions/*` endpoints.
+
 ```bash
 npm run wp:start
 npm run test:integration

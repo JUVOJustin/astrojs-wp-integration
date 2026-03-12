@@ -98,12 +98,13 @@ npm run wp:clean
 
 ### Astro build integration test
 
-`tests/integration/build/astro-build.test.ts` runs a real `astro build` against a
-minimal fixture project in `tests/integration/build/fixtures/minimal-site/`.
+`tests/integration/build/astro-build.test.ts` runs a real `astro build` against
+the shared fixture project in `tests/fixtures/astro-actions-site/`.
 The fixture defines content collections backed by the package's static loaders
-and an Astro page that renders the fetched data. The test verifies the full
-Astro pipeline (content config, loader execution, page rendering) works
-end-to-end.
+and an Astro page that renders the fetched data. The test sets
+`ASTRO_TEST_MODE=build` so the shared `astro.config.mjs` switches to static
+output for build-only validation. This verifies the full Astro pipeline
+(content config, loader execution, page rendering) works end-to-end.
 
 The build test runs through the `astro-build` project in `vitest.config.ts`.
 It loads `WP_BASE_URL` via `tests/setup/env-loader.ts` but skips the heavy

@@ -1,7 +1,47 @@
 ---
 /**
- * Minimal page required by the Astro dev server.
- * The fixture exists solely for action integration testing.
+ * Shared fixture page used by Astro build integration tests.
  */
+import { getCollection } from 'astro:content';
+
+const posts = await getCollection('posts');
+const pages = await getCollection('pages');
+const categories = await getCollection('categories');
 ---
-<html><body><h1>Action test fixture</h1></body></html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>WP Integration Build Test</title>
+</head>
+<body>
+  <h1>Build Test</h1>
+
+  <section id="posts">
+    <h2>Posts ({posts.length})</h2>
+    <ul>
+      {posts.slice(0, 3).map((post) => (
+        <li data-id={post.id}>{post.data.title?.rendered ?? post.id}</li>
+      ))}
+    </ul>
+  </section>
+
+  <section id="pages">
+    <h2>Pages ({pages.length})</h2>
+    <ul>
+      {pages.map((page) => (
+        <li data-id={page.id}>{page.data.title?.rendered ?? page.id}</li>
+      ))}
+    </ul>
+  </section>
+
+  <section id="categories">
+    <h2>Categories ({categories.length})</h2>
+    <ul>
+      {categories.map((cat) => (
+        <li data-id={cat.id}>{cat.data.name ?? cat.id}</li>
+      ))}
+    </ul>
+  </section>
+</body>
+</html>
