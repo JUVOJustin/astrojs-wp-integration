@@ -37,6 +37,7 @@
     "dev": "tsc --watch",
     "prepublishOnly": "npm run build",
     "test": "vitest run",
+    "test:build": "vitest run --config tests/integration/build/vitest.config.ts",
     "test:watch": "vitest",
     "wp:start": "wp-env start",
     "wp:stop": "wp-env stop",

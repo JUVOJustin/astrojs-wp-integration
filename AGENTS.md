@@ -82,10 +82,25 @@ ACF fields are registered by `tests/wp-env/mu-plugins/register-acf-fields.php` w
 
 ```bash
 npm run wp:start
-npm test
+npm test              # All integration tests (loaders, actions, auth)
+npm run test:build    # Astro build integration test only
 npm run wp:stop
 npm run wp:clean
 ```
+
+### Astro build integration test
+
+`tests/integration/build/astro-build.test.ts` runs a real `astro build` against a
+minimal fixture project in `tests/integration/build/fixtures/minimal-site/`.
+The fixture defines content collections backed by the package's static loaders
+and an Astro page that renders the fetched data. The test verifies the full
+Astro pipeline (content config, loader execution, page rendering) works
+end-to-end.
+
+The build test uses its own vitest config (`tests/integration/build/vitest.config.ts`)
+that loads `WP_BASE_URL` from `.test-env.json` but skips the heavy global setup
+(wp-cli password reset, app-password creation) since it only needs the public
+WordPress REST API.
 
 ### How to write new tests
 
@@ -98,6 +113,7 @@ npm run wp:clean
 
 Reference suites:
 
+- `tests/integration/build/astro-build.test.ts`
 - `tests/integration/loaders/static-loaders.test.ts`
 - `tests/integration/loaders/live-loaders.test.ts`
 - `tests/integration/actions/posts.test.ts`
