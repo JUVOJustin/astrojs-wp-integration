@@ -1,4 +1,4 @@
-import { defineAction, type ActionAPIContext, type ActionClient } from 'astro/actions/runtime/server.js';
+import { defineAction, type ActionAPIContext, type ActionClient } from 'astro:actions';
 import { z } from 'astro/zod';
 import type { WordPressStandardSchema } from 'fluent-wp-client';
 import {

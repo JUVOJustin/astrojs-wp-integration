@@ -1,6 +1,7 @@
 # Auth Action Bridge
 
 The package ships a JWT-first Astro auth bridge for WordPress.
+It supports Astro `^5.0.0 || ^6.0.0`.
 
 This bridge is a higher-level integration layer on top of `fluent-wp-client` transport primitives. New action or bridge behavior should follow established `WordPressClient` abilities and request helpers instead of inventing parallel request logic.
 
