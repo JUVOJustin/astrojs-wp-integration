@@ -1,4 +1,4 @@
-import type { ActionClient } from 'astro/actions/runtime/server.js';
+import type { ActionClient } from 'astro:actions';
 import {
   runAbilityInputSchema,
   type RunAbilityInput,

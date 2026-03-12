@@ -1,4 +1,4 @@
-import { ActionError, type ActionAPIContext } from 'astro/actions/runtime/server.js';
+import { ActionError, type ActionAPIContext } from 'astro:actions';
 import {
   resolveWordPressAuth,
   type ResolvableWordPressAuth,

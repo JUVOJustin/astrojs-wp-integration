@@ -3,7 +3,7 @@ import {
   defineAction,
   type ActionAPIContext,
   type ActionClient,
-} from 'astro/actions/runtime/server.js';
+} from 'astro:actions';
 import type { APIContext } from 'astro';
 import { z } from 'astro/zod';
 import {

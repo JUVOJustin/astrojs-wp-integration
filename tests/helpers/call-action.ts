@@ -1,4 +1,4 @@
-import type { ActionAPIContext } from 'astro/actions/runtime/server.js';
+import type { ActionAPIContext } from 'astro:actions';
 
 const ACTION_API_CONTEXT_SYMBOL = Symbol.for('astro.actionAPIContext');
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, afterAll } from 'vitest';
-import { ActionError } from 'astro/actions/runtime/server.js';
+import { ActionError } from 'astro:actions';
 import { z } from 'astro/zod';
 import {
   createCreatePostAction,

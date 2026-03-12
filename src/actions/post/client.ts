@@ -3,7 +3,7 @@ import {
   WordPressClient,
   type WordPressClientConfig,
 } from 'fluent-wp-client';
-import { ActionError } from 'astro/actions/runtime/server.js';
+import { ActionError } from 'astro:actions';
 import type {
   WordPressAuthHeaders,
   WordPressAuthHeadersProvider,

@@ -1,9 +1,19 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
+
+const astroActionsRuntimeShim = fileURLToPath(
+  new URL('./tests/helpers/astro-actions-runtime.ts', import.meta.url),
+);
 
 /**
  * Vitest configuration with dedicated projects for integration and build coverage.
  */
 export default defineConfig({
+  resolve: {
+    alias: {
+      'astro:actions': astroActionsRuntimeShim,
+    },
+  },
   test: {
     passWithNoTests: false,
     reporters: ['verbose'],
