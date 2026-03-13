@@ -194,32 +194,13 @@ async function createCookieAuthSession(baseUrl: string): Promise<{ cookieHeader:
 }
 
 /**
- * Waits for the WordPress REST API to respond before running tests
- */
-async function waitForApi(baseUrl: string, maxAttempts = 30): Promise<void> {
-  for (let i = 0; i < maxAttempts; i++) {
-    try {
-      const res = await fetch(`${baseUrl}/wp-json/wp/v2/posts`);
-      if (res.ok) return;
-    } catch {
-      // not ready yet
-    }
-    await new Promise((r) => setTimeout(r, 1000));
-  }
-  throw new Error(`WordPress API at ${baseUrl} did not become ready`);
-}
-
-/**
  * Global setup: called once before all integration tests.
  * Content seeding is handled by wp-env's afterStart lifecycle script
- * (see .wp-env.json), so this only needs to wait for the API and
- * create app-password, JWT, and cookie+nonce auth credentials for integration tests.
+ * (see .wp-env.json), so this only creates app-password, JWT,
+ * and cookie+nonce auth credentials for integration tests.
  */
 export async function setup(): Promise<void> {
   const baseUrl = process.env.WP_BASE_URL || 'http://localhost:8888';
-
-  console.log('[global-setup] Waiting for WordPress API...');
-  await waitForApi(baseUrl);
 
   console.log('[global-setup] Resetting admin password...');
   resetAdminPassword();

@@ -1,5 +1,7 @@
 # Auth Action Bridge
 
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
 The package ships a JWT-first Astro auth bridge for WordPress.
 It supports Astro `^5.0.0 || ^6.0.0`.
 
@@ -211,20 +213,6 @@ if (Astro.request.method === 'POST') {
 </form>
 ```
 
-## Testing
-
-The auth bridge is exercised in the `integration` Vitest project and runs
-against the real local `wp-env` WordPress instance.
-
-Integration action tests use the shared Astro fixture at
-`tests/fixtures/astro-site/`, which is booted by
-`tests/setup/global-setup.ts` and exposed through real `/_actions/*` endpoints.
-
-```bash
-npm run wp:start
-npm run test:integration
-npm run wp:stop
-```
-
-Run `npm test` to execute both the integration project and the separate
-`static-build` project in one command.
+<CardGrid>
+  <LinkCard title="Testing guide" href="./testing.md" description="Project test workflows, integration/static-build projects, and local wp-env commands." />
+</CardGrid>
