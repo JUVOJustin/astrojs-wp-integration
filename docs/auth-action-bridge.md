@@ -227,4 +227,4 @@ npm run wp:stop
 ```
 
 Run `npm test` to execute both the integration project and the separate
-`astro-build` project in one command.
+`static-build` project in one command.

@@ -12,7 +12,7 @@ export default defineConfig({
         test: {
           name: 'integration',
           include: ['tests/integration/**/*.test.ts'],
-          exclude: ['tests/integration/build/**/*.test.ts'],
+          exclude: ['tests/integration/loaders/static-loader-build.test.ts'],
           globalSetup: ['./tests/setup/global-setup.ts'],
           setupFiles: ['./tests/setup/env-loader.ts'],
           environment: 'node',
@@ -22,8 +22,8 @@ export default defineConfig({
       },
       {
         test: {
-          name: 'astro-build',
-          include: ['tests/integration/build/**/*.test.ts'],
+          name: 'static-build',
+          include: ['tests/integration/loaders/static-loader-build.test.ts'],
           setupFiles: ['./tests/setup/env-loader.ts'],
           environment: 'node',
           testTimeout: 120_000,

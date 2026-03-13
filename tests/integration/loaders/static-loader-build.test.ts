@@ -1,5 +1,5 @@
 /**
- * Astro build integration test.
+ * Static loader Astro build integration test.
  *
  * Runs a real `astro build` against a minimal fixture project that uses the
  * package's static loaders and content collections. This ensures the full
@@ -16,7 +16,7 @@ import path from 'node:path';
 
 const fixtureRoot = fileURLToPath(new URL('../../fixtures/astro-site', import.meta.url));
 
-describe('Astro build integration', () => {
+describe('Static Loaders: Astro build integration', () => {
   it('builds a minimal site with WordPress static loaders', async () => {
     const buildRoot = await mkdtemp(path.join(path.dirname(fixtureRoot), '.tmp-build-fixture-'));
     try {

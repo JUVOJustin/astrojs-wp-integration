@@ -35,7 +35,7 @@ This repository ships one npm package:
 | Component | Purpose |
 |---|---|
 | `@wordpress/env` | Spawns a local WordPress Docker container |
-| `Vitest` | Root test runner with projects (`integration`, `astro-build`) in `vitest.config.ts` |
+| `Vitest` | Root test runner with projects (`integration`, `static-build`) in `vitest.config.ts` |
 | `.wp-env.json` | wp-env config — PHP version, mu-plugin mappings, lifecycle scripts |
 | `tests/wp-env/mu-plugins/` | Must-use plugins mounted into the WP container |
 | `tests/wp-env/seed-content.php` | Idempotent PHP script that generates all test content on startup |
@@ -89,16 +89,16 @@ ACF fields are registered by `tests/wp-env/mu-plugins/register-acf-fields.php` w
 
 ```bash
 npm run wp:start
-npm test                    # All test projects (integration + astro-build)
+npm test                    # All test projects (integration + static-build)
 npm run test:integration    # Integration project only (loaders, actions, auth)
-npm run test:build          # Astro build project only
+npm run test:build          # Static build project only
 npm run wp:stop
 npm run wp:clean
 ```
 
 ### Astro build integration test
 
-`tests/integration/build/astro-build.test.ts` runs a real `astro build` against
+`tests/integration/loaders/static-loader-build.test.ts` runs a real `astro build` against
 the shared fixture project in `tests/fixtures/astro-site/`.
 The fixture defines content collections backed by the package's static loaders
 and an Astro page that renders the fetched data. The test sets
@@ -106,7 +106,7 @@ and an Astro page that renders the fetched data. The test sets
 output for build-only validation. This verifies the full Astro pipeline
 (content config, loader execution, page rendering) works end-to-end.
 
-The build test runs through the `astro-build` project in `vitest.config.ts`.
+The build test runs through the `static-build` project in `vitest.config.ts`.
 It loads `WP_BASE_URL` via `tests/setup/env-loader.ts` but skips the heavy
 integration `globalSetup` (wp-cli password reset, app-password creation)
 because it only needs the public WordPress REST API.
@@ -124,7 +124,7 @@ because it only needs the public WordPress REST API.
 
 Reference suites:
 
-- `tests/integration/build/astro-build.test.ts`
+- `tests/integration/loaders/static-loader-build.test.ts`
 - `tests/integration/loaders/static-loaders.test.ts`
 - `tests/integration/loaders/live-loaders.test.ts`
 - `tests/integration/loaders/live-loader-runtime.test.ts`
