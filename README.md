@@ -228,7 +228,7 @@ Local integration test environment:
 
 ## Docs
 
-- Testing guide: `docs/testing.md`
+- Testing guide: `docs/testing.mdx`
 - Auth bridge: `docs/auth-action-bridge.mdx`
 - Action overview: `docs/actions/index.mdx`
 - Post actions: `docs/actions/posts.mdx`

@@ -1,6 +1,19 @@
+---
+title: Testing
+description: Run integration and static-build test projects against a real wp-env WordPress instance with shared Astro fixtures.
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
 # Testing
 
 This package uses integration-first testing against a real local WordPress instance.
+
+<CardGrid>
+  <LinkCard title="Actions overview" href="./actions/index.mdx" description="How action factories map auth and error handling in integration tests." />
+  <LinkCard title="Auth bridge" href="./auth-action-bridge.mdx" description="JWT bridge behavior and action auth wiring covered by integration tests." />
+  <LinkCard title="Post actions" href="./actions/posts.mdx" description="Examples of action behavior validated through Astro RPC endpoints." />
+</CardGrid>
 
 ## Test Projects
 
