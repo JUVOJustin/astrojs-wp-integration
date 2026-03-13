@@ -35,12 +35,13 @@ This repository ships one npm package:
 | Component | Purpose |
 |---|---|
 | `@wordpress/env` | Spawns a local WordPress Docker container |
-| `Vitest` | Root integration test runner (`vitest.config.ts`) |
+| `Vitest` | Root test runner with projects (`integration`, `static-build`) in `vitest.config.ts` |
 | `.wp-env.json` | wp-env config — PHP version, mu-plugin mappings, lifecycle scripts |
 | `tests/wp-env/mu-plugins/` | Must-use plugins mounted into the WP container |
 | `tests/wp-env/seed-content.php` | Idempotent PHP script that generates all test content on startup |
-| `tests/setup/global-setup.ts` | Waits for WP API, creates app password + JWT token, and seeds cookie+nonce auth session env vars |
+| `tests/setup/global-setup.ts` | Waits for WP API, creates app password + JWT token, seeds cookie+nonce auth env vars, and boots the shared Astro dev server fixture |
 | `tests/setup/env-loader.ts` | Loads `.test-env.json` into Vitest workers |
+| `tests/fixtures/astro-site/` | Shared Astro server fixture that exposes real `/_actions/*` RPC endpoints for integration tests |
 | `tests/helpers/` | Shared test utilities |
 
 ### Seed data
@@ -88,24 +89,45 @@ ACF fields are registered by `tests/wp-env/mu-plugins/register-acf-fields.php` w
 
 ```bash
 npm run wp:start
-npm test
+npm test                    # All test projects (integration + static-build)
+npm run test:integration    # Integration project only (loaders, actions, auth)
+npm run test:build          # Static build project only
 npm run wp:stop
 npm run wp:clean
 ```
 
+### Astro build integration test
+
+`tests/integration/loaders/static-loader-build.test.ts` runs a real `astro build` against
+the shared fixture project in `tests/fixtures/astro-site/`.
+The fixture defines content collections backed by the package's static loaders
+and an Astro page that renders the fetched data. The test sets
+`ASTRO_TEST_MODE=build` so the shared `astro.config.mjs` switches to static
+output for build-only validation. This verifies the full Astro pipeline
+(content config, loader execution, page rendering) works end-to-end.
+
+The build test runs through the `static-build` project in `vitest.config.ts`.
+It loads `WP_BASE_URL` via `tests/setup/env-loader.ts` but skips the heavy
+integration `globalSetup` (wp-cli password reset, app-password creation)
+because it only needs the public WordPress REST API.
+
 ### How to write new tests
 
 1. Always write integration tests.
-2. Place Astro-facing coverage in `tests/integration/`.
+2. Place Astro-facing integration tests in `tests/integration/`.
 3. Use helpers from `tests/helpers/wp-client.ts`.
 4. Prefer assertions about Astro-facing behavior and package contracts over exhaustive endpoint semantics.
 5. Use exact counts and known slugs from the seeded content only when they validate Astro integration behavior.
 6. Cover success paths and error paths.
+7. Route action integration tests through the shared Astro dev server fixture (`tests/fixtures/astro-site/`) and real `/_actions/*` RPC endpoints.
+   Do not execute package action helpers directly inside test workers.
 
 Reference suites:
 
+- `tests/integration/loaders/static-loader-build.test.ts`
 - `tests/integration/loaders/static-loaders.test.ts`
 - `tests/integration/loaders/live-loaders.test.ts`
+- `tests/integration/loaders/live-loader-runtime.test.ts`
 - `tests/integration/actions/posts.test.ts`
 - `tests/integration/actions/pages.test.ts`
 - `tests/integration/actions/users.test.ts`

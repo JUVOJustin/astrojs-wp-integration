@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import {
   wordPressPostLoader,
   wordPressPageLoader,
+  wordPressMediaLoader,
   wordPressCategoryLoader,
   wordPressTagLoader,
   wordPressTermLoader,
@@ -168,6 +169,30 @@ describe('Live Loaders', () => {
         expect(typeof entry.id).toBe('string');
         expect(entry.rendered).toBeUndefined();
       }
+    });
+  });
+
+  describe('wordPressMediaLoader', () => {
+    it('returns collection entries with string ids when media exists', async () => {
+      const loader = wordPressMediaLoader({ baseUrl });
+      const result = await loader.loadCollection!({ filter: undefined } as never) as {
+        entries: Array<{ id: string; data: { id: number } }>;
+      };
+
+      expect(Array.isArray(result.entries)).toBe(true);
+
+      for (const entry of result.entries) {
+        expect(entry.id).toBe(String(entry.data.id));
+      }
+    });
+
+    it('returns one error object for missing media entries', async () => {
+      const loader = wordPressMediaLoader({ baseUrl });
+      const result = await loader.loadEntry!({ filter: { id: 999999999 } } as never) as {
+        error?: Error;
+      };
+
+      expect(result.error).toBeInstanceOf(Error);
     });
   });
 

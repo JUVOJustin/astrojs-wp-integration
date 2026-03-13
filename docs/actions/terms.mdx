@@ -3,19 +3,15 @@ title: Term Actions
 description: Create, update, and delete WordPress categories, tags, and custom taxonomy terms from Astro server actions.
 ---
 
-import { Aside, Card, CardGrid, Steps } from '@astrojs/starlight/components';
+import { Aside, CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
 
 Term actions let you create, update, and delete WordPress taxonomy terms from Astro server-side code.
 
 They support built-in taxonomies (`categories`, `tags`) and custom taxonomies by passing the taxonomy REST `resource`.
 
 <CardGrid>
-  <Card title="Shared auth and errors" icon="seti:shield">
-    See the [Actions overview](./index.mdx) for auth patterns, validation layers, and ActionError behavior.
-  </Card>
-  <Card title="Post/page actions" icon="seti:file">
-    For content resources, see [Post actions](./posts.mdx).
-  </Card>
+  <LinkCard title="Actions overview" href="./index.mdx" description="Shared auth patterns, validation layers, and ActionError behavior." />
+  <LinkCard title="Post actions" href="./posts.mdx" description="Content resource actions for posts, pages, and custom post types." />
 </CardGrid>
 
 ## Setup

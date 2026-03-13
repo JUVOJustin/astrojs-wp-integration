@@ -1,54 +1,30 @@
 import { describe, it, expect } from 'vitest';
-import type { APIContext } from 'astro';
-import { createWordPressAuthBridge } from '../../../src/server/auth';
-import { createCookieAuthClient, getBaseUrl } from '../../helpers/wp-client';
-
-/**
- * Creates one cookie stub that optionally exposes a session token.
- */
-function createCookieStub(cookieName: string, token: string | undefined): APIContext['cookies'] {
-  return {
-    get: (name: string) => {
-      if (name !== cookieName || !token) {
-        return undefined;
-      }
-
-      return { value: token };
-    },
-  } as unknown as APIContext['cookies'];
-}
+import { callAction } from '../../helpers/action-client';
+import { getBaseUrl } from '../../helpers/wp-client';
 
 /**
  * Integration tests for the packaged JWT auth bridge middleware/action helpers.
  */
 describe('Actions: Auth Bridge', () => {
   const token = process.env.WP_JWT_TOKEN!;
-  const bridge = createWordPressAuthBridge({ baseUrl: getBaseUrl() });
 
-  it('decodes one JWT token into a valid session object', () => {
-    const session = bridge.getSession(token);
+  it('decodes one JWT token into a valid session object', async () => {
+    const session = await callAction<{ token: string; authHeader: string }>('authBridgeGetSession', { token });
 
     expect(session).not.toBeNull();
-    expect(session?.token).toBe(token);
-    expect(session?.authHeader.startsWith('Bearer ')).toBe(true);
+    expect(session.token).toBe(token);
+    expect(session.authHeader.startsWith('Bearer ')).toBe(true);
   });
 
-  it('decodes one JWT token without relying on the Node Buffer global', () => {
-    const originalBuffer = globalThis.Buffer;
-    Reflect.set(globalThis as object, 'Buffer', undefined);
+  it('decodes one JWT token without relying on the Node Buffer global', async () => {
+    const session = await callAction<{ token: string }>('authBridgeGetSessionWithoutBuffer', { token });
 
-    try {
-      const session = bridge.getSession(token);
-
-      expect(session).not.toBeNull();
-      expect(session?.token).toBe(token);
-    } finally {
-      Reflect.set(globalThis as object, 'Buffer', originalBuffer);
-    }
+    expect(session).not.toBeNull();
+    expect(session.token).toBe(token);
   });
 
   it('resolves the authenticated user from one JWT session token', async () => {
-    const user = await bridge.resolveUserBySessionId(token);
+    const user = await callAction<{ slug: string } | null>('authBridgeResolveUserBySessionId', { token });
 
     expect(user).not.toBeNull();
     expect(user?.slug).toBe('admin');
@@ -57,38 +33,34 @@ describe('Actions: Auth Bridge', () => {
   it('returns null when the JWT session token is invalid', async () => {
     const tokenParts = token.split('.');
     const invalidToken = `${tokenParts[0]}.${tokenParts[1]}.invalid-signature`;
-    const user = await bridge.resolveUserBySessionId(invalidToken);
+    const user = await callAction<{ slug: string } | null>('authBridgeResolveUserBySessionId', {
+      token: invalidToken,
+    });
 
     expect(user).toBeNull();
   });
 
   it('surfaces transport errors while resolving the authenticated user', async () => {
-    const unreachableBridge = createWordPressAuthBridge({ baseUrl: 'http://127.0.0.1:9' });
-
-    await expect(unreachableBridge.resolveUserBySessionId(token)).rejects.toThrow();
+    await expect(
+      callAction('authBridgeResolveUserBySessionIdUnreachable', { token }),
+    ).rejects.toThrow();
   });
 
-  it('returns JWT auth config for action handlers', () => {
-    const actionAuth = bridge.getActionAuth({
-      cookies: createCookieStub(bridge.cookieName, token),
-    });
+  it('returns JWT auth config for action handlers', async () => {
+    const actionAuth = await callAction<{ token: string } | null>('authBridgeGetActionAuth', { token });
 
     expect(actionAuth).toEqual({ token });
   });
 
   it('resolves middleware user context from cookie-backed JWT session', async () => {
-    const user = await bridge.resolveUser({
-      cookies: createCookieStub(bridge.cookieName, token),
-    });
+    const user = await callAction<{ slug: string } | null>('authBridgeResolveUser', { token });
 
     expect(user).not.toBeNull();
     expect(user?.slug).toBe('admin');
   });
 
   it('reports unauthenticated state when cookie token is missing', async () => {
-    const authenticated = await bridge.isAuthenticated({
-      cookies: createCookieStub(bridge.cookieName, undefined),
-    });
+    const authenticated = await callAction<boolean>('authBridgeIsAuthenticated', {});
 
     expect(authenticated).toBe(false);
   });
@@ -114,10 +86,9 @@ describe('Actions: Auth Bridge', () => {
     expect(data.data?.status).toBe(403);
   });
 
-  it('authenticates one client using the seeded cookie + nonce session', async () => {
-    const client = createCookieAuthClient();
-    const user = await client.getCurrentUser();
+  it('reports authenticated state when cookie token is present', async () => {
+    const authenticated = await callAction<boolean>('authBridgeIsAuthenticated', { token });
 
-    expect(user.slug).toBe('admin');
+    expect(authenticated).toBe(true);
   });
 });

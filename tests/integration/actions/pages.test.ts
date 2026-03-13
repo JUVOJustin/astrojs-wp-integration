@@ -1,63 +1,27 @@
 import { describe, it, expect, afterAll } from 'vitest';
-import { ActionError } from 'astro:actions';
-import { z } from 'astro/zod';
-import {
-  createCreatePostAction,
-  createUpdatePostAction,
-  updatePostInputSchema,
-  executeCreatePost,
-  executeDeletePost,
-} from '../../../src/actions';
-import { createBasicAuthHeader, pageSchema } from 'fluent-wp-client';
-import { createActionBaseConfig } from '../../helpers/wp-client';
-import { callActionOrThrow } from '../../helpers/call-action';
+import { callAction } from '../../helpers/action-client';
 
 /**
  * Astro action integration for page-targeted resource behavior.
  */
 describe('Actions: Pages', () => {
-  const actionBaseConfig = createActionBaseConfig();
-  const authHeader = createBasicAuthHeader({
-    username: 'admin',
-    password: process.env.WP_APP_PASSWORD!,
-  });
-
-  const pageConfig = {
-    ...actionBaseConfig,
-    authHeader,
-    resource: 'pages' as const,
-    responseSchema: pageSchema,
-  };
+  const basicAuth = `Basic ${btoa(`admin:${process.env.WP_APP_PASSWORD!}`)}`;
 
   const createdIds: number[] = [];
 
   afterAll(async () => {
     for (const id of createdIds) {
-      await executeDeletePost(
-        {
-          ...actionBaseConfig,
-          authHeader,
-          resource: 'pages',
-        },
-        { id, force: true },
-      ).catch(() => undefined);
+      await callAction('deletePage', { id, force: true }, { authHeader: basicAuth }).catch(() => undefined);
     }
   });
 
   it('routes create action to pages endpoint and returns page response shape', async () => {
-    const createPageAction = createCreatePostAction({
-      baseUrl: pageConfig.baseUrl,
-      auth: { username: 'admin', password: process.env.WP_APP_PASSWORD! },
-      resource: 'pages',
-      responseSchema: pageSchema,
-    });
-
-    const created = await callActionOrThrow(createPageAction, {
+    const created = await callAction<{ id: number; type: string; menu_order: number }>('createPage', {
       title: 'Pages behavior: action create',
       status: 'draft',
       parent: 0,
       menu_order: 9,
-    } as never);
+    }, { authHeader: basicAuth });
 
     createdIds.push(created.id);
     expect(created.type).toBe('page');
@@ -65,52 +29,27 @@ describe('Actions: Pages', () => {
   });
 
   it('supports custom page input schema extensions in update action', async () => {
-    const page = await executeCreatePost(pageConfig, {
+    const page = await callAction<{ id: number }>('createPage', {
       title: 'Pages behavior: update schema base',
       status: 'draft',
-    });
+    }, { authHeader: basicAuth });
     createdIds.push(page.id);
 
-    const updatePageAction = createUpdatePostAction({
-      baseUrl: pageConfig.baseUrl,
-      auth: { username: 'admin', password: process.env.WP_APP_PASSWORD! },
-      resource: 'pages',
-      responseSchema: pageSchema,
-      schema: updatePostInputSchema.extend({
-        acf: z.object({
-          acf_subtitle: z.string().optional(),
-        }).optional(),
-      }),
-    });
-
-    const updated = await callActionOrThrow(updatePageAction, {
+    const updated = await callAction<{ type: string; menu_order: number }>('updatePage', {
       id: page.id,
       menu_order: 21,
-      acf: {
-        acf_subtitle: 'page action update',
-      },
-    } as never);
+      acf: { acf_subtitle: 'page action update' },
+    }, { authHeader: basicAuth });
 
     expect(updated.type).toBe('page');
     expect(updated.menu_order).toBe(21);
   });
 
   it('supports response schema override for pages actions', async () => {
-    const createPageAction = createCreatePostAction({
-      baseUrl: pageConfig.baseUrl,
-      auth: { username: 'admin', password: process.env.WP_APP_PASSWORD! },
-      resource: 'pages',
-      responseSchema: z.object({
-        id: z.number().int().positive(),
-        type: z.literal('page'),
-        status: z.string(),
-      }),
-    });
-
-    const created = await callActionOrThrow(createPageAction, {
+    const created = await callAction<{ id: number; type: 'page'; status: string }>('createPageResponseOverride', {
       title: 'Pages behavior: response override',
       status: 'draft',
-    } as never);
+    }, { authHeader: basicAuth });
 
     createdIds.push(created.id);
     expect(created.type).toBe('page');
@@ -118,16 +57,7 @@ describe('Actions: Pages', () => {
 
   it('maps page write auth failures to ActionError', async () => {
     await expect(
-      executeCreatePost(
-        {
-          ...pageConfig,
-          authHeader: '',
-        },
-        {
-          title: 'Pages behavior: unauthorized',
-          status: 'draft',
-        },
-      ),
-    ).rejects.toThrow(ActionError);
+      callAction('createPage', { title: 'Pages behavior: unauthorized', status: 'draft' }),
+    ).rejects.toMatchObject({ type: 'AstroActionError' });
   });
 });

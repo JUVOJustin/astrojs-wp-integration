@@ -1,15 +1,5 @@
 import { describe, it, expect, afterAll } from 'vitest';
-import { ActionError } from 'astro:actions';
-import { z } from 'astro/zod';
-import {
-  createPostInputSchema,
-  updatePostInputSchema,
-  executeCreatePost,
-  executeUpdatePost,
-  executeDeletePost,
-} from '../../../src/actions';
-import { createBasicAuthHeader } from 'fluent-wp-client';
-import { createActionBaseConfig } from '../../helpers/wp-client';
+import { callAction } from '../../helpers/action-client';
 
 /**
  * Astro action-layer integration for custom-field behavior.
@@ -18,21 +8,7 @@ import { createActionBaseConfig } from '../../helpers/wp-client';
  * custom ACF-shaped payloads, and ActionError mapping.
  */
 describe('Actions: ACF behavior', () => {
-  const actionBaseConfig = createActionBaseConfig();
-  const authHeader = createBasicAuthHeader({
-    username: 'admin',
-    password: process.env.WP_APP_PASSWORD!,
-  });
-
-  const authConfig = {
-    ...actionBaseConfig,
-    authHeader,
-  };
-
-  const anonConfig = {
-    ...actionBaseConfig,
-    authHeader: '',
-  };
+  const jwtAuth = `Bearer ${process.env.WP_JWT_TOKEN!}`;
 
   const createdIds: number[] = [];
 
@@ -51,65 +27,29 @@ describe('Actions: ACF behavior', () => {
 
   afterAll(async () => {
     for (const id of createdIds) {
-      await executeDeletePost(authConfig, { id, force: true }).catch(() => undefined);
+      await callAction('deletePost', { id, force: true }, { authHeader: jwtAuth }).catch(() => undefined);
     }
   });
 
-  it('allows extending create schema with ACF fields', () => {
-    const schema = createPostInputSchema.extend({
-      acf: z.object({
-        acf_subtitle: z.string().min(1),
-      }).optional(),
-    });
-
-    const parsed = schema.parse({
-      title: 'ACF behavior: schema create',
-      status: 'draft',
-      acf: {
-        acf_subtitle: 'valid subtitle',
-      },
-    });
-
-    expect(parsed.acf?.acf_subtitle).toBe('valid subtitle');
-  });
-
-  it('allows extending update schema with ACF fields and preserves id requirement', () => {
-    const schema = updatePostInputSchema.extend({
-      acf: z.object({
-        acf_priority_score: z.number().int().min(0).max(100),
-      }).optional(),
-    });
-
-    const parsed = schema.parse({
-      id: 123,
-      acf: {
-        acf_priority_score: 42,
-      },
-    });
-
-    expect(parsed.id).toBe(123);
-    expect(parsed.acf?.acf_priority_score).toBe(42);
-  });
-
-  it('forwards ACF payloads in create and update execute helpers', async () => {
-    const created = await executeCreatePost(authConfig, {
+  it('forwards ACF payloads in create and update actions', async () => {
+    const created = await callAction<{ id: number; acf?: Record<string, unknown> }>('createPostAcf', {
       title: 'ACF behavior: create passthrough',
       status: 'draft',
       acf: {
         acf_subtitle: 'initial subtitle',
         acf_priority_score: 10,
       },
-    });
+    }, { authHeader: jwtAuth });
 
     createdIds.push(created.id);
     expect(getAcf(created).acf_subtitle).toBe('initial subtitle');
 
-    const updated = await executeUpdatePost(authConfig, {
+    const updated = await callAction<{ acf?: Record<string, unknown> }>('updatePostAcf', {
       id: created.id,
       acf: {
         acf_subtitle: 'updated subtitle',
       },
-    });
+    }, { authHeader: jwtAuth });
 
     expect(getAcf(updated).acf_subtitle).toBe('updated subtitle');
     expect(getAcf(updated).acf_priority_score).toBe(10);
@@ -117,13 +57,13 @@ describe('Actions: ACF behavior', () => {
 
   it('maps unauthenticated custom-field writes to ActionError', async () => {
     await expect(
-      executeCreatePost(anonConfig, {
+      callAction('createPostAcf', {
         title: 'ACF behavior: unauthorized',
         status: 'draft',
         acf: {
           acf_subtitle: 'no auth',
         },
       }),
-    ).rejects.toThrow(ActionError);
+    ).rejects.toMatchObject({ type: 'AstroActionError' });
   });
 });

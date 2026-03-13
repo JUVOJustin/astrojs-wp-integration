@@ -1,6 +1,14 @@
 # Ability Actions
 
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
 Ability actions let you execute WordPress abilities from Astro server-side code.
+
+<CardGrid>
+  <LinkCard title="Actions overview" href="./index.mdx" description="Shared auth strategies, error mapping, and factory patterns." />
+  <LinkCard title="User actions" href="./users.mdx" description="User-focused action patterns with typed schemas." />
+  <LinkCard title="Post actions" href="./posts.mdx" description="Content write flows for posts, pages, and custom post types." />
+</CardGrid>
 
 WordPress abilities expose executable server-side primitives through the REST API at `/wp-json/wp-abilities/v1`.
 

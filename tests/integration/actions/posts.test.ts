@@ -1,133 +1,56 @@
 import { describe, it, expect, afterAll } from 'vitest';
-import { ActionError } from 'astro:actions';
-import { z } from 'astro/zod';
-import {
-  createCreatePostAction,
-  createUpdatePostAction,
-  createDeletePostAction,
-  createPostInputSchema,
-  updatePostInputSchema,
-  executeCreatePost,
-  executeDeletePost,
-} from '../../../src/actions';
-import { createJwtAuthHeader } from 'fluent-wp-client';
-import { resolveActionRequestAuth } from '../../../src/actions/auth';
-import { createActionBaseConfig, getBaseUrl } from '../../helpers/wp-client';
-import { callActionOrThrow } from '../../helpers/call-action';
+import { callAction, ActionError } from '../../helpers/action-client';
 
 /**
- * Integration tests for Astro post action behavior.
+ * Integration tests for Astro post actions through the real Astro dev server.
  *
- * These tests focus on action-layer concerns: schema customization,
- * request-context auth resolution, and typed response overrides.
+ * Actions are called via HTTP POST to the /_actions/* RPC endpoints,
+ * exercising the full Astro action pipeline: routing, input validation,
+ * handler execution, and devalue-serialized responses.
  */
 describe('Actions: Posts', () => {
-  const baseUrl = getBaseUrl();
-  const actionBaseConfig = createActionBaseConfig();
-
-  const jwtAuthConfig = {
-    ...actionBaseConfig,
-    authHeader: createJwtAuthHeader(process.env.WP_JWT_TOKEN!),
-  };
-
-  const anonConfig = {
-    ...actionBaseConfig,
-    authHeader: '',
-  };
+  const jwtAuth = `Bearer ${process.env.WP_JWT_TOKEN!}`;
 
   const createdIds: number[] = [];
 
   afterAll(async () => {
     for (const id of createdIds) {
-      await executeDeletePost(jwtAuthConfig, { id, force: true }).catch(() => {
-        return;
-      });
+      await callAction('deletePost', { id, force: true }, { authHeader: jwtAuth }).catch(() => undefined);
     }
   });
 
   it('supports custom input schema in create action factory', async () => {
-    const createAction = createCreatePostAction({
-      baseUrl,
-      auth: { token: process.env.WP_JWT_TOKEN! },
-      schema: createPostInputSchema.extend({
-        acf: z.object({
-          acf_subtitle: z.string().optional(),
-        }).optional(),
-      }),
-    });
-
-    const created = await callActionOrThrow(createAction, {
+    const created = await callAction<{ id: number }>('createPostCustomSchema', {
       title: 'Action behavior: custom schema create',
       status: 'draft',
-      acf: {
-        acf_subtitle: 'from create action schema',
-      },
-    } as never);
+      acf: { acf_subtitle: 'from create action schema' },
+    }, { authHeader: jwtAuth });
 
     createdIds.push(created.id);
     expect(created.id).toBeGreaterThan(0);
   });
 
   it('supports custom input schema in update action factory', async () => {
-    const created = await executeCreatePost(jwtAuthConfig, {
+    const created = await callAction<{ id: number }>('createPost', {
       title: 'Action behavior: custom schema update base',
       status: 'draft',
-    });
+    }, { authHeader: jwtAuth });
     createdIds.push(created.id);
 
-    const updateAction = createUpdatePostAction({
-      baseUrl,
-      auth: { token: process.env.WP_JWT_TOKEN! },
-      schema: updatePostInputSchema.extend({
-        acf: z.object({
-          acf_subtitle: z.string().optional(),
-        }).optional(),
-      }),
-    });
-
-    const updated = await callActionOrThrow(updateAction, {
+    const updated = await callAction<{ title: { rendered: string } }>('updatePostCustomSchema', {
       id: created.id,
       title: 'Action behavior: custom schema updated',
-      acf: {
-        acf_subtitle: 'from update action schema',
-      },
-    } as never);
+      acf: { acf_subtitle: 'from update action schema' },
+    }, { authHeader: jwtAuth });
 
     expect(updated.title.rendered).toBe('Action behavior: custom schema updated');
   });
 
-  it('resolves request-context auth through action auth helpers', async () => {
-    const auth = await resolveActionRequestAuth(
-      {
-        auth: ({ request }) => request.headers.get('authorization'),
-      },
-      {
-        request: new Request('https://example.com/actions', {
-          method: 'POST',
-          headers: {
-            Authorization: createJwtAuthHeader(process.env.WP_JWT_TOKEN!),
-          },
-        }),
-      } as never,
-    );
-
-    expect(auth.auth).toBe(createJwtAuthHeader(process.env.WP_JWT_TOKEN!));
-  });
-
   it('supports response schema override for create action', async () => {
-    const createAction = createCreatePostAction({
-      baseUrl,
-      auth: { token: process.env.WP_JWT_TOKEN! },
-      responseSchema: z.object({
-        id: z.number().int().positive(),
-        status: z.string(),
-      }),
-    });
-
-    const created = await callActionOrThrow(createAction, {
+    const created = await callAction<{ id: number; status: string }>('createPostResponseOverride', {
       title: 'Action behavior: response schema override',
       status: 'draft',
-    } as never);
+    }, { authHeader: jwtAuth });
 
     createdIds.push(created.id);
     expect(created.status).toBe('draft');
@@ -135,46 +58,33 @@ describe('Actions: Posts', () => {
 
   it('returns ActionError for unauthenticated action execution', async () => {
     await expect(
-      resolveActionRequestAuth(
-        {
-          auth: ({ request }) => request.headers.get('authorization'),
-        },
-        {
-          request: new Request('https://example.com/actions', { method: 'POST' }),
-        } as never,
-      ),
-    ).rejects.toThrow(ActionError);
-
-    await expect(
-      executeCreatePost(anonConfig, { title: 'Action behavior: anon execute', status: 'draft' }),
+      callAction('createPost', {
+        title: 'Action behavior: anon execute',
+        status: 'draft',
+      }),
     ).rejects.toThrow(ActionError);
   });
 
   it('supports delete action factory for trash and force delete flows', async () => {
-    const createAction = createCreatePostAction({
-      baseUrl,
-      auth: { token: process.env.WP_JWT_TOKEN! },
-    });
-
-    const deleteAction = createDeletePostAction({
-      baseUrl,
-      auth: { token: process.env.WP_JWT_TOKEN! },
-    });
-
-    const trashedCandidate = await callActionOrThrow(createAction, {
+    const trashedCandidate = await callAction<{ id: number }>('createPost', {
       title: 'Action behavior: trash flow',
       status: 'draft',
-    } as never);
+    }, { authHeader: jwtAuth });
 
-    const trashed = await callActionOrThrow(deleteAction, { id: trashedCandidate.id } as never);
+    const trashed = await callAction<{ deleted: boolean }>('deletePost', {
+      id: trashedCandidate.id,
+    }, { authHeader: jwtAuth });
     expect(trashed.deleted).toBe(false);
 
-    const forceCandidate = await callActionOrThrow(createAction, {
+    const forceCandidate = await callAction<{ id: number }>('createPost', {
       title: 'Action behavior: force delete flow',
       status: 'draft',
-    } as never);
+    }, { authHeader: jwtAuth });
 
-    const forceDeleted = await callActionOrThrow(deleteAction, { id: forceCandidate.id, force: true } as never);
+    const forceDeleted = await callAction<{ deleted: boolean }>('deletePost', {
+      id: forceCandidate.id,
+      force: true,
+    }, { authHeader: jwtAuth });
     expect(forceDeleted.deleted).toBe(true);
   });
 });

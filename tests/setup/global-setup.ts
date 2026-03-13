@@ -2,9 +2,23 @@ import { execSync } from 'child_process';
 import { writeFileSync, unlinkSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
+/** DevServer type imported at runtime to avoid TS resolution issues in globalSetup context. */
+interface AstroDevServer {
+  address: { port: number };
+  stop(): Promise<void>;
+}
 
 /** Temp file used to pass env vars from globalSetup to test workers */
 const ENV_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../.test-env.json');
+
+/** Astro fixture project root for action integration tests */
+const ASTRO_FIXTURE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../fixtures/astro-site');
+
+/** Port hint for the Astro dev server. `0` asks the OS for one free port. */
+const ASTRO_DEV_PORT = 0;
+
+/** Handle to the running Astro dev server so teardown can stop it */
+let astroDevServer: AstroDevServer | null = null;
 const DEFAULT_ADMIN_USERNAME = 'admin';
 const DEFAULT_ADMIN_PASSWORD = 'password';
 
@@ -180,32 +194,13 @@ async function createCookieAuthSession(baseUrl: string): Promise<{ cookieHeader:
 }
 
 /**
- * Waits for the WordPress REST API to respond before running tests
- */
-async function waitForApi(baseUrl: string, maxAttempts = 30): Promise<void> {
-  for (let i = 0; i < maxAttempts; i++) {
-    try {
-      const res = await fetch(`${baseUrl}/wp-json/wp/v2/posts`);
-      if (res.ok) return;
-    } catch {
-      // not ready yet
-    }
-    await new Promise((r) => setTimeout(r, 1000));
-  }
-  throw new Error(`WordPress API at ${baseUrl} did not become ready`);
-}
-
-/**
  * Global setup: called once before all integration tests.
  * Content seeding is handled by wp-env's afterStart lifecycle script
- * (see .wp-env.json), so this only needs to wait for the API and
- * create app-password, JWT, and cookie+nonce auth credentials for integration tests.
+ * (see .wp-env.json), so this only creates app-password, JWT,
+ * and cookie+nonce auth credentials for integration tests.
  */
 export async function setup(): Promise<void> {
   const baseUrl = process.env.WP_BASE_URL || 'http://localhost:8888';
-
-  console.log('[global-setup] Waiting for WordPress API...');
-  await waitForApi(baseUrl);
 
   console.log('[global-setup] Resetting admin password...');
   resetAdminPassword();
@@ -221,18 +216,32 @@ export async function setup(): Promise<void> {
 
   // Persist env vars to a file so test workers can read them (globalSetup runs
   // in a separate process — process.env changes are not inherited by workers)
-  const envData = {
+  const envData: Record<string, string> = {
     WP_BASE_URL: baseUrl,
     WP_APP_PASSWORD: appPassword,
     WP_JWT_TOKEN: jwtToken,
     WP_COOKIE_AUTH_HEADER: cookieAuthSession.cookieHeader,
     WP_REST_NONCE: cookieAuthSession.restNonce,
   };
-  writeFileSync(ENV_FILE, JSON.stringify(envData), 'utf-8');
 
-  // Also set in this process for convenience
+  // Also set in this process so the Astro dev server picks them up via Vite
   Object.assign(process.env, envData);
 
+  console.log('[global-setup] Starting Astro dev server...');
+  const { dev } = await import('astro');
+  astroDevServer = await dev({
+    root: ASTRO_FIXTURE_ROOT,
+    server: { port: ASTRO_DEV_PORT },
+    logLevel: 'silent',
+  }) as AstroDevServer;
+
+  const astroDevUrl = `http://localhost:${astroDevServer.address.port}`;
+  envData.ASTRO_DEV_URL = astroDevUrl;
+
+  writeFileSync(ENV_FILE, JSON.stringify(envData), 'utf-8');
+  process.env.ASTRO_DEV_URL = astroDevUrl;
+
+  console.log(`[global-setup] Astro dev server listening on ${astroDevUrl}`);
   console.log('[global-setup] Done.');
 }
 
@@ -241,6 +250,16 @@ export async function setup(): Promise<void> {
  */
 export async function teardown(): Promise<void> {
   console.log('[global-teardown] Cleaning up...');
+
+  // Stop the Astro dev server
+  if (astroDevServer) {
+    try {
+      await astroDevServer.stop();
+    } catch {
+      // Ignore — server may already be stopped
+    }
+    astroDevServer = null;
+  }
 
   // Remove the app password
   try {

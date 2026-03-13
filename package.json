@@ -37,7 +37,9 @@
     "dev": "tsc --watch",
     "prepublishOnly": "npm run build",
     "test": "vitest run",
-    "test:watch": "vitest",
+    "test:integration": "vitest run --project integration",
+    "test:build": "vitest run --project static-build",
+    "test:watch": "vitest --project integration --project static-build",
     "wp:start": "wp-env start",
     "wp:stop": "wp-env stop",
     "wp:clean": "wp-env clean all",
@@ -71,6 +73,7 @@
   "devDependencies": {
     "@wordpress/env": "^11.0.0",
     "astro": "^5.0.0",
+    "devalue": "^5.6.4",
     "typescript": "^5.7.2",
     "vitest": "^4.0.18"
   }

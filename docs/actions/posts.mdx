@@ -1,8 +1,14 @@
 # Post Actions
 
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
 Post actions let you **create, update, and delete WordPress posts** from Astro server-side code — form handlers, API routes, middleware, or server components.
 
-For authentication setup, the validation model, and error handling see [Actions overview](./index.mdx).
+<CardGrid>
+  <LinkCard title="Actions overview" href="./index.mdx" description="Shared authentication setup, validation model, and error handling." />
+  <LinkCard title="Term actions" href="./terms.mdx" description="Taxonomy actions for categories, tags, and custom terms." />
+  <LinkCard title="User actions" href="./users.mdx" description="User create/update/delete action patterns and schema usage." />
+</CardGrid>
 
 ---
 
@@ -173,7 +179,7 @@ const { data } = await Astro.callAction(actions.createPost, {
 });
 ```
 
-Meta keys not registered with `show_in_rest: true` are silently ignored by WordPress. Zod does not validate meta key names or value types — see the [validation model](./index.mdx#validation-model) for details.
+Meta keys not registered with `show_in_rest: true` are silently ignored by WordPress. Zod does not validate meta key names or value types — see the Actions overview card above for the validation model details.
 
 ---
 

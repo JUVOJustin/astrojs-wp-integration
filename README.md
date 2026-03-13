@@ -201,7 +201,9 @@ const posts = defineLiveCollection({
 
 ```bash
 npm run wp:start
-npm test
+npm test                    # Run all test projects
+npm run test:integration    # Integration project (actions/loaders/auth)
+npm run test:build          # Static build project
 npm run wp:stop
 ```
 
@@ -218,12 +220,16 @@ Local integration test environment:
 
 - `.wp-env.json` defines the local WordPress setup.
 - `tests/wp-env/` contains mu-plugins and seeded content.
-- `tests/setup/global-setup.ts` provisions app password, JWT, and cookie+nonce fixtures.
-- `tests/integration/` contains Astro-facing integration coverage for loaders, actions, auth bridge behavior, meta, ACF, and abilities.
+- `tests/setup/global-setup.ts` provisions app password, JWT, cookie+nonce fixtures, and boots a real Astro dev server for the `integration` Vitest project.
+- `tests/setup/env-loader.ts` loads `.test-env.json` values for both `integration` and `static-build` projects.
+- `tests/fixtures/astro-site/` is the shared Astro fixture used by integration action tests (`astro dev` + `/_actions/*`) and the build integration test (`astro build` with `ASTRO_TEST_MODE=build`).
+- Action integration suites call fixture `/_actions/*` endpoints via HTTP; tests do not execute package action helpers directly in Vitest workers.
+- `tests/integration/` contains Astro-facing integration tests for loaders (including live runtime and static build coverage), actions, auth bridge behavior, meta, ACF, and abilities.
 
 ## Docs
 
-- Auth bridge: `docs/auth-action-bridge.md`
+- Testing guide: `docs/testing.mdx`
+- Auth bridge: `docs/auth-action-bridge.mdx`
 - Action overview: `docs/actions/index.mdx`
 - Post actions: `docs/actions/posts.mdx`
 - Term actions: `docs/actions/terms.mdx`

@@ -1,145 +1,69 @@
 import { describe, it, expect, afterAll } from 'vitest';
-import { ActionError } from 'astro:actions';
-import { z } from 'astro/zod';
-import {
-  createCreateTermAction,
-  createUpdateTermAction,
-  createDeleteTermAction,
-  createTermInputSchema,
-  updateTermInputSchema,
-  executeCreateTerm,
-  executeDeleteTerm,
-} from '../../../src/actions';
-import { createBasicAuthHeader, categorySchema } from 'fluent-wp-client';
-import { createActionBaseConfig } from '../../helpers/wp-client';
-import { callActionOrThrow } from '../../helpers/call-action';
+import { callAction } from '../../helpers/action-client';
 
 /**
  * Astro action integration for taxonomy term resources.
  */
 describe('Actions: Terms', () => {
-  const actionBaseConfig = createActionBaseConfig();
-  const authHeader = createBasicAuthHeader({
-    username: 'admin',
-    password: process.env.WP_APP_PASSWORD!,
-  });
+  const basicAuth = `Basic ${btoa(`admin:${process.env.WP_APP_PASSWORD!}`)}`;
 
-  const createdTerms: Array<{ resource: string; id: number }> = [];
+  const createdTerms: Array<{ deleteAction: 'deleteCategory' | 'deleteGenre'; id: number }> = [];
 
   afterAll(async () => {
     for (const term of createdTerms) {
-      await executeDeleteTerm(
-        {
-          ...actionBaseConfig,
-          authHeader,
-          resource: term.resource,
-        },
-        { id: term.id, force: true },
-      ).catch(() => undefined);
+      await callAction(term.deleteAction, { id: term.id, force: true }, { authHeader: basicAuth })
+        .catch(() => undefined);
     }
   });
 
   it('creates and updates categories through term actions', async () => {
-    const createCategoryAction = createCreateTermAction({
-      baseUrl: actionBaseConfig.baseUrl,
-      auth: { username: 'admin', password: process.env.WP_APP_PASSWORD! },
-      resource: 'categories',
-      responseSchema: categorySchema,
-      schema: createTermInputSchema.extend({
-        custom_note: z.string().optional(),
-      }),
-    });
-
-    const created = await callActionOrThrow(createCategoryAction, {
+    const created = await callAction<{ id: number; taxonomy: string }>('createCategory', {
       name: 'Action category create',
       slug: 'action-category-create',
       custom_note: 'custom schema field',
-    } as never);
+    }, { authHeader: basicAuth });
 
-    createdTerms.push({ resource: 'categories', id: created.id });
+    createdTerms.push({ deleteAction: 'deleteCategory', id: created.id });
     expect(created.taxonomy).toBe('category');
 
-    const updateCategoryAction = createUpdateTermAction({
-      baseUrl: actionBaseConfig.baseUrl,
-      auth: { username: 'admin', password: process.env.WP_APP_PASSWORD! },
-      resource: 'categories',
-      responseSchema: categorySchema,
-      schema: updateTermInputSchema.extend({
-        custom_note: z.string().optional(),
-      }),
-    });
-
-    const updated = await callActionOrThrow(updateCategoryAction, {
+    const updated = await callAction<{ name: string }>('updateCategory', {
       id: created.id,
       name: 'Action category updated',
       custom_note: 'typed update field',
-    } as never);
+    }, { authHeader: basicAuth });
 
     expect(updated.name).toBe('Action category updated');
   });
 
   it('creates and deletes tags through term actions', async () => {
-    const createTagAction = createCreateTermAction({
-      baseUrl: actionBaseConfig.baseUrl,
-      auth: { username: 'admin', password: process.env.WP_APP_PASSWORD! },
-      resource: 'tags',
-      responseSchema: categorySchema,
-    });
-
-    const created = await callActionOrThrow(createTagAction, {
+    const created = await callAction<{ id: number; taxonomy: string }>('createTag', {
       name: 'Action tag create',
       slug: 'action-tag-create',
-    } as never);
+    }, { authHeader: basicAuth });
 
     expect(created.taxonomy).toBe('post_tag');
 
-    const deleteTagAction = createDeleteTermAction({
-      baseUrl: actionBaseConfig.baseUrl,
-      auth: { username: 'admin', password: process.env.WP_APP_PASSWORD! },
-      resource: 'tags',
-    });
-
-    const deleted = await callActionOrThrow(deleteTagAction, {
+    const deleted = await callAction<{ deleted: boolean }>('deleteTag', {
       id: created.id,
       force: true,
-    } as never);
+    }, { authHeader: basicAuth });
 
     expect(deleted.deleted).toBe(true);
   });
 
   it('supports custom taxonomy resources with response schema override', async () => {
-    const createGenreAction = createCreateTermAction({
-      baseUrl: actionBaseConfig.baseUrl,
-      auth: { username: 'admin', password: process.env.WP_APP_PASSWORD! },
-      resource: 'genres',
-      responseSchema: z.object({
-        id: z.number().int().positive(),
-        taxonomy: z.literal('genre'),
-        name: z.string(),
-      }),
-    });
-
-    const created = await callActionOrThrow(createGenreAction, {
+    const created = await callAction<{ id: number; taxonomy: 'genre'; name: string }>('createGenre', {
       name: 'Action genre create',
       slug: 'action-genre-create',
-    } as never);
+    }, { authHeader: basicAuth });
 
-    createdTerms.push({ resource: 'genres', id: created.id });
+    createdTerms.push({ deleteAction: 'deleteGenre', id: created.id });
     expect(created.taxonomy).toBe('genre');
   });
 
   it('maps term write auth failures to ActionError', async () => {
     await expect(
-      executeCreateTerm(
-        {
-          ...actionBaseConfig,
-          resource: 'categories',
-          authHeader: '',
-        },
-        {
-          name: 'Unauthorized term create',
-        },
-      ),
-    ).rejects.toThrow(ActionError);
+      callAction('createCategory', { name: 'Unauthorized term create' }),
+    ).rejects.toMatchObject({ type: 'AstroActionError' });
   });
 });

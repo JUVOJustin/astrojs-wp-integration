@@ -1,5 +1,7 @@
 # Auth Action Bridge
 
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
 The package ships a JWT-first Astro auth bridge for WordPress.
 It supports Astro `^5.0.0 || ^6.0.0`.
 
@@ -210,3 +212,7 @@ if (Astro.request.method === 'POST') {
   <button type="submit">Update post</button>
 </form>
 ```
+
+<CardGrid>
+  <LinkCard title="Testing guide" href="./testing.mdx" description="Project test workflows, integration/static-build projects, and local wp-env commands." />
+</CardGrid>

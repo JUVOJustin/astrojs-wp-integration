@@ -1,0 +1,31 @@
+---
+/**
+ * Runtime page used to validate live loader behavior inside Astro SSR.
+ */
+import { wordPressPostLoader } from '../../../../../src/loaders/live';
+
+const baseUrl = process.env.WP_BASE_URL ?? 'http://localhost:8888';
+const loader = wordPressPostLoader({ baseUrl });
+const liveResult = await loader.loadCollection!({ filter: undefined } as never) as {
+  entries?: Array<{ id: string; data: { title?: { rendered?: string } } }>;
+  error?: Error;
+};
+const entries = liveResult.entries ?? [];
+const liveErrorMessage = liveResult.error?.message ?? '';
+---
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Live Posts Test</title>
+</head>
+<body>
+  <h1>Live Posts ({entries.length})</h1>
+  {liveErrorMessage && <p id="live-loader-error">{liveErrorMessage}</p>}
+  <ul>
+    {entries.slice(0, 3).map((entry) => (
+      <li data-id={entry.id}>{entry.data.title?.rendered ?? entry.id}</li>
+    ))}
+  </ul>
+</body>
+</html>
