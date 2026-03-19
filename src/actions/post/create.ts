@@ -4,7 +4,7 @@ import {
   postWriteBaseSchema,
   type WordPressPost,
   type WordPressStandardSchema,
-} from 'fluent-wp-client';
+} from 'fluent-wp-client/zod';
 import {
   resolveActionRequestAuth,
   type ActionAuthConfig,

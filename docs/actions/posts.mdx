@@ -214,18 +214,7 @@ export const server = {
 
 ### Custom post types
 
-Register the post type in WordPress with `show_in_rest` and a `rest_base`:
-
-```php
-// functions.php or a plugin
-register_post_type('product', [
-    'public'       => true,
-    'show_in_rest' => true,       // required for REST API access
-    'rest_base'    => 'products',
-]);
-```
-
-Then pass the `rest_base` value as the `resource`:
+Register the post type in WordPress with `show_in_rest` and a `rest_base`, then pass the `rest_base` value as the `resource`:
 
 ```ts
 // src/actions/index.ts

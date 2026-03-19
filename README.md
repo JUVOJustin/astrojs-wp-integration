@@ -2,8 +2,8 @@
 
 Astro-first integration for WordPress with content loaders, server actions, auth bridge helpers, and rendering components.
 
-This package is built against `fluent-wp-client` `^2.0.0`.
-It supports Astro `^5.0.0 || ^6.0.0`.
+This package is built against `fluent-wp-client` `^2.1.0`.
+It supports Astro `^6.0.0`.
 
 ## Install
 
@@ -31,7 +31,7 @@ npm install wp-astrojs-integration
 | Categories | `categorySchema` | `wordPressCategoryLoader` | `wordPressCategoryStaticLoader` | |
 | Tags | `categorySchema` | `wordPressTagLoader` | `wordPressTagStaticLoader` | |
 | Custom taxonomies | `categorySchema` | `wordPressTermLoader` | `wordPressTermStaticLoader` | Pass custom REST `resource` |
-| Custom Post Types | - | `wordPressCPTLoader` | `wordPressCPTStaticLoader` | Pass custom REST `postType` |
+| Custom Post Types | `postSchema` (extend) | `wordPressContentLoader` | `wordPressContentStaticLoader` | Pass custom REST `resource` |
 | Users | `WordPressAuthor` | `wordPressUserLoader` | `wordPressUserStaticLoader` | |
 
 ## Quick start
@@ -228,6 +228,7 @@ Local integration test environment:
 
 ## Docs
 
+- Reading content: `docs/reading-content.mdx`
 - Testing guide: `docs/testing.mdx`
 - Auth bridge: `docs/auth-action-bridge.mdx`
 - Action overview: `docs/actions/index.mdx`

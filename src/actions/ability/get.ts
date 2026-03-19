@@ -2,7 +2,7 @@ import type { ActionClient } from 'astro:actions';
 import {
   getAbilityInputSchema,
   type GetAbilityInput,
-} from 'fluent-wp-client';
+} from 'fluent-wp-client/zod';
 import { withActionClient } from '../post/client';
 import {
   createAbilityAction,
@@ -12,8 +12,6 @@ import {
 
 /**
  * Input schema for executing one read-only WordPress ability via GET.
- * Re-exported from fluent-wp-client for backward compatibility.
- * @deprecated Import directly from 'fluent-wp-client' in new code.
  */
 export { getAbilityInputSchema };
 export type { GetAbilityInput };

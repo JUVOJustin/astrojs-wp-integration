@@ -6,6 +6,7 @@ import {
   wordPressTagStaticLoader,
   wordPressTermStaticLoader,
   wordPressUserStaticLoader,
+  wordPressContentStaticLoader,
 } from '../../../src/loaders/static';
 import { createMockStore } from '../../helpers/mock-store';
 import { createMockLogger } from '../../helpers/mock-logger';
@@ -181,6 +182,77 @@ describe('Static Loaders', () => {
         expect(Number.isFinite(Number(key))).toBe(true);
         expect(entry.rendered).toBeUndefined();
       }
+    });
+  });
+
+  describe('wordPressContentStaticLoader', () => {
+    it('stores CPT entries with string ids and rendered html', async () => {
+      const loader = wordPressContentStaticLoader({
+        baseUrl,
+        resource: 'books',
+      });
+      const { store, entries } = createMockStore();
+      const logger = createMockLogger();
+
+      await loader.load({ store, logger } as never);
+
+      expect(entries.size).toBeGreaterThan(0);
+      const first = entries.values().next().value as {
+        data: { type: string; content: { rendered: string } };
+        rendered?: { html: string };
+      };
+      expect(first.data.type).toBe('book');
+      expect(first.rendered?.html).toBe(first.data.content.rendered);
+    });
+
+    it('stores plain serializable data without function properties', async () => {
+      const loader = wordPressContentStaticLoader({
+        baseUrl,
+        resource: 'books',
+      });
+      const { store, entries } = createMockStore();
+      const logger = createMockLogger();
+
+      await loader.load({ store, logger } as never);
+
+      expect(entries.size).toBeGreaterThan(0);
+      for (const entry of entries.values()) {
+        expectSerializableContentData(entry.data as Record<string, unknown>);
+      }
+    });
+
+    it('clears store before loading CPT entries', async () => {
+      const loader = wordPressContentStaticLoader({
+        baseUrl,
+        resource: 'books',
+      });
+      const { store, entries } = createMockStore();
+      const logger = createMockLogger();
+
+      entries.set('999', {
+        data: { id: 999 },
+      });
+
+      await loader.load({ store, logger } as never);
+
+      expect(store.clear).toHaveBeenCalledTimes(1);
+      expect(entries.has('999')).toBe(false);
+      expect(entries.size).toBeGreaterThan(0);
+    });
+
+    it('logs successful CPT loader completion', async () => {
+      const loader = wordPressContentStaticLoader({
+        baseUrl,
+        resource: 'books',
+      });
+      const { store, entries } = createMockStore();
+      const logger = createMockLogger();
+
+      await loader.load({ store, logger } as never);
+
+      expect(entries.size).toBeGreaterThan(0);
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Loaded'));
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('books'));
     });
   });
 });
