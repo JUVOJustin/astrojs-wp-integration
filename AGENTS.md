@@ -10,7 +10,7 @@ This repository ships one npm package:
 
 - Treat `WordPressClient` from `fluent-wp-client` as the core integration layer. Add or harden client-backed behavior before introducing higher-level loaders, bridges, or actions that depend on it.
 - Build loaders, actions, and helpers on top of proven published client primitives.
-- The package is aligned to `fluent-wp-client` `^2.0.0`; loader payloads for post/page resources must remain plain serializable objects (no legacy helper methods on `entry.data`).
+- The package is aligned to `fluent-wp-client` `^2.1.0`; loader payloads for post/page resources must remain plain serializable objects (no legacy helper methods on `entry.data`).
 - Keep the package aligned with WordPress' extensibility model. Default to generic resource-oriented patterns that work for core entities, custom post types, custom taxonomies, plugin endpoints, and custom auth flows.
 - Prefer Standard Schema-compatible validators for client response validation interfaces so consumers can use Zod or any other compliant schema library.
 - Validate and require only the minimum data needed for a feature to work.

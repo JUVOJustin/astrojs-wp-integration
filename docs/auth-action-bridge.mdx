@@ -29,11 +29,7 @@ The bridge now relies on the published client's `loginWithJwt()` and `getCurrent
 
 ## WordPress Requirement
 
-Enable the [JWT Authentication for WP REST API](https://es.wordpress.org/plugins/jwt-authentication-for-wp-rest-api/) plugin and set a secret key in WordPress config:
-
-```php
-define('JWT_AUTH_SECRET_KEY', 'replace-with-a-long-random-secret');
-```
+Enable the [JWT Authentication for WP REST API](https://es.wordpress.org/plugins/jwt-authentication-for-wp-rest-api/) plugin and set a secret key in your WordPress configuration (`JWT_AUTH_SECRET_KEY`).
 
 ## Input Validation
 

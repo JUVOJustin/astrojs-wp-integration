@@ -106,6 +106,30 @@ export type TermFilter = QueryParams & LoaderEntryLookup & {
 };
 
 /**
+ * Configuration for generic content loaders targeting one REST post resource (CPTs).
+ * Aligns with fluent-wp-client's content(resource) method.
+ */
+export interface WordPressContentLoaderConfig extends WordPressLoaderConfig {
+  /** REST resource path (examples: 'posts', 'pages', 'products', 'books') */
+  resource: string;
+}
+
+/**
+ * Configuration for generic static content loaders (CPTs).
+ * Aligns with fluent-wp-client's content(resource) method.
+ */
+export interface WordPressContentStaticLoaderConfig extends WordPressStaticLoaderConfig {
+  /** REST resource path (examples: 'posts', 'pages', 'products', 'books') */
+  resource: string;
+}
+
+/**
+ * Filter options for content resources (custom post types).
+ * Based on fluent-wp-client PostsFilter with entry lookup extensions.
+ */
+export type ContentFilter = PostsFilter & LoaderEntryLookup;
+
+/**
  * Filter options for users (live loader).
  * Based on fluent-wp-client UsersFilter with entry lookup extensions.
  */

@@ -62,6 +62,13 @@ describe('Static Loaders: Astro build integration', () => {
       expect(categoriesCountMatch).not.toBeNull();
       const categoriesCount = parseInt(categoriesCountMatch![1], 10);
       expect(categoriesCount).toBeGreaterThan(0);
+
+      // Books section should contain seeded content (10 books).
+      expect(html).toContain('<section id="books">');
+      const booksCountMatch = html.match(/Books \((\d+)\)/);
+      expect(booksCountMatch).not.toBeNull();
+      const booksCount = parseInt(booksCountMatch![1], 10);
+      expect(booksCount).toBeGreaterThan(0);
     } finally {
       await rm(buildRoot, { recursive: true, force: true });
     }

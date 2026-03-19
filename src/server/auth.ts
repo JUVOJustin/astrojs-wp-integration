@@ -15,7 +15,7 @@ import {
   type JwtAuthCredentials,
   type JwtAuthTokenResponse,
   type WordPressAuthor,
-} from 'fluent-wp-client';
+} from 'fluent-wp-client/zod';
 
 const DEFAULT_COOKIE_NAME = 'wp_astro_auth';
 const DEFAULT_COOKIE_PATH = '/';
@@ -23,7 +23,12 @@ const DEFAULT_COOKIE_SAME_SITE: 'lax' = 'lax';
 const DEFAULT_SESSION_DURATION_SECONDS = 60 * 60 * 12;
 const loginUsernameOrEmailSchema = z.string().trim().min(1).max(320);
 
-type JwtAuthErrorResponse = z.infer<typeof jwtAuthErrorResponseSchema>;
+type JwtAuthErrorResponse = {
+  code?: string;
+  message: string;
+  statusCode?: number;
+  data?: { status?: number };
+};
 
 /**
  * Input schema for WordPress login requests handled by Astro server actions.
@@ -162,10 +167,8 @@ function isAuthFailureStatus(status: number): boolean {
  * Extracts one readable WordPress error message from a REST response payload.
  */
 function getWordPressErrorMessage(data: unknown, response: Response): string {
-  const wpError = wordPressErrorSchema.safeParse(data);
-
-  if (wpError.success) {
-    return wpError.data.message;
+  if (typeof data === 'object' && data !== null && typeof (data as { message?: unknown }).message === 'string') {
+    return (data as { message: string }).message;
   }
 
   return `WordPress API error: ${response.status} ${response.statusText}`;

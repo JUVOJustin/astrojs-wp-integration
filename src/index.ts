@@ -14,6 +14,7 @@ export {
   wordPressTagLoader,
   wordPressTermLoader,
   wordPressUserLoader,
+  wordPressContentLoader,
 } from './loaders';
 
 // Export static loaders (for defineCollection - build-time only)
@@ -25,6 +26,7 @@ export {
   wordPressTagStaticLoader,
   wordPressTermStaticLoader,
   wordPressUserStaticLoader,
+  wordPressContentStaticLoader,
 } from './loaders';
 
 export type {
@@ -32,6 +34,9 @@ export type {
   WordPressStaticLoaderConfig,
   WordPressTermLoaderConfig,
   WordPressTermStaticLoaderConfig,
+  WordPressContentLoaderConfig,
+  WordPressContentStaticLoaderConfig,
+  ContentFilter,
   PostFilter,
   PageFilter,
   MediaFilter,
@@ -203,8 +208,8 @@ export {
 export {
   WordPressSchemaValidationError,
   isStandardSchema,
-  validateWithStandardSchema,
 } from 'fluent-wp-client';
+
 export type {
   BasicAuthCredentials,
   CookieNonceAuthCredentials,

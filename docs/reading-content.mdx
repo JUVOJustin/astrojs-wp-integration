@@ -1,0 +1,776 @@
+# Reading WordPress Content
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+Fetch posts, pages, custom post types, and taxonomy terms from WordPress into Astro content collections. This guide covers static (build-time) and live (request-time) data fetching patterns.
+
+<CardGrid>
+  <LinkCard title="Actions overview" href="./actions/index.mdx" description="Write operations: create, update, and delete content." />
+  <LinkCard title="Post actions" href="./actions/posts.mdx" description="Programmatically create and manage posts." />
+  <LinkCard title="Auth bridge" href="./auth-action-bridge.mdx" description="Session-based authentication for live loaders." />
+</CardGrid>
+
+---
+
+## Static vs Live loaders
+
+Choose the loader type based on your deployment strategy and content freshness requirements.
+
+| Feature | Static loaders | Live loaders |
+|---|---|---|
+| **When data loads** | Build time (`astro build`) | Request time (SSR) |
+| **Best for** | SSG sites, stable content | Dynamic content, user-specific data |
+| **Astro API** | `defineCollection` | `defineLiveCollection` |
+| **Fetch method** | `getEntry()`, `getCollection()` | `getLiveEntry()`, `getLiveCollection()` |
+| **Caching** | Built into Astro content store | Per-request fetch |
+
+---
+
+## Setup
+
+### 1. Configure content collections
+
+Create `src/content.config.ts` (or `src/content/config.ts` in older Astro versions):
+
+```ts
+import { defineCollection, defineLiveCollection } from 'astro:content';
+import {
+  postSchema,
+  pageSchema,
+  categorySchema,
+  wordPressPostLoader,
+  wordPressPageLoader,
+  wordPressCategoryLoader,
+  wordPressPostStaticLoader,
+  wordPressPageStaticLoader,
+  wordPressCategoryStaticLoader,
+} from 'wp-astrojs-integration';
+
+// Live collections (SSR) - fetch on every request
+const posts = defineLiveCollection({
+  loader: wordPressPostLoader({
+    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  }),
+  schema: postSchema,
+});
+
+const pages = defineLiveCollection({
+  loader: wordPressPageLoader({
+    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  }),
+  schema: pageSchema,
+});
+
+const categories = defineLiveCollection({
+  loader: wordPressCategoryLoader({
+    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  }),
+  schema: categorySchema,
+});
+
+// Static collections (SSG) - fetch at build time
+const staticPosts = defineCollection({
+  loader: wordPressPostStaticLoader({
+    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  }),
+  schema: postSchema,
+});
+
+export const collections = { posts, pages, categories, staticPosts };
+```
+
+### 2. Add environment variables
+
+```bash
+# .env
+PUBLIC_WORDPRESS_BASE_URL=https://your-wordpress-site.com
+```
+
+---
+
+## Fetching posts
+
+### All posts (collection listing)
+
+```astro
+---
+// src/pages/blog/index.astro
+import { getLiveCollection } from 'astro:content';
+
+const posts = await getLiveCollection('posts');
+---
+
+<ul>
+  {posts.map((post) => (
+    <li>
+      <a href={`/blog/${post.data.slug}`}>
+        {post.data.title.rendered}
+      </a>
+      <time>{post.data.date}</time>
+    </li>
+  ))}
+</ul>
+```
+
+### Single post by slug
+
+```astro
+---
+// src/pages/blog/[slug].astro
+import { getLiveEntry } from 'astro:content';
+import WPContent from 'wp-astrojs-integration/components/WPContent.astro';
+
+const { slug } = Astro.params;
+const { entry: post } = await getLiveEntry('posts', { slug });
+
+if (!post) {
+  return Astro.redirect('/404');
+}
+---
+
+<article>
+  <h1 set:html={post.data.title.rendered} />
+  <WPContent 
+    content={post.data.content.rendered} 
+    baseUrl={import.meta.env.PUBLIC_WORDPRESS_BASE_URL} 
+  />
+</article>
+```
+
+### Single post by ID
+
+```ts
+import { getLiveEntry } from 'astro:content';
+
+const { entry: post } = await getLiveEntry('posts', { id: 42 });
+```
+
+### Filtered posts
+
+```ts
+// Posts in specific categories
+const techPosts = await getLiveCollection('posts', {
+  filter: { categories: [3, 7] }
+});
+
+// Posts with specific tags
+const featuredPosts = await getLiveCollection('posts', {
+  filter: { tags: [12, 15] }
+});
+
+// Draft posts (requires auth)
+const drafts = await getLiveCollection('posts', {
+  filter: { status: 'draft' }
+});
+
+// Ordered posts
+const recentPosts = await getLiveCollection('posts', {
+  filter: { orderby: 'date', order: 'desc' }
+});
+```
+
+---
+
+## Fetching pages
+
+Pages work identically to posts but use the page loader.
+
+### All pages
+
+```astro
+---
+const pages = await getLiveCollection('pages');
+---
+
+<nav>
+  {pages.map((page) => (
+    <a href={`/${page.data.slug}`}>{page.data.title.rendered}</a>
+  ))}
+</nav>
+```
+
+### Single page
+
+```astro
+---
+// src/pages/[slug].astro
+const { slug } = Astro.params;
+const { entry: page } = await getLiveEntry('pages', { slug });
+
+if (!page) {
+  return Astro.redirect('/404');
+}
+---
+
+<h1 set:html={page.data.title.rendered} />
+<div set:html={page.data.content.rendered} />
+```
+
+---
+
+## Custom Post Types (CPT)
+
+WordPress custom post types use the `wordPressContentLoader` (aligned with fluent-wp-client's `content(resource)` method). Ensure your CPT is registered in WordPress with `show_in_rest => true` and a `rest_base` (e.g., `products`).
+
+### Configure the collection
+
+```ts
+// src/content.config.ts
+import { defineLiveCollection } from 'astro:content';
+import { wordPressContentLoader, postSchema } from 'wp-astrojs-integration';
+import { z } from 'astro/zod';
+
+// Extend schema for CPT-specific fields
+const productSchema = postSchema.extend({
+  acf: z.object({
+    price: z.number().optional(),
+    sku: z.string().optional(),
+  }).optional(),
+});
+
+const products = defineLiveCollection({
+  loader: wordPressContentLoader({
+    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+    resource: 'products', // Matches the CPT rest_base
+  }),
+  schema: productSchema,
+});
+
+export const collections = { products };
+```
+
+### Fetch CPT entries
+
+```astro
+---
+// src/pages/products/index.astro
+import { getLiveCollection } from 'astro:content';
+
+const products = await getLiveCollection('products');
+---
+
+<div class="product-grid">
+  {products.map((product) => (
+    <article>
+      <h2>{product.data.title.rendered}</h2>
+      {product.data.acf?.price && (
+        <p class="price">${product.data.acf.price}</p>
+      )}
+      <a href={`/products/${product.data.slug}`}>View</a>
+    </article>
+  ))}
+</div>
+```
+
+### Single CPT entry
+
+```astro
+---
+// src/pages/products/[slug].astro
+import { getLiveEntry } from 'astro:content';
+import WPImage from 'wp-astrojs-integration/components/WPImage.astro';
+
+const { slug } = Astro.params;
+const { entry: product } = await getLiveEntry('products', { slug });
+
+if (!product) {
+  return Astro.redirect('/404');
+}
+
+const featuredMedia = product.data._embedded?.['wp:featuredmedia']?.[0];
+---
+
+<article>
+  {featuredMedia && <WPImage media={featuredMedia} size="large" />}
+  <h1>{product.data.title.rendered}</h1>
+  {product.data.acf?.price && (
+    <p class="price">${product.data.acf.price}</p>
+  )}
+  {product.data.acf?.sku && (
+    <p class="sku">SKU: {product.data.acf.sku}</p>
+  )}
+  <div set:html={product.data.content.rendered} />
+</article>
+```
+
+---
+
+## Taxonomy terms
+
+### Categories
+
+```ts
+// src/content.config.ts
+const categories = defineLiveCollection({
+  loader: wordPressCategoryLoader({
+    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  }),
+  schema: categorySchema,
+});
+```
+
+```astro
+---
+// Fetch all categories
+const categories = await getLiveCollection('categories');
+
+// Fetch specific category
+const { entry: category } = await getLiveEntry('categories', { slug: 'technology' });
+
+// Filter categories
+const parentCategories = await getLiveCollection('categories', {
+  filter: { parent: 0, hideEmpty: true }
+});
+---
+
+<ul>
+  {categories.map((cat) => (
+    <li>
+      <a href={`/category/${cat.data.slug}`}>
+        {cat.data.name} ({cat.data.count} posts)
+      </a>
+    </li>
+  ))}
+</ul>
+```
+
+### Tags
+
+```ts
+// src/content.config.ts
+import { wordPressTagLoader } from 'wp-astrojs-integration';
+
+const tags = defineLiveCollection({
+  loader: wordPressTagLoader({
+    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  }),
+  schema: categorySchema, // Tags share the same schema shape
+});
+```
+
+```astro
+---
+// Tag cloud
+const tags = await getLiveCollection('tags', {
+  filter: { orderby: 'count', order: 'desc', perPage: 20 }
+});
+---
+
+<div class="tag-cloud">
+  {tags.map((tag) => (
+    <a 
+      href={`/tag/${tag.data.slug}`} 
+      style={`font-size: ${Math.max(0.8, tag.data.count / 10)}rem`}
+    >
+      {tag.data.name}
+    </a>
+  ))}
+</div>
+```
+
+### Custom taxonomies
+
+Custom taxonomies work like built-in terms with the `wordPressTermLoader`. Ensure your taxonomy is registered in WordPress with `show_in_rest => true` and a `rest_base` (e.g., `genres`).
+
+```ts
+// src/content.config.ts
+import { wordPressTermLoader } from 'wp-astrojs-integration';
+
+const genres = defineLiveCollection({
+  loader: wordPressTermLoader({
+    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+    resource: 'genres', // Matches the taxonomy rest_base
+  }),
+  schema: categorySchema,
+});
+```
+
+```astro
+---
+// Fetch genres
+const genres = await getLiveCollection('genres');
+
+// Single genre
+const { entry: genre } = await getLiveEntry('genres', { slug: 'science-fiction' });
+---
+
+<ul>
+  {genres.map((g) => (
+    <li>
+      <a href={`/genres/${g.data.slug}`}>{g.data.name}</a>
+      <span>({g.data.count} books)</span>
+    </li>
+  ))}
+</ul>
+```
+
+---
+
+## Static site generation (SSG)
+
+Use static loaders for pre-built sites where content changes infrequently.
+
+### Configure static collections
+
+```ts
+// src/content.config.ts
+import { defineCollection } from 'astro:content';
+import {
+  wordPressPostStaticLoader,
+  wordPressPageStaticLoader,
+  wordPressCategoryStaticLoader,
+  wordPressTermStaticLoader,
+  wordPressContentStaticLoader,
+  postSchema,
+  pageSchema,
+  categorySchema,
+} from 'wp-astrojs-integration';
+
+const posts = defineCollection({
+  loader: wordPressPostStaticLoader({
+    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  }),
+  schema: postSchema,
+});
+
+const pages = defineCollection({
+  loader: wordPressPageStaticLoader({
+    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  }),
+  schema: pageSchema,
+});
+
+const categories = defineCollection({
+  loader: wordPressCategoryStaticLoader({
+    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  }),
+  schema: categorySchema,
+});
+
+// Custom taxonomy
+const genres = defineCollection({
+  loader: wordPressTermStaticLoader({
+    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+    resource: 'genres',
+  }),
+  schema: categorySchema,
+});
+
+// Custom post type (static)
+const products = defineCollection({
+  loader: wordPressContentStaticLoader({
+    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+    resource: 'products',
+  }),
+  schema: productSchema,
+});
+
+export const collections = { posts, pages, categories, genres, products };
+```
+
+### Fetch static content
+
+```astro
+---
+// src/pages/blog/index.astro
+import { getCollection } from 'astro:content';
+
+// Fetch all posts (loaded at build time)
+const posts = await getCollection('posts');
+---
+
+<ul>
+  {posts.map((post) => (
+    <li>
+      <a href={`/blog/${post.data.slug}`}>
+        <h2>{post.data.title.rendered}</h2>
+      </a>
+    </li>
+  ))}
+</ul>
+```
+
+### Static single entry
+
+```astro
+---
+// src/pages/blog/[...slug].astro
+import { getEntry } from 'astro:content';
+
+const { slug } = Astro.params;
+const post = await getEntry('posts', slug);
+
+if (!post) {
+  return Astro.redirect('/404');
+}
+---
+
+<article>
+  <h1 set:html={post.data.title.rendered} />
+  <div set:html={post.data.content.rendered} />
+</article>
+```
+
+---
+
+## Authentication for private content
+
+Private posts, drafts, and password-protected content require authentication.
+
+### Basic auth (app passwords)
+
+```ts
+// src/content.config.ts
+const posts = defineLiveCollection({
+  loader: wordPressPostLoader({
+    baseUrl: import.meta.env.WP_URL,
+    auth: {
+      username: import.meta.env.WP_USERNAME,
+      password: import.meta.env.WP_APP_PASSWORD,
+    },
+  }),
+  schema: postSchema,
+});
+```
+
+### JWT auth
+
+```ts
+const posts = defineLiveCollection({
+  loader: wordPressPostLoader({
+    baseUrl: import.meta.env.WP_URL,
+    auth: {
+      token: import.meta.env.WP_JWT_TOKEN,
+    },
+  }),
+  schema: postSchema,
+});
+```
+
+### Session-based auth (auth bridge)
+
+For user-specific content, use the auth bridge to resolve credentials per-request:
+
+```ts
+// src/content.config.ts
+import { createWordPressAuthBridge } from 'wp-astrojs-integration';
+
+const authBridge = createWordPressAuthBridge({
+  baseUrl: import.meta.env.WP_URL,
+  cookieName: 'wp_user_session',
+});
+
+const posts = defineLiveCollection({
+  loader: wordPressPostLoader({
+    baseUrl: import.meta.env.WP_URL,
+    auth: (context) => authBridge.getActionAuth(context),
+  }),
+  schema: postSchema,
+});
+```
+
+---
+
+## Rendering content
+
+### Basic HTML rendering
+
+```astro
+---
+const { entry: post } = await getLiveEntry('posts', { slug });
+---
+
+<article>
+  <h1 set:html={post.data.title.rendered} />
+  <div set:html={post.data.content.rendered} />
+  <div set:html={post.data.excerpt.rendered} />
+</article>
+```
+
+### WPContent component (Gutenberg support)
+
+The `WPContent` component processes WordPress content with Gutenberg block styling and image handling:
+
+```astro
+---
+import WPContent from 'wp-astrojs-integration/components/WPContent.astro';
+
+const { entry: post } = await getLiveEntry('posts', { slug });
+---
+
+<article>
+  <h1 set:html={post.data.title.rendered} />
+  <WPContent 
+    content={post.data.content.rendered}
+    baseUrl={import.meta.env.PUBLIC_WORDPRESS_BASE_URL}
+  />
+</article>
+```
+
+### Featured media
+
+```astro
+---
+import WPImage from 'wp-astrojs-integration/components/WPImage.astro';
+
+const { entry: post } = await getLiveEntry('posts', { slug });
+const featuredMedia = post.data._embedded?.['wp:featuredmedia']?.[0];
+---
+
+<article>
+  {featuredMedia && (
+    <WPImage 
+      media={featuredMedia} 
+      size="large"
+      loading="eager"
+      alt={featuredMedia.alt_text}
+    />
+  )}
+  <h1 set:html={post.data.title.rendered} />
+</article>
+```
+
+---
+
+## Complete examples
+
+### Blog with categories
+
+```astro
+---
+// src/pages/blog/index.astro
+import { getLiveCollection } from 'astro:content';
+
+const [posts, categories] = await Promise.all([
+  getLiveCollection('posts', { filter: { perPage: 10 } }),
+  getLiveCollection('categories'),
+]);
+---
+
+<div class="blog-layout">
+  <aside>
+    <h3>Categories</h3>
+    <ul>
+      {categories.map((cat) => (
+        <li>
+          <a href={`/category/${cat.data.slug}`}>
+            {cat.data.name} ({cat.data.count})
+          </a>
+        </li>
+      ))}
+    </ul>
+  </aside>
+  
+  <main>
+    {posts.map((post) => (
+      <article>
+        <h2>
+          <a href={`/blog/${post.data.slug}`}>
+            {post.data.title.rendered}
+          </a>
+        </h2>
+        <time>{new Date(post.data.date).toLocaleDateString()}</time>
+        <div set:html={post.data.excerpt.rendered} />
+      </article>
+    ))}
+  </main>
+</div>
+```
+
+### Product catalog with CPT
+
+```astro
+---
+// src/pages/shop/index.astro
+import { getLiveCollection } from 'astro:content';
+
+const products = await getLiveCollection('products', {
+  filter: { orderby: 'title', order: 'asc' }
+});
+
+// Group by category if using custom taxonomies
+const categories = await getLiveCollection('product-categories');
+---
+
+<div class="shop">
+  {categories.map((cat) => {
+    const catProducts = products.filter(p => 
+      p.data.product_categories?.includes(cat.data.id)
+    );
+    
+    return (
+      <section>
+        <h2>{cat.data.name}</h2>
+        <div class="product-grid">
+          {catProducts.map((product) => (
+            <a href={`/shop/${product.data.slug}`} class="product-card">
+              <h3>{product.data.title.rendered}</h3>
+              {product.data.acf?.price && (
+                <span class="price">${product.data.acf.price}</span>
+              )}
+            </a>
+          ))}
+        </div>
+      </section>
+    );
+  })}
+</div>
+```
+
+---
+
+## Reference: Available loaders
+
+| Entity | Live loader | Static loader | Schema |
+|---|---|---|---|
+| Posts | `wordPressPostLoader` | `wordPressPostStaticLoader` | `postSchema` |
+| Pages | `wordPressPageLoader` | `wordPressPageStaticLoader` | `pageSchema` |
+| Media | `wordPressMediaLoader` | `wordPressMediaStaticLoader` | `mediaSchema` |
+| Categories | `wordPressCategoryLoader` | `wordPressCategoryStaticLoader` | `categorySchema` |
+| Tags | `wordPressTagLoader` | `wordPressTagStaticLoader` | `categorySchema` |
+| Custom taxonomies | `wordPressTermLoader` | `wordPressTermStaticLoader` | `categorySchema` |
+| Users | `wordPressUserLoader` | `wordPressUserStaticLoader` | `authorSchema` |
+| Custom post types | `wordPressContentLoader` | `wordPressContentStaticLoader` | `postSchema` (extend as needed) |
+
+---
+
+## Reference: Common filter options
+
+### Posts filter
+
+```ts
+{
+  id?: number;           // Lookup single post by ID
+  slug?: string;         // Lookup single post by slug
+  status?: 'publish' | 'draft' | 'pending' | 'private' | 'future';
+  categories?: number[]; // Category IDs
+  tags?: number[];       // Tag IDs
+  orderby?: 'date' | 'modified' | 'title' | 'author' | 'id' | 'slug';
+  order?: 'asc' | 'desc';
+}
+```
+
+### Pages filter
+
+```ts
+{
+  id?: number;
+  slug?: string;
+  status?: 'publish' | 'draft' | 'pending' | 'private' | 'future';
+  orderby?: 'date' | 'modified' | 'title' | 'author' | 'id' | 'slug';
+  order?: 'asc' | 'desc';
+}
+```
+
+### Terms filter (categories, tags, custom)
+
+```ts
+{
+  id?: number;
+  slug?: string;
+  hideEmpty?: boolean;   // Hide terms with no posts
+  parent?: number;       // Filter by parent term ID
+  orderby?: 'name' | 'count' | 'slug' | 'id';
+  order?: 'asc' | 'desc';
+}
+```

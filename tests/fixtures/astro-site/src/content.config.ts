@@ -8,6 +8,7 @@ import {
   wordPressPostStaticLoader,
   wordPressPageStaticLoader,
   wordPressCategoryStaticLoader,
+  wordPressContentStaticLoader,
 } from '../../../../src/loaders/static';
 
 const baseUrl = process.env.WP_BASE_URL ?? 'http://localhost:8888';
@@ -27,4 +28,9 @@ const categories = defineCollection({
   loader: wordPressCategoryStaticLoader({ baseUrl }),
 });
 
-export const collections = { posts, pages, categories };
+/** Static CPT (books) collection loaded at build time. */
+const books = defineCollection({
+  loader: wordPressContentStaticLoader({ baseUrl, resource: 'books' }),
+});
+
+export const collections = { posts, pages, categories, books };

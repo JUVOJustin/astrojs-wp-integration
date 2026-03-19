@@ -1,6 +1,6 @@
 import type { Loader } from 'astro/loaders';
 import { WordPressClient } from 'fluent-wp-client';
-import type { WordPressStaticLoaderConfig, WordPressTermStaticLoaderConfig } from './types';
+import type { WordPressStaticLoaderConfig, WordPressTermStaticLoaderConfig, WordPressContentStaticLoaderConfig } from './types';
 
 /**
  * Shared shape for static loader entries stored in Astro's content store.
@@ -172,5 +172,20 @@ export function wordPressUserStaticLoader(config: WordPressStaticLoaderConfig): 
     name: 'wordpress-user-static-loader',
     logLabel: 'users',
     loadEntries: (client) => client.getAllUsers(),
+  });
+}
+
+/**
+ * Creates a static loader for custom WordPress content resources (CPTs).
+ * Aligns with fluent-wp-client's content(resource) naming.
+ */
+export function wordPressContentStaticLoader(config: WordPressContentStaticLoaderConfig): Loader {
+  const { resource, ...clientConfig } = config;
+
+  return createStaticWordPressLoader(clientConfig, {
+    name: 'wordpress-content-static-loader',
+    logLabel: resource,
+    loadEntries: (client) => client.getAllContentCollection(resource),
+    renderHtml: renderContentHtml,
   });
 }

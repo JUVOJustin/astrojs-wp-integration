@@ -7,6 +7,7 @@ import {
   wordPressTagLoader,
   wordPressTermLoader,
   wordPressUserLoader,
+  wordPressContentLoader,
 } from '../../../src/loaders/live';
 import { createJwtAuthHeader } from 'fluent-wp-client';
 import { getBaseUrl } from '../../helpers/wp-client';
@@ -279,6 +280,87 @@ describe('Live Loaders', () => {
       expect(result.data.id).toBe(1);
       expect(authAllow).toContain('GET');
       expect(authAllow).toContain('POST');
+    });
+  });
+
+  describe('wordPressContentLoader', () => {
+    it('loads custom post type collection through resource config', async () => {
+      const loader = wordPressContentLoader({
+        baseUrl,
+        resource: 'books',
+      });
+
+      const result = await loader.loadCollection!({ filter: undefined } as never) as {
+        entries: Array<{ id: string; data: { id: number; type: string; content: { rendered: string } }; rendered?: { html: string } }>;
+      };
+
+      expect(result.entries.length).toBeGreaterThan(0);
+      expect(result.entries[0].data.type).toBe('book');
+      expect(result.entries[0].id).toBe(String(result.entries[0].data.id));
+    });
+
+    it('returns rendered html aligned with content.rendered for CPTs', async () => {
+      const loader = wordPressContentLoader({
+        baseUrl,
+        resource: 'books',
+      });
+
+      const result = await loader.loadEntry!({ filter: { slug: 'test-book-001' } } as never) as {
+        data: { slug: string; content: { rendered: string } };
+        rendered?: { html: string };
+      };
+
+      expect(result.data.slug).toBe('test-book-001');
+      expect(result.rendered?.html).toBe(result.data.content.rendered);
+    });
+
+    it('returns plain data objects suitable for serialization', async () => {
+      const loader = wordPressContentLoader({
+        baseUrl,
+        resource: 'books',
+      });
+
+      const result = await loader.loadCollection!({ filter: undefined } as never) as {
+        entries: Array<{ id: string; data: Record<string, unknown> }>;
+      };
+
+      expect(result.entries.length).toBeGreaterThan(0);
+
+      for (const entry of result.entries) {
+        expectSerializableContentData(entry.data);
+      }
+    });
+
+    it('returns error object for missing CPT entries', async () => {
+      const loader = wordPressContentLoader({
+        baseUrl,
+        resource: 'books',
+      });
+
+      const result = await loader.loadEntry!({ filter: { slug: 'nonexistent-book-99999' } } as never) as {
+        error?: Error;
+      };
+
+      expect(result.error).toBeInstanceOf(Error);
+      expect(result.error?.message).toContain('books entry not found');
+    });
+
+    it('supports filtering CPT collection by status with auth', async () => {
+      const loader = wordPressContentLoader({
+        baseUrl,
+        resource: 'books',
+        authHeaders: () => ({
+          Authorization: createJwtAuthHeader(process.env.WP_JWT_TOKEN!),
+        }),
+      });
+
+      const result = await loader.loadCollection!({ filter: { status: 'draft' } } as never) as {
+        entries?: unknown[];
+        error?: Error;
+      };
+
+      // Should not error with auth
+      expect(result.error).toBeUndefined();
     });
   });
 });

@@ -10,12 +10,14 @@ import type {
 import { WordPressClient } from 'fluent-wp-client';
 import type {
   CategoryFilter,
+  ContentFilter,
   MediaFilter,
   PageFilter,
   PostFilter,
   TagFilter,
   TermFilter,
   WordPressTermLoaderConfig,
+  WordPressContentLoaderConfig,
   UserFilter,
   WordPressLoaderConfig,
 } from './types';
@@ -411,6 +413,26 @@ export function wordPressTermLoader(
 }
 
 /**
+ * Resolves one content entry from either `id` or `slug` filter input.
+ * Used for custom post types via generic content resource helpers.
+ */
+async function loadContentEntry(
+  client: WordPressClient,
+  resource: string,
+  filter: ContentFilter | undefined,
+): Promise<WordPressPost | undefined> {
+  if (filter?.id) {
+    return client.getContent(resource, filter.id);
+  }
+
+  if (filter?.slug) {
+    return client.getContentBySlug(resource, filter.slug);
+  }
+
+  return undefined;
+}
+
+/**
  * Creates a live loader for WordPress users.
  */
 export function wordPressUserLoader(
@@ -428,4 +450,32 @@ export function wordPressUserLoader(
     }),
     loadEntryData: loadUserEntry,
   }) as LiveLoader<WordPressAuthor, UserFilter>;
+}
+
+/**
+ * Creates a live loader for custom WordPress content resources (CPTs).
+ * Aligns with fluent-wp-client's content(resource) naming.
+ */
+export function wordPressContentLoader(
+  config: WordPressContentLoaderConfig,
+): LiveLoader<WordPressPost, ContentFilter> {
+  const { resource, ...clientConfig } = config;
+
+  return createLiveWordPressLoader(clientConfig, {
+    name: 'wordpress-content-loader',
+    collectionError: `Failed to load ${resource}`,
+    entryError: `Failed to load ${resource} entry`,
+    notFoundError: `${resource} entry not found`,
+    loadCollectionData: (client, filter: ContentFilter | undefined) => client.getContentCollection(resource, {
+      status: filter?.status as never,
+      categories: filter?.categories,
+      tags: filter?.tags,
+      orderby: filter?.orderby,
+      order: filter?.order,
+      perPage: filter?.perPage,
+      page: filter?.page,
+    }),
+    loadEntryData: (client, filter: ContentFilter | undefined) => loadContentEntry(client, resource, filter),
+    renderHtml: (entry) => entry.content?.rendered,
+  }) as LiveLoader<WordPressPost, ContentFilter>;
 }

@@ -7,6 +7,7 @@ import { getCollection } from 'astro:content';
 const posts = await getCollection('posts');
 const pages = await getCollection('pages');
 const categories = await getCollection('categories');
+const books = await getCollection('books');
 ---
 
 <html lang="en">
@@ -40,6 +41,15 @@ const categories = await getCollection('categories');
     <ul>
       {categories.map((cat) => (
         <li data-id={cat.id}>{cat.data.name ?? cat.id}</li>
+      ))}
+    </ul>
+  </section>
+
+  <section id="books">
+    <h2>Books ({books.length})</h2>
+    <ul>
+      {books.slice(0, 3).map((book) => (
+        <li data-id={book.id}>{book.data.title?.rendered ?? book.id}</li>
       ))}
     </ul>
   </section>

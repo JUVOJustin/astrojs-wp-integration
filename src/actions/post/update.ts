@@ -1,10 +1,9 @@
 import { defineAction, type ActionAPIContext, type ActionClient } from 'astro:actions';
 import { z } from 'astro/zod';
 import {
-  postWriteBaseSchema,
   type WordPressPost,
   type WordPressStandardSchema,
-} from 'fluent-wp-client';
+} from 'fluent-wp-client/zod';
 import {
   resolveActionRequestAuth,
   type ActionAuthConfig,
@@ -12,11 +11,12 @@ import {
 } from '../auth';
 import { withActionClient, type ExecuteActionAuthConfig } from './client';
 import { getDefaultContentResponseSchema } from './response-schema';
+import { createPostInputSchema } from './create';
 
 /**
  * Full input schema for updating an existing WordPress post (or page / CPT).
  *
- * Extends `postWriteBaseSchema` (the shared writable fields used by both
+ * Extends `createPostInputSchema` (the shared writable fields used by both
  * create and update) with the required `id` field.
  *
  * Extend this schema to add custom fields such as ACF data:
@@ -25,7 +25,7 @@ import { getDefaultContentResponseSchema } from './response-schema';
  *   acf: z.object({ hero_text: z.string().optional() }).optional(),
  * });
  */
-export const updatePostInputSchema = postWriteBaseSchema.extend({
+export const updatePostInputSchema = createPostInputSchema.extend({
   id: z.number().int().positive(),
 });
 

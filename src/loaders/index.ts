@@ -11,6 +11,9 @@ export type {
   WordPressStaticLoaderConfig,
   WordPressTermLoaderConfig,
   WordPressTermStaticLoaderConfig,
+  WordPressContentLoaderConfig,
+  WordPressContentStaticLoaderConfig,
+  ContentFilter,
   PostFilter,
   PageFilter,
   MediaFilter,
@@ -29,6 +32,7 @@ export {
   wordPressTagLoader,
   wordPressTermLoader,
   wordPressUserLoader,
+  wordPressContentLoader,
 } from './live';
 
 // Re-export static loaders
@@ -40,4 +44,5 @@ export {
   wordPressTagStaticLoader,
   wordPressTermStaticLoader,
   wordPressUserStaticLoader,
+  wordPressContentStaticLoader,
 } from './static';
