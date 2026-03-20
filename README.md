@@ -122,10 +122,10 @@ Action factories accept an optional `responseSchema` that follows the Standard S
 
 ## Auth bridge
 
-The auth bridge now supports unified auth configuration aligned with `WordPressClientConfig` patterns used by loaders and actions:
+The auth bridge provides a unified auth layer that returns `WordPressClientConfig` objects compatible with both this package and fluent-wp-client:
 
 ```ts
-import { createWordPressAuthBridge } from 'wp-astrojs-integration';
+import { createWordPressAuthBridge, WordPressClient } from 'wp-astrojs-integration';
 
 // Basic cookie-based JWT
 export const wordPressAuthBridge = createWordPressAuthBridge({
@@ -133,14 +133,34 @@ export const wordPressAuthBridge = createWordPressAuthBridge({
   cookieName: 'wp_user_session',
 });
 
+// Use in middleware to get fluent-wp-client compatible config
+export const onRequest = defineMiddleware(async (context, next) => {
+  const clientConfig = await wordPressAuthBridge.getClientConfig(context);
+  
+  if (!clientConfig) {
+    return Response.redirect(new URL('/login', context.url), 302);
+  }
+
+  // Use directly with fluent-wp-client
+  const wp = new WordPressClient(clientConfig);
+  const user = await wp.getCurrentUser();
+  context.locals.user = user;
+  
+  return next();
+});
+```
+
+The bridge supports unified auth configuration:
+
+```ts
 // With static auth (service-to-service)
-export const serviceBridge = createWordPressAuthBridge({
+const serviceBridge = createWordPressAuthBridge({
   baseUrl: import.meta.env.WP_URL,
   auth: { username: 'api-user', password: 'app-password' },
 });
 
 // With custom auth resolver
-export const customBridge = createWordPressAuthBridge({
+const customBridge = createWordPressAuthBridge({
   baseUrl: import.meta.env.WP_URL,
   authResolver: createAuthResolver((context) => {
     const token = context.cookies.get('custom_auth')?.value;
@@ -148,8 +168,6 @@ export const customBridge = createWordPressAuthBridge({
   }),
 });
 ```
-
-Note: `getActionAuth()`, `resolveUser()`, and `isAuthenticated()` are now async and support the unified auth resolver patterns.
 
 ## Auth utility exports
 
