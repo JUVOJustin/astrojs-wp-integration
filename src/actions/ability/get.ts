@@ -1,5 +1,5 @@
 import type { ActionClient } from 'astro:actions';
-import type { WordPressClient, WordPressStandardSchema } from 'fluent-wp-client';
+import type { WordPressClient } from 'fluent-wp-client';
 import {
   getAbilityInputSchema,
   type GetAbilityInput,
