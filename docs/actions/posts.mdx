@@ -18,33 +18,35 @@ Register the three action factories in your Astro project's `src/actions/index.t
 
 ```ts
 import {
+  WordPressClient,
   createCreatePostAction,
   createUpdatePostAction,
   createDeletePostAction,
 } from 'wp-astrojs-integration';
 import { wordPressAuthBridge } from '../lib/auth/bridge';
 
-const wpConfig = {
-  baseUrl: import.meta.env.WP_URL,
-  auth: (context) => wordPressAuthBridge.getActionAuth(context),
-};
-
 export const server = {
-  createPost: createCreatePostAction(wpConfig),
-  updatePost: createUpdatePostAction(wpConfig),
-  deletePost: createDeletePostAction(wpConfig),
+  createPost: createCreatePostAction(wordPressAuthBridge.getClient),
+  updatePost: createUpdatePostAction(wordPressAuthBridge.getClient),
+  deletePost: createDeletePostAction(wordPressAuthBridge.getClient),
 };
 ```
 
-If you are not using JWT sessions, pass basic auth directly:
+If you are not using JWT sessions, create one static client and pass that:
 
 ```ts
-const wpConfig = {
+const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
   },
+});
+
+export const server = {
+  createPost: createCreatePostAction(wp),
+  updatePost: createUpdatePostAction(wp),
+  deletePost: createDeletePostAction(wp),
 };
 ```
 
@@ -192,23 +194,24 @@ All action factories accept a `resource` parameter that controls which REST endp
 ```ts
 // src/actions/index.ts
 import {
+  WordPressClient,
   createCreatePostAction,
   createUpdatePostAction,
   createDeletePostAction,
 } from 'wp-astrojs-integration';
 
-const wpConfig = {
+const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
   },
-};
+});
 
 export const server = {
-  createPage: createCreatePostAction({ ...wpConfig, resource: 'pages' }),
-  updatePage: createUpdatePostAction({ ...wpConfig, resource: 'pages' }),
-  deletePage: createDeletePostAction({ ...wpConfig, resource: 'pages' }),
+  createPage: createCreatePostAction(wp, { resource: 'pages' }),
+  updatePage: createUpdatePostAction(wp, { resource: 'pages' }),
+  deletePage: createDeletePostAction(wp, { resource: 'pages' }),
 };
 ```
 
@@ -219,9 +222,9 @@ Register the post type in WordPress with `show_in_rest` and a `rest_base`, then 
 ```ts
 // src/actions/index.ts
 export const server = {
-  createProduct: createCreatePostAction({ ...wpConfig, resource: 'products' }),
-  updateProduct: createUpdatePostAction({ ...wpConfig, resource: 'products' }),
-  deleteProduct: createDeletePostAction({ ...wpConfig, resource: 'products' }),
+  createProduct: createCreatePostAction(wp, { resource: 'products' }),
+  updateProduct: createUpdatePostAction(wp, { resource: 'products' }),
+  deleteProduct: createDeletePostAction(wp, { resource: 'products' }),
 };
 ```
 
@@ -231,25 +234,24 @@ The `execute*` functions also accept `resource`. This is useful when building fu
 
 ```ts
 import {
+  WordPressClient,
   executeCreatePost,
   executeUpdatePost,
   executeDeletePost,
 } from 'wp-astrojs-integration/actions';
-import { createBasicAuthHeader } from 'wp-astrojs-integration';
 
-const config = {
+const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
-  authHeader: createBasicAuthHeader({
+  auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
-  }),
-  resource: 'products',
-};
+  },
+});
 
-const product = await executeCreatePost(config, {
+const product = await executeCreatePost(wp, {
   title: 'Running Shoes',
   status: 'publish',
-});
+}, { resource: 'products' });
 ```
 
 ---
@@ -284,22 +286,20 @@ export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
 The `create*Action` factories accept both `schema` (for typed input) and `resource` (for the REST endpoint). Combine them to get end-to-end type safety for a custom post type:
 
 ```ts
-import { createCreatePostAction, createUpdatePostAction } from 'wp-astrojs-integration';
+import { WordPressClient, createCreatePostAction, createUpdatePostAction } from 'wp-astrojs-integration';
 import { productCreateSchema, productUpdateSchema } from '../lib/product-schema';
 
-const wpConfig = {
+const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
   auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
-};
+});
 
 export const server = {
-  createProduct: createCreatePostAction({
-    ...wpConfig,
+  createProduct: createCreatePostAction(wp, {
     resource: 'products',
     schema: productCreateSchema,
   }),
-  updateProduct: createUpdatePostAction({
-    ...wpConfig,
+  updateProduct: createUpdatePostAction(wp, {
     resource: 'products',
     schema: productUpdateSchema,
   }),

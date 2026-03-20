@@ -7,12 +7,10 @@
 
 // Re-export types
 export type {
-  WordPressLoaderConfig,
-  WordPressStaticLoaderConfig,
-  WordPressTermLoaderConfig,
-  WordPressTermStaticLoaderConfig,
-  WordPressContentLoaderConfig,
-  WordPressContentStaticLoaderConfig,
+  WordPressTermLoaderOptions,
+  WordPressTermStaticLoaderOptions,
+  WordPressContentLoaderOptions,
+  WordPressContentStaticLoaderOptions,
   ContentFilter,
   PostFilter,
   PageFilter,

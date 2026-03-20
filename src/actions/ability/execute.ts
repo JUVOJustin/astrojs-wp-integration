@@ -1,13 +1,17 @@
 import type { ActionClient } from 'astro:actions';
+import type { WordPressClient } from 'fluent-wp-client';
 import {
   runAbilityInputSchema,
   type RunAbilityInput,
 } from 'fluent-wp-client/zod';
-import { withActionClient } from '../post/client';
+import {
+  withActionClient,
+  type ResolvableActionClient,
+} from '../post/client';
 import {
   createAbilityAction,
-  type AbilityActionConfig,
-  type ExecuteAbilityConfig,
+  type AbilityActionOptions,
+  type ExecuteAbilityOptions,
 } from './factory';
 
 /**
@@ -17,24 +21,37 @@ export { runAbilityInputSchema };
 export type { RunAbilityInput };
 
 /**
- * Low-level config accepted by `executeRunAbility`.
+ * Low-level options accepted by `executeRunAbility`.
  */
-export type ExecuteRunAbilityConfig<T = unknown> = ExecuteAbilityConfig<T>;
+export type ExecuteRunAbilityOptions<T = unknown> = ExecuteAbilityOptions<T>;
 
 /**
- * Configuration required to create the run-ability action factory.
- * @deprecated Use AbilityActionConfig directly from factory.
+ * @deprecated Use `ExecuteRunAbilityOptions` instead.
  */
-export type RunAbilityActionConfig<T = unknown> = AbilityActionConfig<T>;
+export type ExecuteRunAbilityConfig<T = unknown> = ExecuteRunAbilityOptions<T>;
+
+/**
+ * Shared non-auth options accepted by the run-ability action factory.
+ * @deprecated Use `RunAbilityActionOptions` instead.
+ */
+export type RunAbilityActionConfig<T = unknown> = AbilityActionOptions<T>;
+
+type RunAbilityActionOptions<
+  TResponse,
+  TSchema extends typeof runAbilityInputSchema,
+> = AbilityActionOptions<TResponse> & {
+  schema?: TSchema;
+};
 
 /**
  * Executes one regular WordPress ability via the standalone client.
  */
 export async function executeRunAbility<T = unknown>(
-  config: ExecuteRunAbilityConfig<T>,
+  client: WordPressClient,
   input: RunAbilityInput,
+  options?: ExecuteRunAbilityOptions<T>,
 ): Promise<T> {
-  return withActionClient(config, (client) => client.executeRunAbility(input.name, input.input, config.responseSchema));
+  return withActionClient(client, (resolvedClient) => resolvedClient.executeRunAbility(input.name, input.input, options?.responseSchema));
 }
 
 /**
@@ -43,10 +60,11 @@ export async function executeRunAbility<T = unknown>(
 export function createRunAbilityAction<
   TResponse = unknown,
   TSchema extends typeof runAbilityInputSchema = typeof runAbilityInputSchema,
->(config: AbilityActionConfig<TResponse> & { schema?: TSchema }): ActionClient<TResponse, undefined, TSchema> & string {
+>(client: ResolvableActionClient, options?: RunAbilityActionOptions<TResponse, TSchema>): ActionClient<TResponse, undefined, TSchema> & string {
   return createAbilityAction<RunAbilityInput, TResponse, TSchema>({
-    ...config,
+    ...options,
+    client,
     defaultSchema: runAbilityInputSchema as TSchema,
-    execute: (executeConfig, input) => executeRunAbility<TResponse>(executeConfig, input),
+    execute: (resolvedClient, input, executeOptions) => executeRunAbility<TResponse>(resolvedClient, input, executeOptions),
   });
 }

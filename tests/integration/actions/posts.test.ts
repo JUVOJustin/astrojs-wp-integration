@@ -30,6 +30,16 @@ describe('Actions: Posts', () => {
     expect(created.id).toBeGreaterThan(0);
   });
 
+  it('supports request-aware client resolvers in create action factories', async () => {
+    const created = await callAction<{ id: number }>('createPostWithBridgeClient', {
+      title: 'Action behavior: bridge client create',
+      status: 'draft',
+    }, { authHeader: jwtAuth });
+
+    createdIds.push(created.id);
+    expect(created.id).toBeGreaterThan(0);
+  });
+
   it('supports custom input schema in update action factory', async () => {
     const created = await callAction<{ id: number }>('createPost', {
       title: 'Action behavior: custom schema update base',

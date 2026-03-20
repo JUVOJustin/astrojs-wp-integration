@@ -28,6 +28,16 @@ describe('Actions: Pages', () => {
     expect(created.menu_order).toBe(9);
   });
 
+  it('accepts one preconfigured WordPress client directly in the action factory', async () => {
+    const created = await callAction<{ id: number; type: string }>('createPageWithStaticClient', {
+      title: 'Pages behavior: static client create',
+      status: 'draft',
+    });
+
+    createdIds.push(created.id);
+    expect(created.type).toBe('page');
+  });
+
   it('supports custom page input schema extensions in update action', async () => {
     const page = await callAction<{ id: number }>('createPage', {
       title: 'Pages behavior: update schema base',

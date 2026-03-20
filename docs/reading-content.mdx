@@ -7,7 +7,7 @@ Fetch posts, pages, custom post types, and taxonomy terms from WordPress into As
 <CardGrid>
   <LinkCard title="Actions overview" href="./actions/index.mdx" description="Write operations: create, update, and delete content." />
   <LinkCard title="Post actions" href="./actions/posts.mdx" description="Programmatically create and manage posts." />
-  <LinkCard title="Auth bridge" href="./auth-action-bridge.mdx" description="Session-based authentication for live loaders." />
+  <LinkCard title="Auth bridge" href="./auth-action-bridge.mdx" description="Session-based authentication for middleware and actions." />
 </CardGrid>
 
 ---
@@ -36,6 +36,7 @@ Create `src/live.config.ts` for live collections and `src/content.config.ts` for
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
 import {
+  WordPressClient,
   postSchema,
   pageSchema,
   categorySchema,
@@ -44,25 +45,23 @@ import {
   wordPressCategoryLoader,
 } from 'wp-astrojs-integration';
 
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+});
+
 // Live collections (SSR) - fetch on every request
 const posts = defineLiveCollection({
-  loader: wordPressPostLoader({
-    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
-  }),
+  loader: wordPressPostLoader(wp),
   schema: postSchema,
 });
 
 const pages = defineLiveCollection({
-  loader: wordPressPageLoader({
-    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
-  }),
+  loader: wordPressPageLoader(wp),
   schema: pageSchema,
 });
 
 const categories = defineLiveCollection({
-  loader: wordPressCategoryLoader({
-    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
-  }),
+  loader: wordPressCategoryLoader(wp),
   schema: categorySchema,
 });
 
@@ -79,9 +78,7 @@ import {
 
 // Static collections (SSG) - fetch at build time
 const staticPosts = defineCollection({
-  loader: wordPressPostStaticLoader({
-    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
-  }),
+  loader: wordPressPostStaticLoader(wp),
   schema: postSchema,
 });
 
@@ -218,8 +215,16 @@ WordPress custom post types use the `wordPressContentLoader` (aligned with fluen
 ```ts
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
-import { contentWordPressSchema, wordPressContentLoader } from 'wp-astrojs-integration';
 import { z } from 'astro/zod';
+import {
+  WordPressClient,
+  contentWordPressSchema,
+  wordPressContentLoader,
+} from 'wp-astrojs-integration';
+
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+});
 
 // Extend schema for CPT-specific fields
 const productSchema = contentWordPressSchema.extend({
@@ -230,8 +235,7 @@ const productSchema = contentWordPressSchema.extend({
 });
 
 const products = defineLiveCollection({
-  loader: wordPressContentLoader({
-    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  loader: wordPressContentLoader(wp, {
     resource: 'products', // Matches the CPT rest_base
   }),
   schema: productSchema,
@@ -302,10 +306,19 @@ const featuredMedia = product.data._embedded?.['wp:featuredmedia']?.[0];
 
 ```ts
 // src/live.config.ts
+import { defineLiveCollection } from 'astro:content';
+import {
+  WordPressClient,
+  categorySchema,
+  wordPressCategoryLoader,
+} from 'wp-astrojs-integration';
+
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+});
+
 const categories = defineLiveCollection({
-  loader: wordPressCategoryLoader({
-    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
-  }),
+  loader: wordPressCategoryLoader(wp),
   schema: categorySchema,
 });
 ```
@@ -337,12 +350,19 @@ const { entries: parentCategories } = await getLiveCollection('categories', { pa
 
 ```ts
 // src/live.config.ts
-import { wordPressTagLoader } from 'wp-astrojs-integration';
+import { defineLiveCollection } from 'astro:content';
+import {
+  WordPressClient,
+  categorySchema,
+  wordPressTagLoader,
+} from 'wp-astrojs-integration';
+
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+});
 
 const tags = defineLiveCollection({
-  loader: wordPressTagLoader({
-    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
-  }),
+  loader: wordPressTagLoader(wp),
   schema: categorySchema, // Tags share the same schema shape
 });
 ```
@@ -371,11 +391,19 @@ Custom taxonomies work like built-in terms with the `wordPressTermLoader`. Ensur
 
 ```ts
 // src/live.config.ts
-import { wordPressTermLoader } from 'wp-astrojs-integration';
+import { defineLiveCollection } from 'astro:content';
+import {
+  WordPressClient,
+  categorySchema,
+  wordPressTermLoader,
+} from 'wp-astrojs-integration';
+
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+});
 
 const genres = defineLiveCollection({
-  loader: wordPressTermLoader({
-    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  loader: wordPressTermLoader(wp, {
     resource: 'genres', // Matches the taxonomy rest_base
   }),
   schema: categorySchema,
@@ -413,6 +441,7 @@ Use static loaders for pre-built sites where content changes infrequently.
 // src/content.config.ts
 import { defineCollection } from 'astro:content';
 import {
+  WordPressClient,
   wordPressPostStaticLoader,
   wordPressPageStaticLoader,
   wordPressCategoryStaticLoader,
@@ -423,42 +452,34 @@ import {
   categorySchema,
 } from 'wp-astrojs-integration';
 
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+});
+
 const posts = defineCollection({
-  loader: wordPressPostStaticLoader({
-    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
-  }),
+  loader: wordPressPostStaticLoader(wp),
   schema: postSchema,
 });
 
 const pages = defineCollection({
-  loader: wordPressPageStaticLoader({
-    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
-  }),
+  loader: wordPressPageStaticLoader(wp),
   schema: pageSchema,
 });
 
 const categories = defineCollection({
-  loader: wordPressCategoryStaticLoader({
-    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
-  }),
+  loader: wordPressCategoryStaticLoader(wp),
   schema: categorySchema,
 });
 
 // Custom taxonomy
 const genres = defineCollection({
-  loader: wordPressTermStaticLoader({
-    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
-    resource: 'genres',
-  }),
+  loader: wordPressTermStaticLoader(wp, { resource: 'genres' }),
   schema: categorySchema,
 });
 
 // Custom post type (static)
 const products = defineCollection({
-  loader: wordPressContentStaticLoader({
-    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
-    resource: 'products',
-  }),
+  loader: wordPressContentStaticLoader(wp, { resource: 'products' }),
   schema: productSchema,
 });
 
@@ -518,14 +539,23 @@ Private posts, drafts, and password-protected content require authentication.
 
 ```ts
 // src/live.config.ts
+import { defineLiveCollection } from 'astro:content';
+import {
+  WordPressClient,
+  postSchema,
+  wordPressPostLoader,
+} from 'wp-astrojs-integration';
+
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
+});
+
 const posts = defineLiveCollection({
-  loader: wordPressPostLoader({
-    baseUrl: import.meta.env.WP_URL,
-    auth: {
-      username: import.meta.env.WP_USERNAME,
-      password: import.meta.env.WP_APP_PASSWORD,
-    },
-  }),
+  loader: wordPressPostLoader(wp),
   schema: postSchema,
 });
 ```
@@ -533,38 +563,32 @@ const posts = defineLiveCollection({
 ### JWT auth
 
 ```ts
+// src/live.config.ts
+import { defineLiveCollection } from 'astro:content';
+import {
+  WordPressClient,
+  postSchema,
+  wordPressPostLoader,
+} from 'wp-astrojs-integration';
+
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    token: import.meta.env.WP_JWT_TOKEN,
+  },
+});
+
 const posts = defineLiveCollection({
-  loader: wordPressPostLoader({
-    baseUrl: import.meta.env.WP_URL,
-    auth: {
-      token: import.meta.env.WP_JWT_TOKEN,
-    },
-  }),
+  loader: wordPressPostLoader(wp),
   schema: postSchema,
 });
 ```
 
 ### Session-based auth (auth bridge)
 
-For user-specific content, use the auth bridge to resolve credentials per-request:
+Live and static loaders do not receive one Astro request context, so session-based bridge auth is not available there. Use `createWordPressAuthBridge()` for middleware, routes, and action factories instead, and keep loaders on a public or statically authenticated `WordPressClient`.
 
-```ts
-// src/live.config.ts
-import { createWordPressAuthBridge } from 'wp-astrojs-integration';
-
-const authBridge = createWordPressAuthBridge({
-  baseUrl: import.meta.env.WP_URL,
-  cookieName: 'wp_user_session',
-});
-
-const posts = defineLiveCollection({
-  loader: wordPressPostLoader({
-    baseUrl: import.meta.env.WP_URL,
-    auth: (context) => authBridge.getActionAuth(context),
-  }),
-  schema: postSchema,
-});
-```
+See [Auth Action Bridge](./auth-action-bridge.mdx) for request-scoped auth patterns.
 
 ---
 

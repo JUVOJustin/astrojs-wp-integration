@@ -1,11 +1,11 @@
 import { defineAction, type ActionAPIContext, type ActionClient } from 'astro:actions';
 import { z } from 'astro/zod';
+import type { WordPressClient } from 'fluent-wp-client';
 import {
-  resolveActionRequestAuth,
-  type ActionAuthConfig,
-  type ResolvableActionAuthHeaders,
-} from '../auth';
-import { withActionClient, type ExecuteActionAuthConfig } from '../post/client';
+  resolveRequiredActionClient,
+  withActionClient,
+  type ResolvableActionClient,
+} from '../post/client';
 
 /**
  * Input schema for deleting one WordPress term.
@@ -23,38 +23,43 @@ export type DeleteTermInput = z.infer<typeof deleteTermInputSchema>;
 export type DeleteTermResult = { id: number; deleted: boolean };
 
 /**
- * Low-level config accepted by `executeDeleteTerm`.
+ * Low-level options accepted by `executeDeleteTerm`.
  */
-export interface ExecuteDeleteTermConfig extends ExecuteActionAuthConfig {
+export interface ExecuteDeleteTermOptions {
   /** REST resource path appended to the published client base URL (default: 'categories') */
   resource?: string;
 }
 
 /**
- * Configuration required to create the delete-term action factory.
+ * @deprecated Use `ExecuteDeleteTermOptions` instead.
  */
-export interface DeleteTermActionConfig {
-  /** WordPress site URL (e.g. 'https://example.com') */
-  baseUrl: string;
-  /** Static or request-scoped auth config (basic, JWT, or prebuilt header) */
-  auth?: ActionAuthConfig;
-  /** Advanced request-aware auth headers for OAuth-like signature methods */
-  authHeaders?: ResolvableActionAuthHeaders;
+export type ExecuteDeleteTermConfig = ExecuteDeleteTermOptions;
+
+/**
+ * Shared non-auth options accepted by the delete-term action factory.
+ */
+export interface DeleteTermActionOptions {
   /** REST resource path (default: 'categories') — set to 'tags' or a custom taxonomy rest_base */
   resource?: string;
 }
 
 /**
+ * @deprecated Use `DeleteTermActionOptions` instead.
+ */
+export type DeleteTermActionConfig = DeleteTermActionOptions;
+
+/**
  * Deletes one WordPress term (category, tag, or custom taxonomy term).
  */
 export async function executeDeleteTerm(
-  config: ExecuteDeleteTermConfig,
-  input: DeleteTermInput
+  client: WordPressClient,
+  input: DeleteTermInput,
+  options?: ExecuteDeleteTermOptions,
 ): Promise<DeleteTermResult> {
-  const resource = config.resource ?? 'categories';
+  const resource = options?.resource ?? 'categories';
 
-  return withActionClient(config, async (client) => {
-    const result = await client.deleteTerm(resource, input.id, { force: input.force });
+  return withActionClient(client, async (resolvedClient) => {
+    const result = await resolvedClient.deleteTerm(resource, input.id, { force: input.force });
     return { id: result.id, deleted: result.deleted };
   });
 }
@@ -63,20 +68,17 @@ export async function executeDeleteTerm(
  * Creates one Astro server action that deletes taxonomy terms.
  */
 export function createDeleteTermAction(
-  config: DeleteTermActionConfig
+  client: ResolvableActionClient,
+  options?: DeleteTermActionOptions,
 ): ActionClient<DeleteTermResult, undefined, typeof deleteTermInputSchema> & string {
-  const resource = config.resource;
+  const resource = options?.resource;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return defineAction({
     input: deleteTermInputSchema,
     handler: async (input: DeleteTermInput, context: ActionAPIContext) => {
-      const requestAuth = await resolveActionRequestAuth({
-        auth: config.auth,
-        authHeaders: config.authHeaders,
-      }, context);
-
-      return executeDeleteTerm({ baseUrl: config.baseUrl, ...requestAuth, resource }, input);
+      const resolvedClient = await resolveRequiredActionClient(client, context);
+      return executeDeleteTerm(resolvedClient, input, { resource });
     },
   } as any) as ActionClient<DeleteTermResult, undefined, typeof deleteTermInputSchema> & string;
 }

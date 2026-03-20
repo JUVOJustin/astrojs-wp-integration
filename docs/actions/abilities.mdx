@@ -30,15 +30,10 @@ import {
 } from 'wp-astrojs-integration';
 import { wordPressAuthBridge } from '../lib/auth/bridge';
 
-const wpConfig = {
-  baseUrl: import.meta.env.WP_URL,
-  auth: (context) => wordPressAuthBridge.getActionAuth(context),
-};
-
 export const server = {
-  getAbility: createGetAbilityAction(wpConfig),
-  runAbility: createRunAbilityAction(wpConfig),
-  deleteAbility: createDeleteAbilityAction(wpConfig),
+  getAbility: createGetAbilityAction(wordPressAuthBridge.getClient),
+  runAbility: createRunAbilityAction(wordPressAuthBridge.getClient),
+  deleteAbility: createDeleteAbilityAction(wordPressAuthBridge.getClient),
 };
 ```
 
@@ -80,6 +75,7 @@ Pass a `responseSchema` when you want the action result parsed and typed locally
 Any Standard Schema-compatible validator works (including Zod).
 
 ```ts
+import { WordPressClient } from 'wp-astrojs-integration';
 import { z } from 'astro/zod';
 
 const optionResultSchema = z.object({
@@ -88,8 +84,13 @@ const optionResultSchema = z.object({
 });
 
 export const server = {
-  runAbility: createRunAbilityAction({
-    ...wpConfig,
+  runAbility: createRunAbilityAction(new WordPressClient({
+    baseUrl: import.meta.env.WP_URL,
+    auth: {
+      username: import.meta.env.WP_USERNAME,
+      password: import.meta.env.WP_APP_PASSWORD,
+    },
+  }), {
     responseSchema: optionResultSchema,
   }),
 };
@@ -101,20 +102,20 @@ The raw `execute*` functions are useful in tests or custom wrappers.
 
 ```ts
 import {
+  WordPressClient,
   executeDeleteAbility,
   executeGetAbility,
   executeRunAbility,
 } from 'wp-astrojs-integration/actions';
-import { createBasicAuthHeader } from 'wp-astrojs-integration';
 
-const config = {
+const wp = new WordPressClient({
   baseUrl: 'https://example.com',
-  authHeader: createBasicAuthHeader({ username: 'admin', password: 'app-password' }),
-};
+  auth: { username: 'admin', password: 'app-password' },
+});
 
-await executeGetAbility(config, { name: 'my-plugin/get-site-info' });
-await executeRunAbility(config, { name: 'my-plugin/update-option', input: { value: 'hello' } });
-await executeDeleteAbility(config, { name: 'my-plugin/delete-cache' });
+await executeGetAbility(wp, { name: 'my-plugin/get-site-info' });
+await executeRunAbility(wp, { name: 'my-plugin/update-option', input: { value: 'hello' } });
+await executeDeleteAbility(wp, { name: 'my-plugin/delete-cache' });
 ```
 
 ## Client relationship

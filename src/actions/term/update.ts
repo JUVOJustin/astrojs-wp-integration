@@ -1,16 +1,16 @@
 import { defineAction, type ActionAPIContext, type ActionClient } from 'astro:actions';
 import { z } from 'astro/zod';
+import type { WordPressClient } from 'fluent-wp-client';
 import {
   categorySchema,
   type WordPressCategory,
   type WordPressStandardSchema,
 } from 'fluent-wp-client';
 import {
-  resolveActionRequestAuth,
-  type ActionAuthConfig,
-  type ResolvableActionAuthHeaders,
-} from '../auth';
-import { withActionClient, type ExecuteActionAuthConfig } from '../post/client';
+  resolveRequiredActionClient,
+  withActionClient,
+  type ResolvableActionClient,
+} from '../post/client';
 import { createTermInputSchema } from './create';
 
 /**
@@ -23,9 +23,9 @@ export const updateTermInputSchema = createTermInputSchema.extend({
 export type UpdateTermInput = z.infer<typeof updateTermInputSchema>;
 
 /**
- * Low-level config accepted by `executeUpdateTerm`.
+ * Low-level options accepted by `executeUpdateTerm`.
  */
-export interface ExecuteUpdateTermConfig<T = WordPressCategory> extends ExecuteActionAuthConfig {
+export interface ExecuteUpdateTermOptions<T = WordPressCategory> {
   /** REST resource path appended to the published client base URL (default: 'categories') */
   resource?: string;
   /** Standard Schema-compatible parser used for the response (default: categorySchema) */
@@ -33,15 +33,14 @@ export interface ExecuteUpdateTermConfig<T = WordPressCategory> extends ExecuteA
 }
 
 /**
- * Configuration required to create the update-term action factory.
+ * @deprecated Use `ExecuteUpdateTermOptions` instead.
  */
-export interface UpdateTermActionConfig<T = WordPressCategory> {
-  /** WordPress site URL (e.g. 'https://example.com') */
-  baseUrl: string;
-  /** Static or request-scoped auth config (basic, JWT, or prebuilt header) */
-  auth?: ActionAuthConfig;
-  /** Advanced request-aware auth headers for OAuth-like signature methods */
-  authHeaders?: ResolvableActionAuthHeaders;
+export type ExecuteUpdateTermConfig<T = WordPressCategory> = ExecuteUpdateTermOptions<T>;
+
+/**
+ * Shared non-auth options accepted by the update-term action factory.
+ */
+export interface UpdateTermActionOptions<T = WordPressCategory> {
   /** REST resource path (default: 'categories') — set to 'tags' or a custom taxonomy rest_base */
   resource?: string;
   /** Optional parser override for the action response */
@@ -49,19 +48,30 @@ export interface UpdateTermActionConfig<T = WordPressCategory> {
 }
 
 /**
+ * @deprecated Use `UpdateTermActionOptions` instead.
+ */
+export type UpdateTermActionConfig<T = WordPressCategory> = UpdateTermActionOptions<T>;
+
+type UpdateTermActionFactoryOptions<
+  TResponse,
+  TSchema extends typeof updateTermInputSchema,
+> = UpdateTermActionOptions<TResponse> & { schema?: TSchema };
+
+/**
  * Updates one WordPress term (category, tag, or custom taxonomy term).
  */
 export async function executeUpdateTerm<T = WordPressCategory>(
-  config: ExecuteUpdateTermConfig<T>,
-  input: UpdateTermInput & Record<string, unknown>
+  client: WordPressClient,
+  input: UpdateTermInput & Record<string, unknown>,
+  options?: ExecuteUpdateTermOptions<T>,
 ): Promise<T> {
-  const resource = config.resource ?? 'categories';
+  const resource = options?.resource ?? 'categories';
 
-  return withActionClient(config, async (client) => {
-    const responseSchema = (config.responseSchema ?? categorySchema) as WordPressStandardSchema<T>;
+  return withActionClient(client, async (resolvedClient) => {
+    const responseSchema = (options?.responseSchema ?? categorySchema) as WordPressStandardSchema<T>;
     const { id, ...fields } = input;
 
-    return client.updateTerm<T, Record<string, unknown>>(
+    return resolvedClient.updateTerm<T, Record<string, unknown>>(
       resource,
       id,
       fields,
@@ -75,24 +85,25 @@ export async function executeUpdateTerm<T = WordPressCategory>(
  */
 export function createUpdateTermAction<
   TResponse = WordPressCategory,
-  TSchema extends typeof updateTermInputSchema = typeof updateTermInputSchema
->(config: UpdateTermActionConfig<TResponse> & { schema?: TSchema }): ActionClient<TResponse, undefined, TSchema> & string {
-  const inputSchema = (config.schema ?? updateTermInputSchema) as TSchema;
-  const resource = config.resource;
-  const responseSchema = config.responseSchema;
+  TSchema extends typeof updateTermInputSchema = typeof updateTermInputSchema,
+>(
+  client: ResolvableActionClient,
+  options?: UpdateTermActionFactoryOptions<TResponse, TSchema>,
+): ActionClient<TResponse, undefined, TSchema> & string {
+  const inputSchema = (options?.schema ?? updateTermInputSchema) as TSchema;
+  const resource = options?.resource;
+  const responseSchema = options?.responseSchema;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return defineAction({
     input: inputSchema,
     handler: async (input: z.infer<TSchema>, context: ActionAPIContext) => {
-      const requestAuth = await resolveActionRequestAuth({
-        auth: config.auth,
-        authHeaders: config.authHeaders,
-      }, context);
+      const resolvedClient = await resolveRequiredActionClient(client, context);
 
       return executeUpdateTerm<TResponse>(
-        { baseUrl: config.baseUrl, ...requestAuth, resource, responseSchema },
+        resolvedClient,
         input as UpdateTermInput & Record<string, unknown>,
+        { resource, responseSchema },
       );
     },
   } as any) as ActionClient<TResponse, undefined, TSchema> & string;

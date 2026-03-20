@@ -5,6 +5,7 @@
  * collections defined in `src/content.config.ts` inside the same fixture app.
  */
 import { defineLiveCollection } from 'astro:content';
+import { WordPressClient } from 'fluent-wp-client';
 import {
   wordPressCategoryLoader,
   wordPressContentLoader,
@@ -19,28 +20,29 @@ import {
 } from './collection-schemas';
 
 const baseUrl = process.env.WP_BASE_URL ?? 'http://localhost:8888';
+const wp = new WordPressClient({ baseUrl });
 
 /** Live post collection loaded at request time with schema validation. */
 const livePosts = defineLiveCollection({
-  loader: wordPressPostLoader({ baseUrl }),
+  loader: wordPressPostLoader(wp),
   schema: postSchema,
 });
 
 /** Live page collection loaded at request time with schema validation. */
 const livePages = defineLiveCollection({
-  loader: wordPressPageLoader({ baseUrl }),
+  loader: wordPressPageLoader(wp),
   schema: pageSchema,
 });
 
 /** Live category collection loaded at request time with schema validation. */
 const liveCategories = defineLiveCollection({
-  loader: wordPressCategoryLoader({ baseUrl }),
+  loader: wordPressCategoryLoader(wp),
   schema: categorySchema,
 });
 
 /** Live books collection loaded at request time with extended CPT validation. */
 const liveBooks = defineLiveCollection({
-  loader: wordPressContentLoader({ baseUrl, resource: 'books' }),
+  loader: wordPressContentLoader(wp, { resource: 'books' }),
   schema: bookSchema,
 });
 

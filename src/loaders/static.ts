@@ -1,6 +1,9 @@
 import type { Loader } from 'astro/loaders';
 import { WordPressClient } from 'fluent-wp-client';
-import type { WordPressStaticLoaderConfig, WordPressTermStaticLoaderConfig, WordPressContentStaticLoaderConfig } from './types';
+import type {
+  WordPressContentStaticLoaderOptions,
+  WordPressTermStaticLoaderOptions,
+} from './types';
 
 /**
  * Shared shape for static loader entries stored in Astro's content store.
@@ -59,11 +62,9 @@ function createStaticStoreEntry<TEntry extends IdentifiableEntry>(
  * Creates one reusable static loader backed by `WordPressClient` methods.
  */
 function createStaticWordPressLoader<TEntry extends IdentifiableEntry>(
-  config: WordPressStaticLoaderConfig,
+  client: WordPressClient,
   definition: StaticLoaderDefinition<TEntry>,
 ): Loader {
-  const client = new WordPressClient(config);
-
   return {
     name: definition.name,
     load: async ({ store, logger }) => {
@@ -97,8 +98,8 @@ function renderContentHtml(entry: RenderableEntry): string {
 /**
  * Creates a static loader for WordPress posts.
  */
-export function wordPressPostStaticLoader(config: WordPressStaticLoaderConfig): Loader {
-  return createStaticWordPressLoader(config, {
+export function wordPressPostStaticLoader(client: WordPressClient): Loader {
+  return createStaticWordPressLoader(client, {
     name: 'wordpress-post-static-loader',
     logLabel: 'posts',
     loadEntries: (client) => client.getAllPosts(),
@@ -109,8 +110,8 @@ export function wordPressPostStaticLoader(config: WordPressStaticLoaderConfig): 
 /**
  * Creates a static loader for WordPress pages.
  */
-export function wordPressPageStaticLoader(config: WordPressStaticLoaderConfig): Loader {
-  return createStaticWordPressLoader(config, {
+export function wordPressPageStaticLoader(client: WordPressClient): Loader {
+  return createStaticWordPressLoader(client, {
     name: 'wordpress-page-static-loader',
     logLabel: 'pages',
     loadEntries: (client) => client.getAllPages(),
@@ -121,8 +122,8 @@ export function wordPressPageStaticLoader(config: WordPressStaticLoaderConfig): 
 /**
  * Creates a static loader for WordPress media.
  */
-export function wordPressMediaStaticLoader(config: WordPressStaticLoaderConfig): Loader {
-  return createStaticWordPressLoader(config, {
+export function wordPressMediaStaticLoader(client: WordPressClient): Loader {
+  return createStaticWordPressLoader(client, {
     name: 'wordpress-media-static-loader',
     logLabel: 'media items',
     loadEntries: (client) => client.getAllMedia(),
@@ -132,8 +133,8 @@ export function wordPressMediaStaticLoader(config: WordPressStaticLoaderConfig):
 /**
  * Creates a static loader for WordPress categories.
  */
-export function wordPressCategoryStaticLoader(config: WordPressStaticLoaderConfig): Loader {
-  return createStaticWordPressLoader(config, {
+export function wordPressCategoryStaticLoader(client: WordPressClient): Loader {
+  return createStaticWordPressLoader(client, {
     name: 'wordpress-category-static-loader',
     logLabel: 'categories',
     loadEntries: (client) => client.getAllCategories(),
@@ -143,8 +144,8 @@ export function wordPressCategoryStaticLoader(config: WordPressStaticLoaderConfi
 /**
  * Creates a static loader for WordPress tags.
  */
-export function wordPressTagStaticLoader(config: WordPressStaticLoaderConfig): Loader {
-  return createStaticWordPressLoader(config, {
+export function wordPressTagStaticLoader(client: WordPressClient): Loader {
+  return createStaticWordPressLoader(client, {
     name: 'wordpress-tag-static-loader',
     logLabel: 'tags',
     loadEntries: (client) => client.getAllTags(),
@@ -154,10 +155,13 @@ export function wordPressTagStaticLoader(config: WordPressStaticLoaderConfig): L
 /**
  * Creates a static loader for custom taxonomy term resources.
  */
-export function wordPressTermStaticLoader(config: WordPressTermStaticLoaderConfig): Loader {
-  const { resource, ...clientConfig } = config;
+export function wordPressTermStaticLoader(
+  client: WordPressClient,
+  options: WordPressTermStaticLoaderOptions,
+): Loader {
+  const { resource } = options;
 
-  return createStaticWordPressLoader(clientConfig, {
+  return createStaticWordPressLoader(client, {
     name: 'wordpress-term-static-loader',
     logLabel: resource,
     loadEntries: (client) => client.getAllTermCollection(resource),
@@ -167,8 +171,8 @@ export function wordPressTermStaticLoader(config: WordPressTermStaticLoaderConfi
 /**
  * Creates a static loader for WordPress users.
  */
-export function wordPressUserStaticLoader(config: WordPressStaticLoaderConfig): Loader {
-  return createStaticWordPressLoader(config, {
+export function wordPressUserStaticLoader(client: WordPressClient): Loader {
+  return createStaticWordPressLoader(client, {
     name: 'wordpress-user-static-loader',
     logLabel: 'users',
     loadEntries: (client) => client.getAllUsers(),
@@ -179,10 +183,13 @@ export function wordPressUserStaticLoader(config: WordPressStaticLoaderConfig): 
  * Creates a static loader for custom WordPress content resources (CPTs).
  * Aligns with fluent-wp-client's content(resource) naming.
  */
-export function wordPressContentStaticLoader(config: WordPressContentStaticLoaderConfig): Loader {
-  const { resource, ...clientConfig } = config;
+export function wordPressContentStaticLoader(
+  client: WordPressClient,
+  options: WordPressContentStaticLoaderOptions,
+): Loader {
+  const { resource } = options;
 
-  return createStaticWordPressLoader(clientConfig, {
+  return createStaticWordPressLoader(client, {
     name: 'wordpress-content-static-loader',
     logLabel: resource,
     loadEntries: (client) => client.getAllContentCollection(resource),

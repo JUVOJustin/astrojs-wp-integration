@@ -1,11 +1,11 @@
 import { defineAction, type ActionAPIContext, type ActionClient } from 'astro:actions';
 import { z } from 'astro/zod';
+import type { WordPressClient } from 'fluent-wp-client';
 import {
-  resolveActionRequestAuth,
-  type ActionAuthConfig,
-  type ResolvableActionAuthHeaders,
-} from '../auth';
-import { withActionClient, type ExecuteActionAuthConfig } from './client';
+  resolveRequiredActionClient,
+  withActionClient,
+  type ResolvableActionClient,
+} from './client';
 
 /**
  * Input schema for deleting a WordPress post (or page / custom post type).
@@ -25,81 +25,66 @@ export type DeletePostInput = z.infer<typeof deletePostInputSchema>;
 export type DeletePostResult = { id: number; deleted: boolean };
 
 /**
- * Low-level config accepted by `executeDeletePost`.
+ * Low-level options accepted by `executeDeletePost`.
  */
-export interface ExecuteDeleteConfig extends ExecuteActionAuthConfig {
+export interface ExecuteDeleteOptions {
   /** REST resource path appended to the published client base URL (default: 'posts') */
   resource?: string;
 }
 
 /**
- * Configuration required to create the delete-post action factory.
- * At least one auth strategy is required because deleting posts needs write access.
+ * @deprecated Use `ExecuteDeleteOptions` instead.
  */
-export interface DeletePostActionConfig {
-  /** WordPress site URL (e.g. 'https://example.com') */
-  baseUrl: string;
-  /** Static or request-scoped auth config (basic, JWT, or prebuilt header) */
-  auth?: ActionAuthConfig;
-  /** Advanced request-aware auth headers for OAuth-like signature methods */
-  authHeaders?: ResolvableActionAuthHeaders;
+export type ExecuteDeleteConfig = ExecuteDeleteOptions;
+
+/**
+ * Shared non-auth options accepted by the delete-post action factory.
+ */
+export interface DeletePostActionOptions {
   /** REST resource path (default: 'posts') — set to 'pages' or a CPT rest_base */
   resource?: string;
 }
 
 /**
+ * @deprecated Use `DeletePostActionOptions` instead.
+ */
+export type DeletePostActionConfig = DeletePostActionOptions;
+
+/**
  * Deletes a WordPress post (or page / CPT) via the REST API.
  *
- * Set `config.resource` to target a different endpoint (e.g. `'pages'`,
- * `'books'`).  Defaults to `'posts'`.
- *
- * - `force=true`  → WP returns `{ deleted: true, previous: <post> }` → result `{ id, deleted: true }`
- * - `force=false` → WP moves the post to trash and returns the trashed post → result `{ id, deleted: false }`
- *
- * Exported for direct use in integration tests without the Astro runtime.
- * Throws `ActionError` on API failure.
+ * Set `options.resource` to target a different endpoint (e.g. `'pages'`,
+ * `'books'`). Defaults to `'posts'`.
  */
 export async function executeDeletePost(
-  config: ExecuteDeleteConfig,
-  input: DeletePostInput
+  client: WordPressClient,
+  input: DeletePostInput,
+  options?: ExecuteDeleteOptions,
 ): Promise<DeletePostResult> {
-  const resource = config.resource ?? 'posts';
+  const resource = options?.resource ?? 'posts';
 
-  return withActionClient(config, async (client) => {
-    const result = await client.deleteContent(resource, input.id, { force: input.force });
+  return withActionClient(client, async (resolvedClient) => {
+    const result = await resolvedClient.deleteContent(resource, input.id, { force: input.force });
     return { id: result.id, deleted: result.deleted };
   });
 }
 
 /**
  * Creates a predefined Astro server action that deletes a WordPress post
- * (or page / CPT) via the REST API.  Pass `force: true` in the input to
+ * (or page / CPT) via the REST API. Pass `force: true` in the input to
  * permanently delete the post instead of moving it to the trash.
- *
- * Set `resource` to target a different REST endpoint (e.g. `'pages'`).
- *
- * @example
- * export const server = {
- *   deletePost: createDeletePostAction({
- *     baseUrl: import.meta.env.WP_URL,
- *     auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
- *   }),
- * };
  */
 export function createDeletePostAction(
-  config: DeletePostActionConfig
+  client: ResolvableActionClient,
+  options?: DeletePostActionOptions,
 ): ActionClient<DeletePostResult, undefined, typeof deletePostInputSchema> & string {
-  const resource = config.resource;
+  const resource = options?.resource;
 
   return defineAction({
     input: deletePostInputSchema,
     handler: async (input: DeletePostInput, context: ActionAPIContext) => {
-      const requestAuth = await resolveActionRequestAuth({
-        auth: config.auth,
-        authHeaders: config.authHeaders,
-      }, context);
-
-      return executeDeletePost({ baseUrl: config.baseUrl, ...requestAuth, resource }, input);
+      const resolvedClient = await resolveRequiredActionClient(client, context);
+      return executeDeletePost(resolvedClient, input, { resource });
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any) as ActionClient<DeletePostResult, undefined, typeof deletePostInputSchema> & string;

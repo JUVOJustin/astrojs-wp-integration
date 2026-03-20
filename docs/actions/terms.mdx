@@ -24,23 +24,24 @@ They support built-in taxonomies (`categories`, `tags`) and custom taxonomies by
 
 ```ts
 import {
+  WordPressClient,
   createCreateTermAction,
   createUpdateTermAction,
   createDeleteTermAction,
 } from 'wp-astrojs-integration';
 
-const wpConfig = {
+const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
   },
-};
+});
 
 export const server = {
-  createCategory: createCreateTermAction({ ...wpConfig, resource: 'categories' }),
-  updateTag: createUpdateTermAction({ ...wpConfig, resource: 'tags' }),
-  deleteGenre: createDeleteTermAction({ ...wpConfig, resource: 'genres' }),
+  createCategory: createCreateTermAction(wp, { resource: 'categories' }),
+  updateTag: createUpdateTermAction(wp, { resource: 'tags' }),
+  deleteGenre: createDeleteTermAction(wp, { resource: 'genres' }),
 };
 ```
 
@@ -68,11 +69,14 @@ const { data } = await Astro.callAction(actions.updateTag, {
 ### Custom taxonomy term
 
 ```ts
-const createGenre = createCreateTermAction({
+import { WordPressClient, createCreateTermAction } from 'wp-astrojs-integration';
+
+const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
   auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
-  resource: 'genres',
 });
+
+const createGenre = createCreateTermAction(wp, { resource: 'genres' });
 
 const created = await Astro.callAction(createGenre, {
   name: 'Science Fiction',
@@ -101,11 +105,14 @@ Use `schema` to validate custom term payload fields and `responseSchema` for typ
 
 ```ts
 import { z } from 'astro/zod';
-import { createCreateTermAction, createTermInputSchema } from 'wp-astrojs-integration';
+import { WordPressClient, createCreateTermAction, createTermInputSchema } from 'wp-astrojs-integration';
 
-const createGenre = createCreateTermAction({
+const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
   auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
+});
+
+const createGenre = createCreateTermAction(wp, {
   resource: 'genres',
   schema: createTermInputSchema.extend({
     custom_label: z.string().optional(),
@@ -124,19 +131,18 @@ The raw execute helpers are useful in tests and custom wrappers.
 
 ```ts
 import {
-  createBasicAuthHeader,
+  WordPressClient,
   executeCreateTerm,
   executeUpdateTerm,
   executeDeleteTerm,
 } from 'wp-astrojs-integration';
 
-const config = {
+const wp = new WordPressClient({
   baseUrl: 'https://example.com',
-  authHeader: createBasicAuthHeader({ username: 'admin', password: 'app-password' }),
-  resource: 'tags',
-};
+  auth: { username: 'admin', password: 'app-password' },
+});
 
-const created = await executeCreateTerm(config, { name: 'Release Notes' });
-await executeUpdateTerm(config, { id: created.id, slug: 'release-notes' });
-await executeDeleteTerm(config, { id: created.id, force: true });
+const created = await executeCreateTerm(wp, { name: 'Release Notes' }, { resource: 'tags' });
+await executeUpdateTerm(wp, { id: created.id, slug: 'release-notes' }, { resource: 'tags' });
+await executeDeleteTerm(wp, { id: created.id, force: true }, { resource: 'tags' });
 ```

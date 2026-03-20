@@ -1,15 +1,15 @@
 import { defineAction, type ActionAPIContext, type ActionClient } from 'astro:actions';
 import { z } from 'astro/zod';
+import type { WordPressClient } from 'fluent-wp-client';
 import {
   type WordPressPost,
   type WordPressStandardSchema,
 } from 'fluent-wp-client/zod';
 import {
-  resolveActionRequestAuth,
-  type ActionAuthConfig,
-  type ResolvableActionAuthHeaders,
-} from '../auth';
-import { withActionClient, type ExecuteActionAuthConfig } from './client';
+  resolveRequiredActionClient,
+  withActionClient,
+  type ResolvableActionClient,
+} from './client';
 import { getDefaultContentResponseSchema } from './response-schema';
 import { createPostInputSchema } from './create';
 
@@ -32,12 +32,12 @@ export const updatePostInputSchema = createPostInputSchema.extend({
 export type UpdatePostInput = z.infer<typeof updatePostInputSchema>;
 
 /**
- * Low-level config accepted by `executeUpdatePost`.
+ * Low-level options accepted by `executeUpdatePost`.
  * The `resource` controls which REST endpoint is targeted (e.g. 'posts',
  * 'pages', 'books').  The optional `responseSchema` overrides the default
  * `postSchema` so the response can be parsed as a different type.
  */
-export interface ExecuteUpdateConfig<T = WordPressPost> extends ExecuteActionAuthConfig {
+export interface ExecuteUpdateOptions<T = WordPressPost> {
   /** REST resource path appended to the published client base URL (default: 'posts') */
   resource?: string;
   /** Standard Schema-compatible parser used for the response (default: postSchema) */
@@ -45,16 +45,14 @@ export interface ExecuteUpdateConfig<T = WordPressPost> extends ExecuteActionAut
 }
 
 /**
- * Configuration required to create the update-post action factory.
- * At least one auth strategy is required because editing posts needs write access.
+ * @deprecated Use `ExecuteUpdateOptions` instead.
  */
-export interface UpdatePostActionConfig<T = WordPressPost> {
-  /** WordPress site URL (e.g. 'https://example.com') */
-  baseUrl: string;
-  /** Static or request-scoped auth config (basic, JWT, or prebuilt header) */
-  auth?: ActionAuthConfig;
-  /** Advanced request-aware auth headers for OAuth-like signature methods */
-  authHeaders?: ResolvableActionAuthHeaders;
+export type ExecuteUpdateConfig<T = WordPressPost> = ExecuteUpdateOptions<T>;
+
+/**
+ * Shared non-auth options accepted by the update-post action factory.
+ */
+export interface UpdatePostActionOptions<T = WordPressPost> {
   /** REST resource path (default: 'posts') — set to 'pages' or a CPT rest_base */
   resource?: string;
   /** Optional parser override for the action response */
@@ -62,26 +60,38 @@ export interface UpdatePostActionConfig<T = WordPressPost> {
 }
 
 /**
+ * Shared non-auth options accepted by the update-post action factory.
+ * At least one auth strategy is required because editing posts needs write access.
+ */
+export type UpdatePostActionConfig<T = WordPressPost> = UpdatePostActionOptions<T>;
+
+type UpdatePostActionFactoryOptions<
+  TResponse,
+  TSchema extends typeof updatePostInputSchema,
+> = UpdatePostActionOptions<TResponse> & { schema?: TSchema };
+
+/**
  * Updates an existing WordPress post (or page / CPT) via the REST API.
  *
- * Set `config.resource` to target a different endpoint (e.g. `'pages'`,
- * `'books'`) and `config.responseSchema` to parse the response with a
+ * Set `options.resource` to target a different endpoint (e.g. `'pages'`,
+ * `'books'`) and `options.responseSchema` to parse the response with a
  * matching Standard Schema-compatible validator.  Defaults to `'posts'` / `postSchema`.
  *
  * Exported for direct use in integration tests without the Astro runtime.
  * Throws `ActionError` on API failure.
  */
 export async function executeUpdatePost<T = WordPressPost>(
-  config: ExecuteUpdateConfig<T>,
-  input: UpdatePostInput & Record<string, unknown>
+  client: WordPressClient,
+  input: UpdatePostInput & Record<string, unknown>,
+  options?: ExecuteUpdateOptions<T>,
 ): Promise<T> {
-  const resource = config.resource ?? 'posts';
+  const resource = options?.resource ?? 'posts';
 
-  return withActionClient(config, async (client) => {
-    const responseSchema = (config.responseSchema ?? getDefaultContentResponseSchema(resource)) as WordPressStandardSchema<T>;
+  return withActionClient(client, async (resolvedClient) => {
+    const responseSchema = (options?.responseSchema ?? getDefaultContentResponseSchema(resource)) as WordPressStandardSchema<T>;
     const { id, ...fields } = input;
 
-    return client.updateContent<T, Record<string, unknown>>(
+    return resolvedClient.updateContent<T, Record<string, unknown>>(
       resource,
       id,
       fields,
@@ -101,31 +111,27 @@ export async function executeUpdatePost<T = WordPressPost>(
  * include extra fields such as ACF data or other custom plugin fields.
  *
  * @example
- * // Basic usage (posts)
- * export const server = {
- *   updatePost: createUpdatePostAction({
- *     baseUrl: import.meta.env.WP_URL,
- *     auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
- *   }),
- * };
+ * const wp = new WordPressClient({ baseUrl: import.meta.env.WP_URL, auth: { token } });
  *
- * @example
- * // Pages
  * export const server = {
- *   updatePage: createUpdatePostAction({
- *     baseUrl: import.meta.env.WP_URL,
- *     auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
- *     resource: 'pages',
- *   }),
+ *   updatePost: createUpdatePostAction(wp),
+ *   updatePage: createUpdatePostAction(wp, { resource: 'pages' }),
  * };
  */
 export function createUpdatePostAction<
   TResponse = WordPressPost,
   TSchema extends typeof updatePostInputSchema = typeof updatePostInputSchema
->(config: UpdatePostActionConfig<TResponse> & { schema?: TSchema }): ActionClient<TResponse, undefined, TSchema> & string {
-  const inputSchema = (config.schema ?? updatePostInputSchema) as TSchema;
-  const resource = config.resource;
-  const responseSchema = config.responseSchema;
+>(client: ResolvableActionClient, options?: UpdatePostActionFactoryOptions<TResponse, TSchema>): ActionClient<TResponse, undefined, TSchema> & string;
+export function createUpdatePostAction<
+  TResponse = WordPressPost,
+  TSchema extends typeof updatePostInputSchema = typeof updatePostInputSchema
+>(
+  client: ResolvableActionClient,
+  options?: UpdatePostActionFactoryOptions<TResponse, TSchema>,
+): ActionClient<TResponse, undefined, TSchema> & string {
+  const inputSchema = (options?.schema ?? updatePostInputSchema) as TSchema;
+  const resource = options?.resource;
+  const responseSchema = options?.responseSchema;
 
   // TypeScript defers evaluation of ActionHandler<TSchema, …> when TSchema is a
   // generic parameter — `as any` is scoped to this call site only and does not
@@ -134,14 +140,12 @@ export function createUpdatePostAction<
   return defineAction({
     input: inputSchema,
     handler: async (input: z.infer<TSchema>, context: ActionAPIContext) => {
-      const requestAuth = await resolveActionRequestAuth({
-        auth: config.auth,
-        authHeaders: config.authHeaders,
-      }, context);
+      const resolvedClient = await resolveRequiredActionClient(client, context);
 
       return executeUpdatePost<TResponse>(
-        { baseUrl: config.baseUrl, ...requestAuth, resource, responseSchema },
+        resolvedClient,
         input as UpdatePostInput & Record<string, unknown>,
+        { resource, responseSchema },
       );
     },
   } as any) as ActionClient<TResponse, undefined, TSchema> & string;
