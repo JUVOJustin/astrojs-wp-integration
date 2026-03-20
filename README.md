@@ -31,7 +31,7 @@ npm install wp-astrojs-integration
 | Categories | `categorySchema` | `wordPressCategoryLoader` | `wordPressCategoryStaticLoader` | |
 | Tags | `categorySchema` | `wordPressTagLoader` | `wordPressTagStaticLoader` | |
 | Custom taxonomies | `categorySchema` | `wordPressTermLoader` | `wordPressTermStaticLoader` | Pass custom REST `resource` |
-| Custom Post Types | `postSchema` (extend) | `wordPressContentLoader` | `wordPressContentStaticLoader` | Pass custom REST `resource` |
+| Custom Post Types | `contentWordPressSchema` (extend) | `wordPressContentLoader` | `wordPressContentStaticLoader` | Pass custom REST `resource` |
 | Users | `WordPressAuthor` | `wordPressUserLoader` | `wordPressUserStaticLoader` | |
 
 ## Quick start
@@ -39,6 +39,7 @@ npm install wp-astrojs-integration
 ### 1) Live collection (SSR)
 
 ```ts
+// src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
 import { postSchema, wordPressPostLoader } from 'wp-astrojs-integration';
 
@@ -55,6 +56,7 @@ export const collections = { posts };
 ### 2) Static collection (SSG)
 
 ```ts
+// src/content.config.ts
 import { defineCollection } from 'astro:content';
 import { postSchema, wordPressPostStaticLoader } from 'wp-astrojs-integration';
 
@@ -222,7 +224,7 @@ Local integration test environment:
 - `tests/wp-env/` contains mu-plugins and seeded content.
 - `tests/setup/global-setup.ts` provisions app password, JWT, cookie+nonce fixtures, and boots a real Astro dev server for the `integration` Vitest project.
 - `tests/setup/env-loader.ts` loads `.test-env.json` values for both `integration` and `static-build` projects.
-- `tests/fixtures/astro-site/` is the shared Astro fixture used by integration action tests (`astro dev` + `/_actions/*`) and the build integration test (`astro build` with `ASTRO_TEST_MODE=build`).
+- `tests/fixtures/astro-site/` is the shared Astro fixture used by integration action tests (`astro dev` + `/_actions/*`), live collection runtime tests (`src/live.config.ts` + `getLiveCollection()` / `getLiveEntry()`), and the build integration test (`astro build` with `ASTRO_TEST_MODE=build`).
 - Action integration suites call fixture `/_actions/*` endpoints via HTTP; tests do not execute package action helpers directly in Vitest workers.
 - `tests/integration/` contains Astro-facing integration tests for loaders (including live runtime and static build coverage), actions, auth bridge behavior, meta, ACF, and abilities.
 

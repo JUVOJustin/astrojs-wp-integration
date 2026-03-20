@@ -67,7 +67,7 @@ export {
   jwtAuthValidationResponseSchema,
   commentSchema,
   authorSchema,
-} from 'fluent-wp-client';
+} from 'fluent-wp-client/zod';
 
 export type {
   WordPressBase,

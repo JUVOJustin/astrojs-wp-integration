@@ -20,7 +20,7 @@ It uses web-standard runtime APIs so the same bridge works in Node and non-Node 
 - `getActionAuth(context)` to reuse the JWT in `create*PostAction` factories
 - Re-exported client auth primitives like `createAuthResolver`, `jwtAuthTokenResponseSchema`, and `jwtAuthErrorResponseSchema` for custom auth flows
 
-The bridge now relies on the published client's `loginWithJwt()` and `getCurrentUser()` helpers instead of duplicating request handling.
+The bridge uses the published client's `loginWithJwt()` and `getCurrentUser()` helpers instead of duplicating request handling.
 
 ## Design Guidance
 
