@@ -1,0 +1,83 @@
+---
+/**
+ * Runtime page used to validate live collection behavior through Astro's live
+ * collection APIs for the same WordPress resources covered by the static fixture.
+ */
+import { getLiveCollection } from 'astro:content';
+
+const {
+  entries: posts = [],
+  error: postsError,
+} = await getLiveCollection('livePosts');
+const {
+  entries: pages = [],
+  error: pagesError,
+} = await getLiveCollection('livePages');
+const {
+  entries: categories = [],
+  error: categoriesError,
+} = await getLiveCollection('liveCategories');
+const {
+  entries: books = [],
+  error: booksError,
+} = await getLiveCollection('liveBooks', {
+  orderby: 'slug',
+  order: 'asc',
+});
+---
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Live Collections Test</title>
+</head>
+<body>
+  <h1>Live Collections Test</h1>
+
+  <section id="live-posts">
+    <h2>Live Posts ({posts.length})</h2>
+    {postsError && <p id="live-posts-error">{postsError.message}</p>}
+    <ul>
+      {posts.slice(0, 3).map((post) => (
+        <li data-id={post.id} data-type="post">{post.data.title?.rendered ?? post.id}</li>
+      ))}
+    </ul>
+  </section>
+
+  <section id="live-pages">
+    <h2>Live Pages ({pages.length})</h2>
+    {pagesError && <p id="live-pages-error">{pagesError.message}</p>}
+    <ul>
+      {pages.map((page) => (
+        <li data-id={page.id} data-type="page">{page.data.title?.rendered ?? page.id}</li>
+      ))}
+    </ul>
+  </section>
+
+  <section id="live-categories">
+    <h2>Live Categories ({categories.length})</h2>
+    {categoriesError && <p id="live-categories-error">{categoriesError.message}</p>}
+    <ul>
+      {categories.map((category) => (
+        <li data-id={category.id} data-type="category">{category.data.name ?? category.id}</li>
+      ))}
+    </ul>
+  </section>
+
+  <section id="live-books">
+    <h2>Live Books ({books.length})</h2>
+    {booksError && <p id="live-books-error">{booksError.message}</p>}
+    <ul>
+      {books.slice(0, 3).map((book) => (
+        <li
+          data-id={book.id}
+          data-type="book"
+          data-subtitle={book.data.acf?.acf_subtitle ?? ''}
+        >
+          {book.data.title?.rendered ?? book.id}
+        </li>
+      ))}
+    </ul>
+  </section>
+</body>
+</html>

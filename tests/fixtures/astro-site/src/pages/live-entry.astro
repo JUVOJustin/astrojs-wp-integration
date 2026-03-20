@@ -1,0 +1,90 @@
+---
+/**
+ * Runtime page used to validate single-entry live collection lookups.
+ *
+ * Each section exercises one seeded resource through `getLiveEntry()`.
+ */
+import { getLiveEntry } from 'astro:content';
+
+const {
+  entry: post,
+  error: postError,
+} = await getLiveEntry('livePosts', { slug: 'test-post-001' });
+const {
+  entry: page,
+  error: pageError,
+} = await getLiveEntry('livePages', { slug: 'about' });
+const {
+  entry: category,
+  error: categoryError,
+} = await getLiveEntry('liveCategories', { slug: 'technology' });
+const {
+  entry: book,
+  error: bookError,
+} = await getLiveEntry('liveBooks', { slug: 'test-book-001' });
+---
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Live Entry Test</title>
+</head>
+<body>
+  <h1>Live Entry Test</h1>
+
+  <section id="live-entry-post">
+    <h2>Post Entry</h2>
+    {postError && <p id="live-entry-post-error">{postError.message}</p>}
+    {post ? (
+      <article data-id={post.id} data-type="post" data-found="true">
+        <h3>{post.data.title?.rendered}</h3>
+        <p>Slug: {post.data.slug}</p>
+      </article>
+    ) : (
+      <p data-type="post" data-found="false">Post not found</p>
+    )}
+  </section>
+
+  <section id="live-entry-page">
+    <h2>Page Entry</h2>
+    {pageError && <p id="live-entry-page-error">{pageError.message}</p>}
+    {page ? (
+      <article data-id={page.id} data-type="page" data-found="true">
+        <h3>{page.data.title?.rendered}</h3>
+        <p>Slug: {page.data.slug}</p>
+      </article>
+    ) : (
+      <p data-type="page" data-found="false">Page not found</p>
+    )}
+  </section>
+
+  <section id="live-entry-category">
+    <h2>Category Entry</h2>
+    {categoryError && <p id="live-entry-category-error">{categoryError.message}</p>}
+    {category ? (
+      <article data-id={category.id} data-type="category" data-found="true">
+        <h3>{category.data.name}</h3>
+        <p>Slug: {category.data.slug}</p>
+      </article>
+    ) : (
+      <p data-type="category" data-found="false">Category not found</p>
+    )}
+  </section>
+
+  <section id="live-entry-book">
+    <h2>Book Entry</h2>
+    {bookError && <p id="live-entry-book-error">{bookError.message}</p>}
+    {book ? (
+      <article data-id={book.id} data-type="book" data-found="true">
+        <h3>{book.data.title?.rendered}</h3>
+        <p>Slug: {book.data.slug}</p>
+        <p data-book-subtitle={book.data.acf?.acf_subtitle ?? ''}>
+          Subtitle: {book.data.acf?.acf_subtitle ?? 'missing'}
+        </p>
+      </article>
+    ) : (
+      <p data-type="book" data-found="false">Book not found</p>
+    )}
+  </section>
+</body>
+</html>

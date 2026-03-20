@@ -1,19 +1,14 @@
 ---
 /**
- * Runtime page used to validate live loader behavior inside Astro SSR.
+ * Runtime page used to validate live post collection behavior inside Astro SSR.
  */
-import { WordPressClient } from 'fluent-wp-client';
-import { wordPressPostLoader } from '../../../../../src/loaders/live';
+import { getLiveCollection } from 'astro:content';
 
-const baseUrl = process.env.WP_BASE_URL ?? 'http://localhost:8888';
-const wp = new WordPressClient({ baseUrl });
-const loader = wordPressPostLoader(wp);
-const liveResult = await loader.loadCollection!({ filter: undefined } as never) as {
-  entries?: Array<{ id: string; data: { title?: { rendered?: string } } }>;
-  error?: Error;
-};
-const entries = liveResult.entries ?? [];
-const liveErrorMessage = liveResult.error?.message ?? '';
+const {
+  entries = [],
+  error,
+} = await getLiveCollection('livePosts');
+const liveErrorMessage = error?.message ?? '';
 ---
 
 <html lang="en">

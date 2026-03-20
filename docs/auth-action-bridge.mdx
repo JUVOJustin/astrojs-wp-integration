@@ -15,7 +15,8 @@ It is built on top of `fluent-wp-client` and is meant to be the central place wh
 - `resolveUser(context)` and `isAuthenticated(context)` for middleware checks
 - `getClientConfig(context)` when you need raw client config instead of the client instance
 
-The bridge is client-first and does not expose a legacy raw JWT action-auth helper.
+The bridge is client-first, uses web-standard runtime APIs, and does not expose a legacy raw JWT action-auth helper.
+It uses the published client's `loginWithJwt()` and `getCurrentUser()` helpers instead of duplicating request handling.
 
 ## WordPress Requirement
 
