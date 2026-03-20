@@ -15,9 +15,6 @@ import {
   type WordPressAuthor,
   type WordPressClientConfig,
   type ResolvableWordPressAuth,
-  type WordPressAuthHeaders,
-  type WordPressAuthHeadersProvider,
-  type RequestAuthResolver,
 } from 'fluent-wp-client';
 import {
   jwtAuthErrorResponseSchema,
