@@ -20,7 +20,7 @@ This package uses integration-first testing against a real local WordPress insta
 - `integration`: Loader runtime, action RPC, auth bridge, meta, ACF, and ability coverage through the shared Astro dev fixture.
 - `static-build`: Real `astro build` validation for static loader content collections.
 
-The shared Astro fixture in `tests/fixtures/astro-site/` now includes both:
+The shared Astro fixture in `tests/fixtures/astro-site/` includes both:
 
 - `src/content.config.ts` for build-time collections used by static loader coverage.
 - `src/live.config.ts` for runtime collections used by `getLiveCollection()` and `getLiveEntry()` SSR coverage.
