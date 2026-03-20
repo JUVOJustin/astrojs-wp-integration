@@ -30,12 +30,10 @@ export {
 } from './loaders';
 
 export type {
-  WordPressLoaderConfig,
-  WordPressStaticLoaderConfig,
-  WordPressTermLoaderConfig,
-  WordPressTermStaticLoaderConfig,
-  WordPressContentLoaderConfig,
-  WordPressContentStaticLoaderConfig,
+  WordPressTermLoaderOptions,
+  WordPressTermStaticLoaderOptions,
+  WordPressContentLoaderOptions,
+  WordPressContentStaticLoaderOptions,
   ContentFilter,
   PostFilter,
   PageFilter,
@@ -121,10 +119,8 @@ export {
   deleteAbilityInputSchema,
 } from './actions';
 export type {
-  ActionAuthConfig,
-  ActionAuthHeadersConfig,
-  ActionAuthHeadersFromContext,
-  ResolvableActionAuthHeaders,
+  ActionClientResolver,
+  ResolvableActionClient,
   UpdatePostInput,
   UpdatePostActionConfig,
   ExecuteUpdateConfig,

@@ -9,7 +9,7 @@ import {
   wordPressUserLoader,
   wordPressContentLoader,
 } from '../../../src/loaders/live';
-import { createJwtAuthHeader } from 'fluent-wp-client';
+import { createJwtAuthHeader, WordPressClient } from 'fluent-wp-client';
 import { getBaseUrl } from '../../helpers/wp-client';
 
 /**
@@ -44,9 +44,34 @@ describe('Live Loaders', () => {
     baseUrl = getBaseUrl();
   });
 
+  /**
+   * Creates one public client for loader tests that do not require auth.
+   */
+  function createPublicClient(): WordPressClient {
+    return new WordPressClient({ baseUrl });
+  }
+
+  /**
+   * Creates one client with request-aware headers for authenticated loader tests.
+   */
+  function createJwtClient(): WordPressClient {
+    return new WordPressClient({
+      baseUrl,
+      authHeaders: ({ method }) => {
+        if (method !== 'GET') {
+          throw new Error('Expected GET for live loader auth test.');
+        }
+
+        return {
+          Authorization: createJwtAuthHeader(process.env.WP_JWT_TOKEN!),
+        };
+      },
+    });
+  }
+
   describe('wordPressPostLoader', () => {
     it('returns Astro live-collection entries with string IDs and rendered html', async () => {
-      const loader = wordPressPostLoader({ baseUrl });
+      const loader = wordPressPostLoader(createPublicClient());
       const result = await loader.loadCollection!({ filter: undefined } as never) as {
         entries: Array<{ id: string; data: { id: number; content: { rendered: string } }; rendered?: { html: string } }>;
       };
@@ -61,7 +86,7 @@ describe('Live Loaders', () => {
     });
 
     it('returns plain data objects suitable for serialization', async () => {
-      const loader = wordPressPostLoader({ baseUrl });
+      const loader = wordPressPostLoader(createPublicClient());
       const result = await loader.loadCollection!({ filter: undefined } as never) as {
         entries: Array<{ id: string; data: Record<string, unknown> }>;
       };
@@ -74,7 +99,7 @@ describe('Live Loaders', () => {
     });
 
     it('normalizes nested Astro filter input for loadEntry', async () => {
-      const loader = wordPressPostLoader({ baseUrl });
+      const loader = wordPressPostLoader(createPublicClient());
       const result = await loader.loadEntry!({ filter: { filter: { slug: 'test-post-001' } } } as never) as {
         id: string;
         data: { slug: string; content: { rendered: string }; _embedded?: unknown };
@@ -87,7 +112,7 @@ describe('Live Loaders', () => {
     });
 
     it('returns one error object for missing entries', async () => {
-      const loader = wordPressPostLoader({ baseUrl });
+      const loader = wordPressPostLoader(createPublicClient());
       const result = await loader.loadEntry!({ filter: { slug: 'definitely-no-post' } } as never) as {
         error?: Error;
       };
@@ -97,7 +122,7 @@ describe('Live Loaders', () => {
     });
 
     it('returns one error object for unauthorized collection access', async () => {
-      const loader = wordPressPostLoader({ baseUrl });
+      const loader = wordPressPostLoader(createPublicClient());
       const result = await loader.loadCollection!({ filter: { status: 'draft' } } as never) as {
         error?: Error;
       };
@@ -106,22 +131,7 @@ describe('Live Loaders', () => {
     });
 
     it('accepts request-aware auth headers when loading protected content', async () => {
-      const loader = wordPressPostLoader({
-        baseUrl,
-        authHeaders: ({ method, url }) => {
-          if (method !== 'GET') {
-            throw new Error('Expected GET for live loader auth test.');
-          }
-
-          if (!url.pathname.endsWith('/wp-json/wp/v2/posts')) {
-            throw new Error('Expected posts endpoint for live loader auth test.');
-          }
-
-          return {
-            Authorization: createJwtAuthHeader(process.env.WP_JWT_TOKEN!),
-          };
-        },
-      });
+      const loader = wordPressPostLoader(createJwtClient());
 
       const result = await loader.loadCollection!({ filter: { status: 'draft' } } as never) as {
         entries?: unknown[];
@@ -135,7 +145,7 @@ describe('Live Loaders', () => {
 
   describe('wordPressPageLoader', () => {
     it('includes rendered html for page entries', async () => {
-      const loader = wordPressPageLoader({ baseUrl });
+      const loader = wordPressPageLoader(createPublicClient());
       const result = await loader.loadEntry!({ filter: { slug: 'about' } } as never) as {
         data: { content: { rendered: string } };
         rendered?: { html: string };
@@ -145,7 +155,7 @@ describe('Live Loaders', () => {
     });
 
     it('returns plain data objects suitable for serialization', async () => {
-      const loader = wordPressPageLoader({ baseUrl });
+      const loader = wordPressPageLoader(createPublicClient());
       const result = await loader.loadCollection!({ filter: undefined } as never) as {
         entries: Array<{ id: string; data: Record<string, unknown> }>;
       };
@@ -160,7 +170,7 @@ describe('Live Loaders', () => {
 
   describe('wordPressCategoryLoader', () => {
     it('returns taxonomy entries without rendered html blocks', async () => {
-      const loader = wordPressCategoryLoader({ baseUrl });
+      const loader = wordPressCategoryLoader(createPublicClient());
       const result = await loader.loadCollection!({ filter: undefined } as never) as {
         entries: Array<{ id: string; rendered?: { html: string } }>;
       };
@@ -175,7 +185,7 @@ describe('Live Loaders', () => {
 
   describe('wordPressMediaLoader', () => {
     it('returns collection entries with string ids when media exists', async () => {
-      const loader = wordPressMediaLoader({ baseUrl });
+      const loader = wordPressMediaLoader(createPublicClient());
       const result = await loader.loadCollection!({ filter: undefined } as never) as {
         entries: Array<{ id: string; data: { id: number } }>;
       };
@@ -188,7 +198,7 @@ describe('Live Loaders', () => {
     });
 
     it('returns one error object for missing media entries', async () => {
-      const loader = wordPressMediaLoader({ baseUrl });
+      const loader = wordPressMediaLoader(createPublicClient());
       const result = await loader.loadEntry!({ filter: { id: 999999999 } } as never) as {
         error?: Error;
       };
@@ -199,7 +209,7 @@ describe('Live Loaders', () => {
 
   describe('wordPressTagLoader', () => {
     it('loads tag entries by slug with non-rendered term payloads', async () => {
-      const loader = wordPressTagLoader({ baseUrl });
+      const loader = wordPressTagLoader(createPublicClient());
       const result = await loader.loadEntry!({ filter: { slug: 'featured' } } as never) as {
         id: string;
         data: { slug: string; taxonomy: string };
@@ -214,8 +224,7 @@ describe('Live Loaders', () => {
 
   describe('wordPressTermLoader', () => {
     it('loads custom taxonomy collection through resource config', async () => {
-      const loader = wordPressTermLoader({
-        baseUrl,
+      const loader = wordPressTermLoader(createPublicClient(), {
         resource: 'genres',
       });
 
@@ -230,7 +239,7 @@ describe('Live Loaders', () => {
 
   describe('wordPressUserLoader', () => {
     it('loads users publicly as Astro live entries with normalized ids', async () => {
-      const loader = wordPressUserLoader({ baseUrl });
+      const loader = wordPressUserLoader(createPublicClient());
       const result = await loader.loadCollection!({ filter: undefined } as never) as {
         entries: Array<{ id: string; data: { id: number; slug: string; _links?: unknown } }>;
       };
@@ -248,7 +257,7 @@ describe('Live Loaders', () => {
     });
 
     it('resolves one user by slug in loadEntry', async () => {
-      const loader = wordPressUserLoader({ baseUrl });
+      const loader = wordPressUserLoader(createPublicClient());
       const collection = await loader.loadCollection!({ filter: undefined } as never) as {
         entries: Array<{ data: { slug: string } }>;
       };
@@ -262,12 +271,7 @@ describe('Live Loaders', () => {
     });
 
     it('loads users with auth and exposes auth-only capability hints', async () => {
-      const loader = wordPressUserLoader({
-        baseUrl,
-        authHeaders: () => ({
-          Authorization: createJwtAuthHeader(process.env.WP_JWT_TOKEN!),
-        }),
-      });
+      const loader = wordPressUserLoader(createJwtClient());
 
       const result = await loader.loadEntry!({ filter: { id: 1 } } as never) as {
         data: { id: number; _links?: unknown };
@@ -285,8 +289,7 @@ describe('Live Loaders', () => {
 
   describe('wordPressContentLoader', () => {
     it('loads custom post type collection through resource config', async () => {
-      const loader = wordPressContentLoader({
-        baseUrl,
+      const loader = wordPressContentLoader(createPublicClient(), {
         resource: 'books',
       });
 
@@ -300,8 +303,7 @@ describe('Live Loaders', () => {
     });
 
     it('returns rendered html aligned with content.rendered for CPTs', async () => {
-      const loader = wordPressContentLoader({
-        baseUrl,
+      const loader = wordPressContentLoader(createPublicClient(), {
         resource: 'books',
       });
 
@@ -315,8 +317,7 @@ describe('Live Loaders', () => {
     });
 
     it('returns plain data objects suitable for serialization', async () => {
-      const loader = wordPressContentLoader({
-        baseUrl,
+      const loader = wordPressContentLoader(createPublicClient(), {
         resource: 'books',
       });
 
@@ -332,8 +333,7 @@ describe('Live Loaders', () => {
     });
 
     it('returns error object for missing CPT entries', async () => {
-      const loader = wordPressContentLoader({
-        baseUrl,
+      const loader = wordPressContentLoader(createPublicClient(), {
         resource: 'books',
       });
 
@@ -346,12 +346,8 @@ describe('Live Loaders', () => {
     });
 
     it('supports filtering CPT collection by status with auth', async () => {
-      const loader = wordPressContentLoader({
-        baseUrl,
+      const loader = wordPressContentLoader(createJwtClient(), {
         resource: 'books',
-        authHeaders: () => ({
-          Authorization: createJwtAuthHeader(process.env.WP_JWT_TOKEN!),
-        }),
       });
 
       const result = await loader.loadCollection!({ filter: { status: 'draft' } } as never) as {

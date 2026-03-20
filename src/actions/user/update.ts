@@ -1,5 +1,6 @@
 import { defineAction, type ActionAPIContext, type ActionClient } from 'astro:actions';
 import { z } from 'astro/zod';
+import type { WordPressClient } from 'fluent-wp-client';
 import {
   authorSchema,
   type UserWriteInput,
@@ -7,11 +8,10 @@ import {
   type WordPressStandardSchema,
 } from 'fluent-wp-client';
 import {
-  resolveActionRequestAuth,
-  type ActionAuthConfig,
-  type ResolvableActionAuthHeaders,
-} from '../auth';
-import { withActionClient, type ExecuteActionAuthConfig } from '../post/client';
+  resolveRequiredActionClient,
+  withActionClient,
+  type ResolvableActionClient,
+} from '../post/client';
 
 /**
  * Input schema for updating a WordPress user.
@@ -33,39 +33,48 @@ export const updateUserInputSchema = z.object({
 export type UpdateUserInput = z.infer<typeof updateUserInputSchema>;
 
 /**
- * Low-level config accepted by `executeUpdateUser`.
+ * Low-level options accepted by `executeUpdateUser`.
  */
-export interface ExecuteUpdateUserConfig<T = WordPressAuthor> extends ExecuteActionAuthConfig {
+export interface ExecuteUpdateUserOptions<T = WordPressAuthor> {
   /** Standard Schema-compatible parser used for the response (default: authorSchema) */
   responseSchema?: WordPressStandardSchema<T>;
 }
 
 /**
- * Configuration required to create the update-user action factory.
+ * @deprecated Use `ExecuteUpdateUserOptions` instead.
  */
-export interface UpdateUserActionConfig<T = WordPressAuthor> {
-  /** WordPress site URL (e.g. 'https://example.com') */
-  baseUrl: string;
-  /** Static or request-scoped auth config (basic, JWT, or prebuilt header) */
-  auth?: ActionAuthConfig;
-  /** Advanced request-aware auth headers for OAuth-like signature methods */
-  authHeaders?: ResolvableActionAuthHeaders;
+export type ExecuteUpdateUserConfig<T = WordPressAuthor> = ExecuteUpdateUserOptions<T>;
+
+/**
+ * Shared non-auth options accepted by the update-user action factory.
+ */
+export interface UpdateUserActionOptions<T = WordPressAuthor> {
   /** Optional parser override for the action response */
   responseSchema?: WordPressStandardSchema<T>;
 }
 
 /**
+ * @deprecated Use `UpdateUserActionOptions` instead.
+ */
+export type UpdateUserActionConfig<T = WordPressAuthor> = UpdateUserActionOptions<T>;
+
+type UpdateUserActionFactoryOptions<
+  TResponse,
+  TSchema extends typeof updateUserInputSchema,
+> = UpdateUserActionOptions<TResponse> & { schema?: TSchema };
+
+/**
  * Updates one existing WordPress user via the REST API.
  */
 export async function executeUpdateUser<T = WordPressAuthor>(
-  config: ExecuteUpdateUserConfig<T>,
+  client: WordPressClient,
   input: UpdateUserInput & Record<string, unknown>,
+  options?: ExecuteUpdateUserOptions<T>,
 ): Promise<T> {
-  return withActionClient(config, async (client) => {
-    const responseSchema = (config.responseSchema ?? authorSchema) as WordPressStandardSchema<T>;
+  return withActionClient(client, async (resolvedClient) => {
+    const responseSchema = (options?.responseSchema ?? authorSchema) as WordPressStandardSchema<T>;
     const { id, ...fields } = input;
-
-    return client.updateUser<T>(id, fields as UserWriteInput, responseSchema);
+    return resolvedClient.updateUser<T>(id, fields as UserWriteInput, responseSchema);
   });
 }
 
@@ -75,22 +84,23 @@ export async function executeUpdateUser<T = WordPressAuthor>(
 export function createUpdateUserAction<
   TResponse = WordPressAuthor,
   TSchema extends typeof updateUserInputSchema = typeof updateUserInputSchema,
->(config: UpdateUserActionConfig<TResponse> & { schema?: TSchema }): ActionClient<TResponse, undefined, TSchema> & string {
-  const inputSchema = (config.schema ?? updateUserInputSchema) as TSchema;
-  const responseSchema = config.responseSchema;
+>(
+  client: ResolvableActionClient,
+  options?: UpdateUserActionFactoryOptions<TResponse, TSchema>,
+): ActionClient<TResponse, undefined, TSchema> & string {
+  const inputSchema = (options?.schema ?? updateUserInputSchema) as TSchema;
+  const responseSchema = options?.responseSchema;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return defineAction({
     input: inputSchema,
     handler: async (input: z.infer<TSchema>, context: ActionAPIContext) => {
-      const requestAuth = await resolveActionRequestAuth({
-        auth: config.auth,
-        authHeaders: config.authHeaders,
-      }, context);
+      const resolvedClient = await resolveRequiredActionClient(client, context);
 
       return executeUpdateUser<TResponse>(
-        { baseUrl: config.baseUrl, ...requestAuth, responseSchema },
+        resolvedClient,
         input as UpdateUserInput & Record<string, unknown>,
+        { responseSchema },
       );
     },
   } as any) as ActionClient<TResponse, undefined, TSchema> & string;

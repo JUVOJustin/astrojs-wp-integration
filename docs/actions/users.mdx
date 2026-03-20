@@ -21,23 +21,24 @@ Register the three user action factories in your Astro project's `src/actions/in
 
 ```ts
 import {
+  WordPressClient,
   createCreateUserAction,
   createUpdateUserAction,
   createDeleteUserAction,
 } from 'wp-astrojs-integration';
 
-const wpConfig = {
+const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
   },
-};
+});
 
 export const server = {
-  createUser: createCreateUserAction(wpConfig),
-  updateUser: createUpdateUserAction(wpConfig),
-  deleteUser: createDeleteUserAction(wpConfig),
+  createUser: createCreateUserAction(wp),
+  updateUser: createUpdateUserAction(wp),
+  deleteUser: createDeleteUserAction(wp),
 };
 ```
 
@@ -104,16 +105,19 @@ User actions expose base schemas for extension:
 You can extend input validation and response parsing:
 
 ```ts
-import { createCreateUserAction, createUserInputSchema } from 'wp-astrojs-integration';
+ import { WordPressClient, createCreateUserAction, createUserInputSchema } from 'wp-astrojs-integration';
 import { z } from 'astro/zod';
 
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
+});
+
 export const server = {
-  createUser: createCreateUserAction({
-    baseUrl: import.meta.env.WP_URL,
-    auth: {
-      username: import.meta.env.WP_USERNAME,
-      password: import.meta.env.WP_APP_PASSWORD,
-    },
+  createUser: createCreateUserAction(wp, {
     schema: createUserInputSchema.extend({
       app_source: z.string().optional(),
     }),

@@ -7,7 +7,7 @@ import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 Actions are Astro server actions that wrap the WordPress REST API, providing type-safe authenticated operations from any server-side Astro context.
 
-Every action is a factory function that binds a WordPress auth config and returns a reusable Astro `ActionClient`. Under the hood, each action calls an `execute*` function that delegates to `fluent-wp-client` and maps failures to `ActionError`.
+Every action factory can now work directly with a `WordPressClient` or a request-aware client resolver such as `wordPressAuthBridge.getClient`. Under the hood, each action delegates to `fluent-wp-client` and maps failures to `ActionError`.
 
 <CardGrid>
   <LinkCard title="Post actions" href="./posts.mdx" description="Create, update, and delete posts, pages, and custom post types." />
@@ -27,55 +27,73 @@ Use `npm run test:integration` for action/loaders/auth integration checks throug
 
 ## Authentication
 
-<Aside type="note" title="Use one shared action config">
-Define `wpConfig` once and reuse it across all action factories to keep auth and base URL consistent.
+<Aside type="note" title="Prefer one shared client resolver">
+Use `wordPressAuthBridge.getClient` as the shared action input when auth depends on the current Astro request.
 </Aside>
 
-All write operations need auth headers. The action factories support four auth styles:
+All write operations now use one `WordPressClient` or one request-aware client resolver.
 
-- **Basic auth** (`{ username, password }`) for app-password workflows
-- **JWT auth** (`{ token }`) for user-scoped SSR requests
-- **Resolver auth** (`(context) => ...`) for per-request middleware/session integration
-- **Request-aware auth headers** (`authHeaders`) for signature-based methods like OAuth 1.0
-
-### Basic auth (existing behavior)
+### Client-first (recommended)
 
 ```ts
-const wpConfig = {
+import {
+  createCreatePostAction,
+  createCreateTermAction,
+  createCreateUserAction,
+  createDeletePostAction,
+  createGetAbilityAction,
+  createUpdatePostAction,
+} from 'wp-astrojs-integration';
+import { wordPressAuthBridge } from '../lib/auth/bridge';
+
+export const server = {
+  createPost: createCreatePostAction(wordPressAuthBridge.getClient),
+  updatePost: createUpdatePostAction(wordPressAuthBridge.getClient),
+  deletePost: createDeletePostAction(wordPressAuthBridge.getClient),
+  createCategory: createCreateTermAction(wordPressAuthBridge.getClient, { resource: 'categories' }),
+  createUser: createCreateUserAction(wordPressAuthBridge.getClient),
+  getAbility: createGetAbilityAction(wordPressAuthBridge.getClient),
+};
+```
+
+### Static client (app password)
+
+```ts
+import { WordPressClient } from 'wp-astrojs-integration';
+
+const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
   },
+});
+
+export const server = {
+  createPost: createCreatePostAction(wp),
+  updatePost: createUpdatePostAction(wp),
 };
 ```
 
-### JWT auth (static token)
+### Static client (JWT)
 
 ```ts
-const wpConfig = {
+import { WordPressClient } from 'wp-astrojs-integration';
+
+const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
   auth: {
     token: import.meta.env.WP_JWT_TOKEN,
   },
-};
+});
 ```
 
-### JWT auth (request-scoped resolver)
+### Static client with request-aware auth headers
 
 ```ts
-import { wordPressAuthBridge } from '../lib/auth/bridge';
+import { WordPressClient } from 'wp-astrojs-integration';
 
-const wpConfig = {
-  baseUrl: import.meta.env.WP_URL,
-  auth: (context) => wordPressAuthBridge.getActionAuth(context),
-};
-```
-
-### Request-aware auth headers (OAuth-style signatures)
-
-```ts
-const wpConfig = {
+const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
   authHeaders: ({ method, url, body }) => {
     // Replace with your signer implementation
@@ -85,34 +103,12 @@ const wpConfig = {
       Authorization: signature,
     };
   },
-};
+});
 ```
 
 `createSignedAuthHeader` is a user-defined function for custom auth integrations. It is not part of this package and does not perform a network request by itself.
 
-If your signer needs Astro action context (for example, per-user tokens), resolve it via `fromContext`:
-
-```ts
-const wpConfig = {
-  baseUrl: import.meta.env.WP_URL,
-  authHeaders: {
-    fromContext: (context) => ({ method, url, body }) => {
-      const signature = createSignedAuthHeader({
-        method,
-        url: url.toString(),
-        body,
-        token: context.locals.oauthToken,
-      });
-
-      return {
-        Authorization: signature,
-      };
-    },
-  },
-};
-```
-
-Use the same `wpConfig` in all factories:
+Use the same client in all factories when you want one shared static auth setup:
 
 ```ts
 // src/actions/index.ts
@@ -129,21 +125,30 @@ import {
   createGetAbilityAction,
   createRunAbilityAction,
   createDeleteAbilityAction,
+  WordPressClient,
 } from 'wp-astrojs-integration';
 
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
+});
+
 export const server = {
-  createPost: createCreatePostAction(wpConfig),
-  updatePost: createUpdatePostAction(wpConfig),
-  deletePost: createDeletePostAction(wpConfig),
-  createCategory: createCreateTermAction({ ...wpConfig, resource: 'categories' }),
-  updateTag: createUpdateTermAction({ ...wpConfig, resource: 'tags' }),
-  deleteGenre: createDeleteTermAction({ ...wpConfig, resource: 'genres' }),
-  createUser: createCreateUserAction(wpConfig),
-  updateUser: createUpdateUserAction(wpConfig),
-  deleteUser: createDeleteUserAction(wpConfig),
-  getAbility: createGetAbilityAction(wpConfig),
-  runAbility: createRunAbilityAction(wpConfig),
-  deleteAbility: createDeleteAbilityAction(wpConfig),
+  createPost: createCreatePostAction(wp),
+  updatePost: createUpdatePostAction(wp),
+  deletePost: createDeletePostAction(wp),
+  createCategory: createCreateTermAction(wp, { resource: 'categories' }),
+  updateTag: createUpdateTermAction(wp, { resource: 'tags' }),
+  deleteGenre: createDeleteTermAction(wp, { resource: 'genres' }),
+  createUser: createCreateUserAction(wp),
+  updateUser: createUpdateUserAction(wp),
+  deleteUser: createDeleteUserAction(wp),
+  getAbility: createGetAbilityAction(wp),
+  runAbility: createRunAbilityAction(wp),
+  deleteAbility: createDeleteAbilityAction(wp),
 };
 ```
 
@@ -256,23 +261,26 @@ The `message` is taken directly from the WordPress `{ code, message, data }` err
 
 Every action file exports two things:
 
-- **`create*Action(config)`** — the Astro `ActionClient` factory for use in `src/actions/index.ts`.
-- **`execute*(config, input)`** — the raw async HTTP handler, useful for testing or building custom actions that target a different REST resource (e.g. a custom post type).
+- **`create*Action(client)`** — the Astro `ActionClient` factory for use in `src/actions/index.ts`.
+- **`execute*(client, input, options?)`** — the raw async helper, useful for testing or building custom actions that target a different REST resource (e.g. a custom post type).
 
 ```ts
+import { WordPressClient } from 'wp-astrojs-integration';
 import { executeCreatePost } from 'wp-astrojs-integration/actions';
-import { createBasicAuthHeader } from 'wp-astrojs-integration';
 
-const config = {
+const wp = new WordPressClient({
   baseUrl: 'https://example.com',
-  authHeader: createBasicAuthHeader({ username, password }),
-  resource: 'products', // targets /wp-json/wp/v2/products
-};
+  auth: { username, password },
+});
 
-const product = await executeCreatePost(config, { title: 'My Product', status: 'publish' });
+const product = await executeCreatePost(
+  wp,
+  { title: 'My Product', status: 'publish' },
+  { resource: 'products' },
+);
 ```
 
-If you use JWT, build the header with `createJwtAuthHeader(token)` instead.
+If you use JWT, build the client with `auth: { token }` instead.
 
 When `resource` is omitted it defaults to `'posts'` for content actions and `'categories'` for term actions.
 

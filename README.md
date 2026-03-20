@@ -40,12 +40,14 @@ npm install wp-astrojs-integration
 
 ```ts
 import { defineLiveCollection } from 'astro:content';
-import { postSchema, wordPressPostLoader } from 'wp-astrojs-integration';
+import { WordPressClient, postSchema, wordPressPostLoader } from 'wp-astrojs-integration';
+
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+});
 
 const posts = defineLiveCollection({
-  loader: wordPressPostLoader({
-    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
-  }),
+  loader: wordPressPostLoader(wp),
   schema: postSchema,
 });
 
@@ -56,12 +58,14 @@ export const collections = { posts };
 
 ```ts
 import { defineCollection } from 'astro:content';
-import { postSchema, wordPressPostStaticLoader } from 'wp-astrojs-integration';
+import { WordPressClient, postSchema, wordPressPostStaticLoader } from 'wp-astrojs-integration';
+
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+});
 
 const posts = defineCollection({
-  loader: wordPressPostStaticLoader({
-    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
-  }),
+  loader: wordPressPostStaticLoader(wp),
   schema: postSchema,
 });
 
@@ -92,6 +96,7 @@ const featuredMedia = post.data._embedded?.['wp:featuredmedia']?.[0];
 
 ```ts
 import {
+  WordPressClient,
   createCreatePostAction,
   createDeletePostAction,
   createUpdatePostAction,
@@ -100,21 +105,21 @@ import {
   createUpdateUserAction,
 } from 'wp-astrojs-integration';
 
-const wpConfig = {
+const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
   },
-};
+});
 
 export const server = {
-  createPost: createCreatePostAction(wpConfig),
-  updatePost: createUpdatePostAction(wpConfig),
-  deletePost: createDeletePostAction(wpConfig),
-  createUser: createCreateUserAction(wpConfig),
-  updateUser: createUpdateUserAction(wpConfig),
-  deleteUser: createDeleteUserAction(wpConfig),
+  createPost: createCreatePostAction(wp),
+  updatePost: createUpdatePostAction(wp),
+  deletePost: createDeletePostAction(wp),
+  createUser: createCreateUserAction(wp),
+  updateUser: createUpdateUserAction(wp),
+  deleteUser: createDeleteUserAction(wp),
 };
 ```
 
@@ -122,51 +127,62 @@ Action factories accept an optional `responseSchema` that follows the Standard S
 
 ## Auth bridge
 
-The auth bridge provides a unified auth layer that returns `WordPressClientConfig` objects compatible with both this package and fluent-wp-client:
+The auth bridge is the central request-auth layer for Astro middleware and actions.
+It can return either a ready-to-use `WordPressClient` or the resolved client config.
 
 ```ts
-import { createWordPressAuthBridge, WordPressClient } from 'wp-astrojs-integration';
+import { defineMiddleware } from 'astro:middleware';
+import {
+  createCreatePostAction,
+  createUpdatePostAction,
+  createDeletePostAction,
+  createWordPressAuthBridge,
+} from 'wp-astrojs-integration';
 
-// Basic cookie-based JWT
 export const wordPressAuthBridge = createWordPressAuthBridge({
   baseUrl: import.meta.env.WP_URL,
   cookieName: 'wp_user_session',
 });
 
-// Use in middleware to get fluent-wp-client compatible config
+// Middleware: get the authenticated client for this request.
 export const onRequest = defineMiddleware(async (context, next) => {
-  const clientConfig = await wordPressAuthBridge.getClientConfig(context);
-  
-  if (!clientConfig) {
+  const wp = await wordPressAuthBridge.getClient(context);
+
+  if (!wp) {
     return Response.redirect(new URL('/login', context.url), 302);
   }
 
-  // Use directly with fluent-wp-client
-  const wp = new WordPressClient(clientConfig);
   const user = await wp.getCurrentUser();
   context.locals.user = user;
-  
+
   return next();
 });
+
+// Actions: reuse the same request-scoped client resolver.
+export const server = {
+  login: wordPressAuthBridge.loginAction,
+  createPost: createCreatePostAction(wordPressAuthBridge.getClient),
+  updatePost: createUpdatePostAction(wordPressAuthBridge.getClient),
+  deletePost: createDeletePostAction(wordPressAuthBridge.getClient),
+};
 ```
 
-The bridge supports unified auth configuration:
+You can also create one static client directly when you do not need request-scoped auth:
 
 ```ts
-// With static auth (service-to-service)
-const serviceBridge = createWordPressAuthBridge({
+import { WordPressClient } from 'wp-astrojs-integration';
+
+const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
-  auth: { username: 'api-user', password: 'app-password' },
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
 });
 
-// With custom auth resolver
-const customBridge = createWordPressAuthBridge({
-  baseUrl: import.meta.env.WP_URL,
-  authResolver: createAuthResolver((context) => {
-    const token = context.cookies.get('custom_auth')?.value;
-    return token ? { token } : null;
-  }),
-});
+export const server = {
+  createPost: createCreatePostAction(wp),
+};
 ```
 
 ## Auth utility exports
@@ -184,31 +200,36 @@ Use these when building custom login/session flows so you can share the same run
 
 ```ts
 import {
+  WordPressClient,
   createCreateTermAction,
   createUpdateTermAction,
   createDeleteTermAction,
 } from 'wp-astrojs-integration';
 
-const wpConfig = {
+const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
   },
-};
+});
 
 export const server = {
-  createCategory: createCreateTermAction({ ...wpConfig, resource: 'categories' }),
-  updateTag: createUpdateTermAction({ ...wpConfig, resource: 'tags' }),
-  deleteGenre: createDeleteTermAction({ ...wpConfig, resource: 'genres' }),
+  createCategory: createCreateTermAction(wp, { resource: 'categories' }),
+  updateTag: createUpdateTermAction(wp, { resource: 'tags' }),
+  deleteGenre: createDeleteTermAction(wp, { resource: 'genres' }),
 };
 ```
 
 ## Extending schemas
 
 ```ts
-import { postSchema, wordPressPostLoader } from 'wp-astrojs-integration';
+import { WordPressClient, postSchema, wordPressPostLoader } from 'wp-astrojs-integration';
 import { z } from 'astro/zod';
+
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+});
 
 const customPostSchema = postSchema.extend({
   acf: z.object({
@@ -218,9 +239,7 @@ const customPostSchema = postSchema.extend({
 });
 
 const posts = defineLiveCollection({
-  loader: wordPressPostLoader({
-    baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
-  }),
+  loader: wordPressPostLoader(wp),
   schema: customPostSchema,
 });
 ```

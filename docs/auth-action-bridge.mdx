@@ -1,138 +1,60 @@
-# Auth Action Bridge
+---
+title: Auth Action Bridge
+---
 
 import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 The package ships a JWT-first Astro auth bridge for WordPress.
-It supports Astro `^5.0.0 || ^6.0.0`.
+It is built on top of `fluent-wp-client` and is meant to be the central place where Astro resolves one authenticated WordPress client per request.
 
-This bridge is a higher-level integration layer on top of `fluent-wp-client` transport primitives. New action or bridge behavior should follow established `WordPressClient` abilities and request helpers instead of inventing parallel request logic.
+## What It Gives You
 
-`WordPressClient` also supports browser-friendly cookie+nonce auth (`X-WP-Nonce` + `credentials: 'include'`) for front-end REST requests outside the JWT bridge flow.
-
-It uses web-standard runtime APIs so the same bridge works in Node and non-Node Astro adapters.
-
-## What It Provides
-
-- `createWordPressAuthBridge(config)` to create a reusable auth bridge
-- `wordPressLoginInputSchema` for strict login payload validation
-- `loginAction` to exchange username/password for a WordPress JWT
-- `resolveUser(context)` and `isAuthenticated(context)` for Astro middleware checks
-- **`getClientConfig(context)`** to get a complete `WordPressClientConfig` for use with fluent-wp-client or actions
-- Re-exported client auth primitives like `createAuthResolver`, `jwtAuthTokenResponseSchema`, and `jwtAuthErrorResponseSchema` for custom auth flows
-
-The bridge now relies on the published client's `loginWithJwt()` and `getCurrentUser()` helpers instead of duplicating request handling.
-
-## Design Guidance
-
-- Keep action factories generic so they can target core resources, custom post types, and plugin-backed endpoints that follow WordPress REST conventions.
-- Validate only the minimum action input and response data required for the current feature, and leave room for custom fields, meta, and related plugin data.
+- `createWordPressAuthBridge(config)` for login, cookie handling, and request auth resolution
+- `loginAction` for username/password -> JWT login
+- `getClient(context)` for a ready-to-use `WordPressClient`
+- `resolveUser(context)` and `isAuthenticated(context)` for middleware checks
+- `getClientConfig(context)` when you need raw client config instead of the client instance
 
 ## WordPress Requirement
 
-Enable the [JWT Authentication for WP REST API](https://es.wordpress.org/plugins/jwt-authentication-for-wp-rest-api/) plugin and set a secret key in your WordPress configuration (`JWT_AUTH_SECRET_KEY`).
+Enable the [JWT Authentication for WP REST API](https://es.wordpress.org/plugins/jwt-authentication-for-wp-rest-api/) plugin and set `JWT_AUTH_SECRET_KEY` in WordPress.
 
-## Input Validation
+## Basic Setup
 
-The login action validates:
-
-- `usernameOrEmail`: non-empty string
-- `password`: non-empty string
-- `redirectTo`: optional local path
-
-```typescript
-import { z } from 'astro/zod';
-import { wordPressLoginInputSchema } from 'wp-astrojs-integration';
-
-type LoginPayload = z.input<typeof wordPressLoginInputSchema>;
-```
-
-## Setup
-
-### Basic Setup (Cookie-based JWT)
-
-The simplest setup uses cookie-based JWT sessions:
-
-```typescript
+```ts
 // src/lib/auth/bridge.ts
 import { createWordPressAuthBridge } from 'wp-astrojs-integration';
 
 export const wordPressAuthBridge = createWordPressAuthBridge({
-  baseUrl: 'https://your-wordpress-site.com',
+  baseUrl: import.meta.env.WP_URL,
   cookieName: 'wp_user_session',
-  sessionDurationSeconds: 60 * 60 * 12,
 });
 ```
 
-### Advanced Setup (Unified Auth Configuration)
+## Middleware
 
-The bridge supports unified auth configuration aligned with `WordPressClientConfig` patterns used by loaders and actions. You can provide static auth, custom resolvers, or auth headers:
+Use the bridge as the single place that resolves the current request into one authenticated client.
 
-```typescript
-// src/lib/auth/bridge.ts
-import { createWordPressAuthBridge, createAuthResolver } from 'wp-astrojs-integration';
-import type { ActionAPIContext } from 'astro:actions';
-
-// Using static auth (e.g., for service-to-service calls)
-export const serviceBridge = createWordPressAuthBridge({
-  baseUrl: 'https://your-wordpress-site.com',
-  auth: { username: 'api-user', password: 'app-password' },
-});
-
-// Using custom auth resolver
-const customAuthResolver = createAuthResolver<ActionAPIContext>((context) => {
-  // Check custom cookie
-  const token = context.cookies.get('custom_auth')?.value;
-  if (token) {
-    return { token };
-  }
-  
-  // Check Authorization header
-  const authHeader = context.request.headers.get('authorization');
-  if (authHeader?.startsWith('Bearer ')) {
-    return authHeader;
-  }
-  
-  return null;
-});
-
-export const customBridge = createWordPressAuthBridge({
-  baseUrl: 'https://your-wordpress-site.com',
-  authResolver: customAuthResolver,
-});
-
-// Using prebuilt auth headers
-export const headerBridge = createWordPressAuthBridge({
-  baseUrl: 'https://your-wordpress-site.com',
-  authHeader: 'Bearer static-token-for-builds',
-});
-```
-
-## Using with fluent-wp-client
-
-The bridge provides `getClientConfig()` which returns a complete `WordPressClientConfig` object:
-
-```typescript
+```ts
 // src/middleware.ts
 import { defineMiddleware } from 'astro:middleware';
-import { WordPressClient } from 'wp-astrojs-integration';
 import { wordPressAuthBridge } from './lib/auth/bridge';
 
 export const onRequest = defineMiddleware(async (context, next) => {
-  // Get the full config from the bridge
-  const clientConfig = await wordPressAuthBridge.getClientConfig(context);
-  
-  if (!clientConfig) {
+  if (context.url.pathname === '/login') {
+    return next();
+  }
+
+  const wp = await wordPressAuthBridge.getClient(context);
+
+  if (!wp) {
     return Response.redirect(new URL('/login', context.url), 302);
   }
 
-  // Use directly with fluent-wp-client
-  const wp = new WordPressClient(clientConfig);
-  
-  // Get current user details
   try {
-    const user = await wp.getCurrentUser();
-    context.locals.user = user;
-  } catch (error) {
+    context.locals.user = await wp.getCurrentUser();
+    context.locals.wp = wp;
+  } catch {
     wordPressAuthBridge.clearAuthentication(context.cookies);
     return Response.redirect(new URL('/login', context.url), 302);
   }
@@ -141,206 +63,91 @@ export const onRequest = defineMiddleware(async (context, next) => {
 });
 ```
 
-## Using with Actions
+## Action Factories with the Bridge Client
 
-The config from `getClientConfig()` can be spread directly into action factories:
+Action factories can now use the bridge client directly, so you do not need to rebuild `baseUrl`, `auth`, or `authHeaders` for each action.
 
-```typescript
+```ts
 // src/actions/index.ts
 import {
   createCreatePostAction,
   createUpdatePostAction,
   createDeletePostAction,
+  pageSchema,
 } from 'wp-astrojs-integration';
 import { wordPressAuthBridge } from '../lib/auth/bridge';
-import type { ActionAPIContext } from 'astro:actions';
 
 export const server = {
   login: wordPressAuthBridge.loginAction,
-  createPost: createCreatePostAction({
-    resource: 'posts',
-    // Spread the bridge config dynamically
-    ...async (context: ActionAPIContext) => {
-      const config = await wordPressAuthBridge.getClientConfig(context);
-      if (!config) {
-        throw new Error('Unauthorized');
-      }
-      return config;
-    },
+
+  createPost: createCreatePostAction(wordPressAuthBridge.getClient),
+  updatePost: createUpdatePostAction(wordPressAuthBridge.getClient),
+  deletePost: createDeletePostAction(wordPressAuthBridge.getClient),
+
+  createPage: createCreatePostAction(wordPressAuthBridge.getClient, {
+    resource: 'pages',
+    responseSchema: pageSchema,
   }),
 };
 ```
 
-Or use a helper pattern:
+If you prefer static credentials, build one client yourself and pass it directly:
 
-```typescript
-// src/actions/index.ts
-import {
-  createCreatePostAction,
-  createUpdatePostAction,
-} from 'wp-astrojs-integration';
-import { wordPressAuthBridge } from '../lib/auth/bridge';
+```ts
+import { WordPressClient } from 'wp-astrojs-integration';
 
-// Helper that resolves bridge config for actions
-async function withBridgeAuth(context: ActionAPIContext) {
-  const config = await wordPressAuthBridge.getClientConfig(context);
-  if (!config) {
-    throw new Error('Unauthorized');
-  }
-  return config;
-}
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
+});
 
 export const server = {
-  createPost: defineAction({
-    input: createPostInputSchema,
-    handler: async (input, context) => {
-      const bridgeConfig = await withBridgeAuth(context);
-      
-      // Use the bridge config with execute helper
-      return executeCreatePost(
-        { ...bridgeConfig, resource: 'posts' },
-        input
-      );
-    },
-  }),
+  createPost: createCreatePostAction(wp),
 };
 ```
 
-## Complete Middleware Example
+## Low-Level Escape Hatch
 
-```typescript
-// src/middleware.ts
-import { defineMiddleware } from 'astro:middleware';
+If you need to create the client yourself, the bridge can still return the resolved config.
+
+```ts
 import { WordPressClient } from 'wp-astrojs-integration';
-import { wordPressAuthBridge } from './lib/auth/bridge';
 
-export const onRequest = defineMiddleware(async (context, next) => {
-  // Allow public access to login page
-  if (context.url.pathname === '/login') {
-    return next();
-  }
+const clientConfig = await wordPressAuthBridge.getClientConfig(Astro);
 
-  // Get WordPress client config from the bridge
-  const clientConfig = await wordPressAuthBridge.getClientConfig(context);
-  
-  if (!clientConfig) {
-    wordPressAuthBridge.clearAuthentication(context.cookies);
-    return Response.redirect(new URL('/login', context.url), 302);
-  }
+if (!clientConfig) {
+  return Astro.redirect('/login');
+}
 
-  // Create a fresh WordPress client with the resolved auth
-  const wp = new WordPressClient(clientConfig);
+const wp = new WordPressClient(clientConfig);
+```
 
-  try {
-    // Verify the user is still valid
-    const user = await wp.getCurrentUser();
-    context.locals.user = user;
-    context.locals.wp = wp; // Optional: make client available to routes
-  } catch (error) {
-    // Token expired or invalid - clear and redirect
-    wordPressAuthBridge.clearAuthentication(context.cookies);
-    return Response.redirect(new URL('/login', context.url), 302);
-  }
+## Custom Auth Resolution
 
-  return next();
+The bridge can also resolve auth from request headers or other request-scoped sources.
+
+```ts
+import { createAuthResolver, createWordPressAuthBridge } from 'wp-astrojs-integration';
+import type { ActionAPIContext } from 'astro:actions';
+
+export const bridge = createWordPressAuthBridge({
+  baseUrl: import.meta.env.WP_URL,
+  authResolver: createAuthResolver<ActionAPIContext>((context) => {
+    return context.request.headers.get('authorization');
+  }),
 });
 ```
 
-## Using in Astro Routes
+## Login Payload Schema
 
-With the bridge providing a fluent-wp-client compatible config, you can use WordPress client directly in your routes:
+```ts
+import { z } from 'astro/zod';
+import { wordPressLoginInputSchema } from 'wp-astrojs-integration';
 
-```astro
----
-// src/pages/profile.astro
-import { wordPressAuthBridge } from '../lib/auth/bridge';
-import { WordPressClient } from 'wp-astrojs-integration';
-
-// Get config from bridge
-const clientConfig = await wordPressAuthBridge.getClientConfig(Astro);
-
-if (!clientConfig) {
-  return Astro.redirect('/login');
-}
-
-// Create client and fetch data
-const wp = new WordPressClient(clientConfig);
-const user = await wp.getCurrentUser();
-const posts = await wp.getPosts({ author: user.id });
----
-
-<h1>Welcome, {user.name}</h1>
-<p>Your posts: {posts.length}</p>
-```
-
-## Protected Update Flow (Middleware + fluent-wp-client)
-
-```astro
----
-// src/pages/admin/edit-post.astro
-import { wordPressAuthBridge } from '../../lib/auth/bridge';
-import { WordPressClient } from 'wp-astrojs-integration';
-
-// Get config from bridge (set by middleware or resolve fresh)
-const clientConfig = await wordPressAuthBridge.getClientConfig(Astro);
-
-if (!clientConfig) {
-  return Astro.redirect('/login');
-}
-
-const wp = new WordPressClient(clientConfig);
-
-if (Astro.request.method === 'POST') {
-  const formData = await Astro.request.formData();
-  const id = Number(formData.get('id'));
-  const title = String(formData.get('title') ?? '').trim();
-
-  try {
-    // Update directly using fluent-wp-client
-    const updated = await wp.updatePost(id, { title });
-    return Astro.redirect(`/admin/posts/${updated.id}`);
-  } catch (error) {
-    throw error;
-  }
-}
-
-// Fetch post for editing
-const post = await wp.getPost(Number(Astro.params.id));
----
-
-<form method="POST">
-  <input type="hidden" name="id" value={post.id} />
-  <input type="text" name="title" value={post.title.rendered} required />
-  <button type="submit">Update post</button>
-</form>
-```
-
-## Unified Configuration Across Loaders, Actions, and Bridge
-
-The bridge aligns with the same configuration patterns used by loaders and actions:
-
-| Component | Config Pattern | Auth Support |
-|-----------|---------------|--------------|
-| **Loaders** | `WordPressLoaderConfig` (picks from `WordPressClientConfig`) | Static `auth`, `authHeader`, `authHeaders` |
-| **Actions** | `ActionAuthConfig` via `ResolvableWordPressAuth` | Static or context-aware resolvers |
-| **Bridge** | `WordPressAuthBridgeConfig` (extends `WordPressClientConfig`) | Static `auth`, `authHeader`, `authHeaders`, or custom `authResolver` |
-
-This means you can use the same auth configuration across your entire Astro application:
-
-```typescript
-// Shared auth config
-const baseUrl = import.meta.env.WP_BASE_URL;
-const auth = { token: import.meta.env.WP_JWT_TOKEN };
-
-// Use in loaders (static build time)
-wordPressPostStaticLoader({ baseUrl, auth })
-
-// Use in bridge (runtime session management)
-const bridge = createWordPressAuthBridge({ baseUrl, auth, cookieName: 'wp_jwt' })
-
-// Get config from bridge for fluent-wp-client
-const config = await bridge.getClientConfig(context);
-const wp = new WordPressClient(config);
+type LoginPayload = z.input<typeof wordPressLoginInputSchema>;
 ```
 
 <CardGrid>

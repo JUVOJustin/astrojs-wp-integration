@@ -1,13 +1,17 @@
 import type { ActionClient } from 'astro:actions';
+import type { WordPressClient, WordPressStandardSchema } from 'fluent-wp-client';
 import {
   getAbilityInputSchema,
   type GetAbilityInput,
 } from 'fluent-wp-client/zod';
-import { withActionClient } from '../post/client';
+import {
+  withActionClient,
+  type ResolvableActionClient,
+} from '../post/client';
 import {
   createAbilityAction,
-  type AbilityActionConfig,
-  type ExecuteAbilityConfig,
+  type AbilityActionOptions,
+  type ExecuteAbilityOptions,
 } from './factory';
 
 /**
@@ -17,24 +21,37 @@ export { getAbilityInputSchema };
 export type { GetAbilityInput };
 
 /**
- * Low-level config accepted by `executeGetAbility`.
+ * Low-level options accepted by `executeGetAbility`.
  */
-export type ExecuteGetAbilityConfig<T = unknown> = ExecuteAbilityConfig<T>;
+export type ExecuteGetAbilityOptions<T = unknown> = ExecuteAbilityOptions<T>;
 
 /**
- * Configuration required to create the read-only ability action factory.
- * @deprecated Use AbilityActionConfig directly from factory.
+ * @deprecated Use `ExecuteGetAbilityOptions` instead.
  */
-export type GetAbilityActionConfig<T = unknown> = AbilityActionConfig<T>;
+export type ExecuteGetAbilityConfig<T = unknown> = ExecuteGetAbilityOptions<T>;
+
+/**
+ * Shared non-auth options accepted by the read-only ability action factory.
+ * @deprecated Use `GetAbilityActionOptions` instead.
+ */
+export type GetAbilityActionConfig<T = unknown> = AbilityActionOptions<T>;
+
+type GetAbilityActionOptions<
+  TResponse,
+  TSchema extends typeof getAbilityInputSchema,
+> = AbilityActionOptions<TResponse> & {
+  schema?: TSchema;
+};
 
 /**
  * Executes one read-only WordPress ability via the standalone client.
  */
 export async function executeGetAbility<T = unknown>(
-  config: ExecuteGetAbilityConfig<T>,
+  client: WordPressClient,
   input: GetAbilityInput,
+  options?: ExecuteGetAbilityOptions<T>,
 ): Promise<T> {
-  return withActionClient(config, (client) => client.executeGetAbility(input.name, input.input, config.responseSchema));
+  return withActionClient(client, (resolvedClient) => resolvedClient.executeGetAbility(input.name, input.input, options?.responseSchema));
 }
 
 /**
@@ -43,10 +60,11 @@ export async function executeGetAbility<T = unknown>(
 export function createGetAbilityAction<
   TResponse = unknown,
   TSchema extends typeof getAbilityInputSchema = typeof getAbilityInputSchema,
->(config: AbilityActionConfig<TResponse> & { schema?: TSchema }): ActionClient<TResponse, undefined, TSchema> & string {
+>(client: ResolvableActionClient, options?: GetAbilityActionOptions<TResponse, TSchema>): ActionClient<TResponse, undefined, TSchema> & string {
   return createAbilityAction<GetAbilityInput, TResponse, TSchema>({
-    ...config,
+    ...options,
+    client,
     defaultSchema: getAbilityInputSchema as TSchema,
-    execute: (executeConfig, input) => executeGetAbility<TResponse>(executeConfig, input),
+    execute: (resolvedClient, input, executeOptions) => executeGetAbility<TResponse>(resolvedClient, input, executeOptions),
   });
 }

@@ -8,6 +8,7 @@ import {
   wordPressUserStaticLoader,
   wordPressContentStaticLoader,
 } from '../../../src/loaders/static';
+import { WordPressClient } from 'fluent-wp-client';
 import { createMockStore } from '../../helpers/mock-store';
 import { createMockLogger } from '../../helpers/mock-logger';
 import { getBaseUrl } from '../../helpers/wp-client';
@@ -43,9 +44,16 @@ describe('Static Loaders', () => {
     baseUrl = getBaseUrl();
   });
 
+  /**
+   * Creates one public WordPress client for static loader tests.
+   */
+  function createClient(): WordPressClient {
+    return new WordPressClient({ baseUrl });
+  }
+
   describe('wordPressPostStaticLoader', () => {
     it('clears the Astro store and then writes normalized entries', async () => {
-      const loader = wordPressPostStaticLoader({ baseUrl });
+      const loader = wordPressPostStaticLoader(createClient());
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
@@ -61,7 +69,7 @@ describe('Static Loaders', () => {
     });
 
     it('stores rendered html aligned with post.content.rendered', async () => {
-      const loader = wordPressPostStaticLoader({ baseUrl });
+      const loader = wordPressPostStaticLoader(createClient());
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
@@ -76,7 +84,7 @@ describe('Static Loaders', () => {
     });
 
     it('uses stringified numeric ids as datastore keys', async () => {
-      const loader = wordPressPostStaticLoader({ baseUrl });
+      const loader = wordPressPostStaticLoader(createClient());
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
@@ -94,7 +102,7 @@ describe('Static Loaders', () => {
      * devalue-based content store serialization (issue #19).
      */
     it('stores plain serializable data without function properties', async () => {
-      const loader = wordPressPostStaticLoader({ baseUrl });
+      const loader = wordPressPostStaticLoader(createClient());
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
@@ -112,7 +120,7 @@ describe('Static Loaders', () => {
      * Serialization test: pages must also be plain serializable data.
      */
     it('stores plain serializable data without function properties', async () => {
-      const loader = wordPressPageStaticLoader({ baseUrl });
+      const loader = wordPressPageStaticLoader(createClient());
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
@@ -127,7 +135,7 @@ describe('Static Loaders', () => {
 
   describe('taxonomy static loaders', () => {
     it('does not attach rendered html for categories', async () => {
-      const loader = wordPressCategoryStaticLoader({ baseUrl });
+      const loader = wordPressCategoryStaticLoader(createClient());
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
@@ -140,7 +148,7 @@ describe('Static Loaders', () => {
     });
 
     it('logs successful tag loader completion', async () => {
-      const loader = wordPressTagStaticLoader({ baseUrl });
+      const loader = wordPressTagStaticLoader(createClient());
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
@@ -151,8 +159,7 @@ describe('Static Loaders', () => {
     });
 
     it('loads custom taxonomy static entries by resource', async () => {
-      const loader = wordPressTermStaticLoader({
-        baseUrl,
+      const loader = wordPressTermStaticLoader(createClient(), {
         resource: 'genres',
       });
       const { store, entries } = createMockStore();
@@ -170,7 +177,7 @@ describe('Static Loaders', () => {
 
   describe('wordPressUserStaticLoader', () => {
     it('stores user entries using string ids and no rendered html', async () => {
-      const loader = wordPressUserStaticLoader({ baseUrl });
+      const loader = wordPressUserStaticLoader(createClient());
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
@@ -187,8 +194,7 @@ describe('Static Loaders', () => {
 
   describe('wordPressContentStaticLoader', () => {
     it('stores CPT entries with string ids and rendered html', async () => {
-      const loader = wordPressContentStaticLoader({
-        baseUrl,
+      const loader = wordPressContentStaticLoader(createClient(), {
         resource: 'books',
       });
       const { store, entries } = createMockStore();
@@ -206,8 +212,7 @@ describe('Static Loaders', () => {
     });
 
     it('stores plain serializable data without function properties', async () => {
-      const loader = wordPressContentStaticLoader({
-        baseUrl,
+      const loader = wordPressContentStaticLoader(createClient(), {
         resource: 'books',
       });
       const { store, entries } = createMockStore();
@@ -222,8 +227,7 @@ describe('Static Loaders', () => {
     });
 
     it('clears store before loading CPT entries', async () => {
-      const loader = wordPressContentStaticLoader({
-        baseUrl,
+      const loader = wordPressContentStaticLoader(createClient(), {
         resource: 'books',
       });
       const { store, entries } = createMockStore();
@@ -241,8 +245,7 @@ describe('Static Loaders', () => {
     });
 
     it('logs successful CPT loader completion', async () => {
-      const loader = wordPressContentStaticLoader({
-        baseUrl,
+      const loader = wordPressContentStaticLoader(createClient(), {
         resource: 'books',
       });
       const { store, entries } = createMockStore();

@@ -1,13 +1,17 @@
 import type { ActionClient } from 'astro:actions';
+import type { WordPressClient, WordPressStandardSchema } from 'fluent-wp-client';
 import {
   deleteAbilityInputSchema,
   type DeleteAbilityInput,
 } from 'fluent-wp-client/zod';
-import { withActionClient } from '../post/client';
+import {
+  withActionClient,
+  type ResolvableActionClient,
+} from '../post/client';
 import {
   createAbilityAction,
-  type AbilityActionConfig,
-  type ExecuteAbilityConfig,
+  type AbilityActionOptions,
+  type ExecuteAbilityOptions,
 } from './factory';
 
 /**
@@ -17,24 +21,37 @@ export { deleteAbilityInputSchema };
 export type { DeleteAbilityInput };
 
 /**
- * Low-level config accepted by `executeDeleteAbility`.
+ * Low-level options accepted by `executeDeleteAbility`.
  */
-export type ExecuteDeleteAbilityConfig<T = unknown> = ExecuteAbilityConfig<T>;
+export type ExecuteDeleteAbilityOptions<T = unknown> = ExecuteAbilityOptions<T>;
 
 /**
- * Configuration required to create the destructive-ability action factory.
- * @deprecated Use AbilityActionConfig directly from factory.
+ * @deprecated Use `ExecuteDeleteAbilityOptions` instead.
  */
-export type DeleteAbilityActionConfig<T = unknown> = AbilityActionConfig<T>;
+export type ExecuteDeleteAbilityConfig<T = unknown> = ExecuteDeleteAbilityOptions<T>;
+
+/**
+ * Shared non-auth options accepted by the destructive-ability action factory.
+ * @deprecated Use `DeleteAbilityActionOptions` instead.
+ */
+export type DeleteAbilityActionConfig<T = unknown> = AbilityActionOptions<T>;
+
+type DeleteAbilityActionOptions<
+  TResponse,
+  TSchema extends typeof deleteAbilityInputSchema,
+> = AbilityActionOptions<TResponse> & {
+  schema?: TSchema;
+};
 
 /**
  * Executes one destructive WordPress ability via the standalone client.
  */
 export async function executeDeleteAbility<T = unknown>(
-  config: ExecuteDeleteAbilityConfig<T>,
+  client: WordPressClient,
   input: DeleteAbilityInput,
+  options?: ExecuteDeleteAbilityOptions<T>,
 ): Promise<T> {
-  return withActionClient(config, (client) => client.executeDeleteAbility(input.name, input.input, config.responseSchema));
+  return withActionClient(client, (resolvedClient) => resolvedClient.executeDeleteAbility(input.name, input.input, options?.responseSchema));
 }
 
 /**
@@ -43,10 +60,11 @@ export async function executeDeleteAbility<T = unknown>(
 export function createDeleteAbilityAction<
   TResponse = unknown,
   TSchema extends typeof deleteAbilityInputSchema = typeof deleteAbilityInputSchema,
->(config: AbilityActionConfig<TResponse> & { schema?: TSchema }): ActionClient<TResponse, undefined, TSchema> & string {
+>(client: ResolvableActionClient, options?: DeleteAbilityActionOptions<TResponse, TSchema>): ActionClient<TResponse, undefined, TSchema> & string {
   return createAbilityAction<DeleteAbilityInput, TResponse, TSchema>({
-    ...config,
+    ...options,
+    client,
     defaultSchema: deleteAbilityInputSchema as TSchema,
-    execute: (executeConfig, input) => executeDeleteAbility<TResponse>(executeConfig, input),
+    execute: (resolvedClient, input, executeOptions) => executeDeleteAbility<TResponse>(resolvedClient, input, executeOptions),
   });
 }

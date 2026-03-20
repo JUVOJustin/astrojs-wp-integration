@@ -1,44 +1,53 @@
+import { ActionError, type ActionAPIContext } from 'astro:actions';
 import {
   WordPressApiError,
   WordPressClient,
-  type WordPressClientConfig,
-} from 'fluent-wp-client';
-import { ActionError } from 'astro:actions';
-import type {
-  WordPressAuthHeaders,
-  WordPressAuthHeadersProvider,
-  WordPressAuthInput,
 } from 'fluent-wp-client';
 
+type MaybePromise<T> = T | Promise<T>;
+
 /**
- * Shared auth config used by all action execute helpers.
- * Mirrors WordPressClientConfig with slight adjustments for action context.
+ * Callback shape used when one Astro action needs a request-scoped WordPress client.
  */
-export interface ExecuteActionAuthConfig extends Pick<
-  WordPressClientConfig,
-  'baseUrl' | 'authHeaders' | 'cookies' | 'credentials'
-> {
-  auth?: WordPressAuthInput;
-  authHeader?: string;
-  authHeaders?: WordPressAuthHeaders | WordPressAuthHeadersProvider;
+export type ActionClientResolver = (
+  context: ActionAPIContext,
+) => MaybePromise<WordPressClient | null | undefined>;
+
+/**
+ * Client source accepted by action factories.
+ */
+export type ResolvableActionClient = WordPressClient | ActionClientResolver;
+
+/**
+ * Resolves one reusable WordPress client from either a static instance or one request-aware resolver.
+ */
+export async function resolveActionClient(
+  client: ResolvableActionClient,
+  context: ActionAPIContext,
+): Promise<WordPressClient | null> {
+  if (client instanceof WordPressClient) {
+    return client;
+  }
+
+  return (await client(context)) ?? null;
 }
 
 /**
- * Builds one configured WordPress client for execute helpers.
+ * Resolves one required WordPress client or throws an ActionError when no client is available.
  */
-function createActionClient(config: ExecuteActionAuthConfig): WordPressClient {
-  const auth = typeof config.auth === 'string'
-    ? undefined
-    : config.auth;
-  const authHeader = config.authHeader ?? (typeof config.auth === 'string' ? config.auth : undefined);
+export async function resolveRequiredActionClient(
+  client: ResolvableActionClient,
+  context: ActionAPIContext,
+): Promise<WordPressClient> {
+  const resolvedClient = await resolveActionClient(client, context);
 
-  return new WordPressClient({
-    baseUrl: config.baseUrl,
-    auth,
-    authHeader,
-    authHeaders: config.authHeaders,
-    cookies: config.cookies,
-    credentials: config.credentials,
+  if (resolvedClient) {
+    return resolvedClient;
+  }
+
+  throw new ActionError({
+    code: 'UNAUTHORIZED',
+    message: 'Authentication is required to execute this action.',
   });
 }
 
@@ -46,11 +55,11 @@ function createActionClient(config: ExecuteActionAuthConfig): WordPressClient {
  * Executes one callback with a configured client and normalizes thrown errors.
  */
 export async function withActionClient<T>(
-  config: ExecuteActionAuthConfig,
+  client: WordPressClient,
   callback: (client: WordPressClient) => Promise<T>,
 ): Promise<T> {
   try {
-    return await callback(createActionClient(config));
+    return await callback(client);
   } catch (error) {
     throw toActionError(error);
   }

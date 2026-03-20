@@ -28,6 +28,8 @@ import {
 } from '../../../../../src/actions';
 import { createWordPressAuthBridge } from '../../../../../src/server/auth';
 import {
+  WordPressClient,
+  createAuthResolver,
   pageSchema,
   contentWordPressSchema,
   categorySchema,
@@ -36,6 +38,18 @@ import { z } from 'astro/zod';
 
 const baseUrl = import.meta.env.WP_BASE_URL ?? 'http://localhost:8888';
 const bridge = createWordPressAuthBridge({ baseUrl });
+const requestHeaderBridge = createWordPressAuthBridge({
+  baseUrl,
+  authResolver: createAuthResolver<ActionAPIContext>((context) => {
+    return context.request.headers.get('x-test-auth');
+  }),
+});
+const staticJwtClient = new WordPressClient({
+  baseUrl,
+  auth: {
+    token: import.meta.env.WP_JWT_TOKEN ?? '',
+  },
+});
 
 const tokenInputSchema = z.object({ token: z.string().min(1) });
 
@@ -55,43 +69,21 @@ function createCookieReader(cookieName: string, token?: string): CookieReader {
   };
 }
 
-/**
- * Auth resolver that reads the JWT token from the X-Test-Auth request header.
- * Tests pass the JWT token via this header so the action handler can
- * authenticate against WordPress on behalf of the test.
- */
-const testAuth = {
-  fromContext: (context: { request: Request }) => {
-    const header = context.request.headers.get('x-test-auth');
-    if (!header) return null;
-    return { Authorization: header };
-  },
-};
-
-/** Auth config that reads JWT from X-Test-Auth header. */
-const jwtAuthConfig = { authHeaders: testAuth };
-
-/** Auth config that reads basic auth from X-Test-Auth header. */
-const basicAuthConfig = { authHeaders: testAuth };
+const requestClient = requestHeaderBridge.getClient;
 
 /* ── Post actions ────────────────────────────────────── */
 
-const createPost = createCreatePostAction({
-  baseUrl,
-  ...jwtAuthConfig,
-});
+const createPost = createCreatePostAction(requestClient);
 
-const createPostCustomSchema = createCreatePostAction({
-  baseUrl,
-  ...jwtAuthConfig,
+const createPostWithBridgeClient = createCreatePostAction(requestHeaderBridge.getClient);
+
+const createPostCustomSchema = createCreatePostAction(requestClient, {
   schema: createPostInputSchema.extend({
     acf: z.object({ acf_subtitle: z.string().optional() }).optional(),
   }),
 });
 
-const createPostAcf = createCreatePostAction({
-  baseUrl,
-  ...jwtAuthConfig,
+const createPostAcf = createCreatePostAction(requestClient, {
   schema: createPostInputSchema.extend({
     acf: z.object({
       acf_subtitle: z.string().optional(),
@@ -100,31 +92,22 @@ const createPostAcf = createCreatePostAction({
   }),
 });
 
-const createPostResponseOverride = createCreatePostAction({
-  baseUrl,
-  ...jwtAuthConfig,
+const createPostResponseOverride = createCreatePostAction(requestClient, {
   responseSchema: z.object({
     id: z.number().int().positive(),
     status: z.string(),
   }),
 });
 
-const updatePost = createUpdatePostAction({
-  baseUrl,
-  ...jwtAuthConfig,
-});
+const updatePost = createUpdatePostAction(requestClient);
 
-const updatePostCustomSchema = createUpdatePostAction({
-  baseUrl,
-  ...jwtAuthConfig,
+const updatePostCustomSchema = createUpdatePostAction(requestClient, {
   schema: updatePostInputSchema.extend({
     acf: z.object({ acf_subtitle: z.string().optional() }).optional(),
   }),
 });
 
-const updatePostAcf = createUpdatePostAction({
-  baseUrl,
-  ...jwtAuthConfig,
+const updatePostAcf = createUpdatePostAction(requestClient, {
   schema: updatePostInputSchema.extend({
     acf: z.object({
       acf_subtitle: z.string().optional(),
@@ -133,23 +116,21 @@ const updatePostAcf = createUpdatePostAction({
   }),
 });
 
-const deletePost = createDeletePostAction({
-  baseUrl,
-  ...jwtAuthConfig,
-});
+const deletePost = createDeletePostAction(requestClient);
 
 /* ── Page actions ────────────────────────────────────── */
 
-const createPage = createCreatePostAction({
-  baseUrl,
-  ...basicAuthConfig,
+const createPage = createCreatePostAction(requestClient, {
   resource: 'pages',
   responseSchema: pageSchema,
 });
 
-const updatePage = createUpdatePostAction({
-  baseUrl,
-  ...basicAuthConfig,
+const createPageWithStaticClient = createCreatePostAction(staticJwtClient, {
+  resource: 'pages',
+  responseSchema: pageSchema,
+});
+
+const updatePage = createUpdatePostAction(requestClient, {
   resource: 'pages',
   responseSchema: pageSchema,
   schema: updatePostInputSchema.extend({
@@ -157,9 +138,7 @@ const updatePage = createUpdatePostAction({
   }),
 });
 
-const createPageResponseOverride = createCreatePostAction({
-  baseUrl,
-  ...basicAuthConfig,
+const createPageResponseOverride = createCreatePostAction(requestClient, {
   resource: 'pages',
   responseSchema: z.object({
     id: z.number().int().positive(),
@@ -168,24 +147,16 @@ const createPageResponseOverride = createCreatePostAction({
   }),
 });
 
-const deletePage = createDeletePostAction({
-  baseUrl,
-  ...basicAuthConfig,
-  resource: 'pages',
-});
+const deletePage = createDeletePostAction(requestClient, { resource: 'pages' });
 
 /* ── Book (CPT) actions ──────────────────────────────── */
 
-const createBook = createCreatePostAction({
-  baseUrl,
-  ...basicAuthConfig,
+const createBook = createCreatePostAction(requestClient, {
   resource: 'books',
   responseSchema: contentWordPressSchema,
 });
 
-const createBookCustomSchema = createCreatePostAction({
-  baseUrl,
-  ...basicAuthConfig,
+const createBookCustomSchema = createCreatePostAction(requestClient, {
   resource: 'books',
   responseSchema: contentWordPressSchema,
   schema: createPostInputSchema.extend({
@@ -193,9 +164,7 @@ const createBookCustomSchema = createCreatePostAction({
   }),
 });
 
-const createBookResponseOverride = createCreatePostAction({
-  baseUrl,
-  ...basicAuthConfig,
+const createBookResponseOverride = createCreatePostAction(requestClient, {
   resource: 'books',
   responseSchema: z.object({
     id: z.number().int().positive(),
@@ -204,9 +173,7 @@ const createBookResponseOverride = createCreatePostAction({
   }),
 });
 
-const updateBook = createUpdatePostAction({
-  baseUrl,
-  ...basicAuthConfig,
+const updateBook = createUpdatePostAction(requestClient, {
   resource: 'books',
   responseSchema: contentWordPressSchema,
   schema: updatePostInputSchema.extend({
@@ -214,17 +181,11 @@ const updateBook = createUpdatePostAction({
   }),
 });
 
-const deleteBook = createDeletePostAction({
-  baseUrl,
-  ...basicAuthConfig,
-  resource: 'books',
-});
+const deleteBook = createDeletePostAction(requestClient, { resource: 'books' });
 
 /* ── Term actions ────────────────────────────────────── */
 
-const createCategory = createCreateTermAction({
-  baseUrl,
-  ...basicAuthConfig,
+const createCategory = createCreateTermAction(requestClient, {
   resource: 'categories',
   responseSchema: categorySchema,
   schema: createTermInputSchema.extend({
@@ -232,9 +193,7 @@ const createCategory = createCreateTermAction({
   }),
 });
 
-const updateCategory = createUpdateTermAction({
-  baseUrl,
-  ...basicAuthConfig,
+const updateCategory = createUpdateTermAction(requestClient, {
   resource: 'categories',
   responseSchema: categorySchema,
   schema: updateTermInputSchema.extend({
@@ -242,28 +201,16 @@ const updateCategory = createUpdateTermAction({
   }),
 });
 
-const deleteCategory = createDeleteTermAction({
-  baseUrl,
-  ...basicAuthConfig,
-  resource: 'categories',
-});
+const deleteCategory = createDeleteTermAction(requestClient, { resource: 'categories' });
 
-const createTag = createCreateTermAction({
-  baseUrl,
-  ...basicAuthConfig,
+const createTag = createCreateTermAction(requestClient, {
   resource: 'tags',
   responseSchema: categorySchema,
 });
 
-const deleteTag = createDeleteTermAction({
-  baseUrl,
-  ...basicAuthConfig,
-  resource: 'tags',
-});
+const deleteTag = createDeleteTermAction(requestClient, { resource: 'tags' });
 
-const createGenre = createCreateTermAction({
-  baseUrl,
-  ...basicAuthConfig,
+const createGenre = createCreateTermAction(requestClient, {
   resource: 'genres',
   responseSchema: z.object({
     id: z.number().int().positive(),
@@ -272,71 +219,50 @@ const createGenre = createCreateTermAction({
   }),
 });
 
-const deleteGenre = createDeleteTermAction({
-  baseUrl,
-  ...basicAuthConfig,
-  resource: 'genres',
-});
+const deleteGenre = createDeleteTermAction(requestClient, { resource: 'genres' });
 
 /* ── User actions ────────────────────────────────────── */
 
-const createUser = createCreateUserAction({
-  baseUrl,
-  ...basicAuthConfig,
-});
+const createUser = createCreateUserAction(requestClient);
 
-const createUserCustomSchema = createCreateUserAction({
-  baseUrl,
-  ...basicAuthConfig,
+const createUserCustomSchema = createCreateUserAction(requestClient, {
   schema: createUserInputSchema.extend({
     app_source: z.string().optional(),
   }),
 });
 
-const createUserResponseOverride = createCreateUserAction({
-  baseUrl,
-  ...basicAuthConfig,
+const createUserResponseOverride = createCreateUserAction(requestClient, {
   responseSchema: z.object({
     id: z.number().int().positive(),
     slug: z.string(),
   }),
 });
 
-const updateUser = createUpdateUserAction({
-  baseUrl,
-  ...basicAuthConfig,
-});
+const updateUser = createUpdateUserAction(requestClient);
 
-const updateUserCustomSchema = createUpdateUserAction({
-  baseUrl,
-  ...basicAuthConfig,
+const updateUserCustomSchema = createUpdateUserAction(requestClient, {
   schema: updateUserInputSchema.extend({
     app_updated_by: z.string().optional(),
   }),
 });
 
-const deleteUser = createDeleteUserAction({
-  baseUrl,
-  ...basicAuthConfig,
-});
+const deleteUser = createDeleteUserAction(requestClient);
 
 /* ── Ability actions ─────────────────────────────────── */
 
-const getAbility = createGetAbilityAction({
-  baseUrl,
-  ...basicAuthConfig,
+const getAbility = createGetAbilityAction(requestClient, {
   responseSchema: z.object({ title: z.string().min(1) }),
 });
 
-const runAbility = createRunAbilityAction({
-  baseUrl,
-  ...basicAuthConfig,
+const getAbilityWithBridgeClient = createGetAbilityAction(requestHeaderBridge.getClient, {
+  responseSchema: z.object({ title: z.string().min(1) }),
+});
+
+const runAbility = createRunAbilityAction(requestClient, {
   responseSchema: z.object({ current: z.string().min(1) }),
 });
 
-const deleteAbility = createDeleteAbilityAction({
-  baseUrl,
-  ...basicAuthConfig,
+const deleteAbility = createDeleteAbilityAction(requestClient, {
   responseSchema: z.object({ deleted: z.boolean() }),
 });
 
@@ -449,6 +375,7 @@ const authBridgeIsAuthenticated = defineAction({
 
 export const server = {
   createPost,
+  createPostWithBridgeClient,
   createPostCustomSchema,
   createPostAcf,
   createPostResponseOverride,
@@ -458,6 +385,7 @@ export const server = {
   deletePost,
 
   createPage,
+  createPageWithStaticClient,
   updatePage,
   createPageResponseOverride,
   deletePage,
@@ -484,6 +412,7 @@ export const server = {
   deleteUser,
 
   getAbility,
+  getAbilityWithBridgeClient,
   runAbility,
   deleteAbility,
 

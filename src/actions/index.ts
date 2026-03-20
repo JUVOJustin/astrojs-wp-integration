@@ -5,11 +5,9 @@
  */
 
 export type {
-  ActionAuthConfig,
-  ActionAuthHeadersConfig,
-  ActionAuthHeadersFromContext,
-  ResolvableActionAuthHeaders,
-} from './auth';
+  ActionClientResolver,
+  ResolvableActionClient,
+} from './post/client';
 
 // Post actions
 export { createCreatePostAction, createPostInputSchema, executeCreatePost } from './post/create';

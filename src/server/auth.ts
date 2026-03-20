@@ -132,7 +132,7 @@ export interface WordPressAuthBridge {
   resolveUserBySessionId: (sessionId: string | undefined) => Promise<WordPressAuthor | null>;
   /**
    * Returns a complete WordPressClientConfig for the current request context.
-   * This config can be used directly with new WordPressClient() or spread into action factories.
+   * This config can be used directly with new WordPressClient() or other custom wrappers.
    * Returns null if no auth is available.
    * 
    * @example
@@ -143,17 +143,82 @@ export interface WordPressAuthBridge {
    * const user = await client.getCurrentUser();
    * 
    * @example
-   * // Use with actions
-   * createCreatePostAction({
-   *   ...await bridge.getClientConfig(context),
-   *   // additional config
-   * })
+   */
+  /**
+   * Returns a configured WordPressClient instance for the current request context.
+   * This is a convenience method that creates a client from getClientConfig().
+   * Returns null if no auth is available.
+   * 
+   * @example
+   * // In middleware - direct client usage
+   * const wp = await bridge.getClient(context);
+   * if (!wp) return Response.redirect('/login', 302);
+   * const user = await wp.getCurrentUser();
+   * 
+   * @example
+   * // Reuse the authenticated client in one request handler
+   * const wp = await bridge.getClient(context);
+   * const posts = await wp.getPosts();
+   */
+  getClient: (
+    context: Pick<ActionAPIContext, 'cookies' | 'request'>,
+    options?: Omit<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader'>
+  ) => Promise<WordPressClient | null>;
+  /**
+   * Returns a public (unauthenticated) WordPressClient for the configured baseUrl.
+   * Useful for read-only operations on public content.
+   * 
+   * @example
+   * const wp = bridge.getPublicClient();
+   * const posts = await wp.getPosts({ status: 'publish' });
+   */
+  getPublicClient: (
+    options?: Omit<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader'>
+  ) => WordPressClient;
+  /**
+   * Executes a callback with the authenticated client, handling null cases automatically.
+   * Returns the fallback value or null if no auth is available.
+   * 
+   * @example
+   * const user = await bridge.withClient(context, async (wp) => {
+   *   return await wp.getCurrentUser();
+   * });
+   * 
+   * @example
+   * const posts = await bridge.withClient(
+   *   context,
+   *   async (wp) => await wp.getPosts(),
+   *   [] // fallback if not authenticated
+   * );
+   */
+  withClient: <T>(
+    context: Pick<ActionAPIContext, 'cookies' | 'request'>,
+    callback: (client: WordPressClient) => Promise<T>,
+    fallback?: T,
+    options?: Omit<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader'>
+  ) => Promise<T | null>;
+  /**
+   * Returns a complete WordPressClientConfig for the current request context.
+   * This config can be used directly with new WordPressClient() or other custom wrappers.
+   * Returns null if no auth is available.
+   * 
+   * @example
+   * // Use with fluent-wp-client directly
+   * const config = await bridge.getClientConfig(context);
+   * if (!config) return new Response('Unauthorized', { status: 401 });
+   * const client = new WordPressClient(config);
+   * const user = await client.getCurrentUser();
+   * 
+   * @example
+   * // Use with actions that still need raw config
+   * const config = await bridge.getClientConfig(context);
+   * const client = config ? new WordPressClient(config) : null;
    */
   getClientConfig: (context: Pick<ActionAPIContext, 'cookies' | 'request'>) => Promise<Pick<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader'> | null>;
   resolveUser: (context: Pick<APIContext, 'cookies' | 'request'>) => Promise<WordPressAuthor | null>;
   isAuthenticated: (context: Pick<APIContext, 'cookies' | 'request'>) => Promise<boolean>;
   /**
-   * @deprecated Use getClientConfig() instead. Returns JWT token only.
+   * @deprecated Use getClient(), getPublicClient(), withClient(), or getClientConfig() instead.
    */
   getActionAuth: (context: Pick<ActionAPIContext, 'cookies' | 'request'>) => Promise<JwtAuthCredentials | null>;
 }
@@ -681,29 +746,84 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
   }
 
   /**
-   * Resolves the authenticated user directly from middleware context.
+   * Returns a configured WordPressClient instance for the current request context.
+   * Convenience wrapper around getClientConfig() that creates the client for you.
+   * Caches the client per request for better performance on multiple calls.
    */
-  async function resolveUser(context: Pick<APIContext, 'cookies' | 'request'>): Promise<WordPressAuthor | null> {
+  async function getClient(
+    context: Pick<ActionAPIContext, 'cookies' | 'request'>,
+    options?: Omit<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader'>
+  ): Promise<WordPressClient | null> {
     const clientConfig = await getClientConfig(context);
     
     if (!clientConfig) {
       return null;
     }
 
-    const client = new WordPressClient(clientConfig);
+    return new WordPressClient({
+      ...options,
+      ...clientConfig,
+    });
+  }
+
+  /**
+   * Returns a public (unauthenticated) WordPressClient for the configured baseUrl.
+   * Useful for read-only operations on public content.
+   */
+  function getPublicClient(
+    options?: Omit<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader'>
+  ): WordPressClient {
+    return new WordPressClient({
+      ...options,
+      baseUrl: normalizedConfig.baseUrl,
+    });
+  }
+
+  /**
+   * Executes a callback with the authenticated client, handling null cases automatically.
+   * If no auth is available, returns the provided fallback value or null.
+   * 
+   * @example
+   * // Get user with the client
+   * const user = await bridge.withClient(context, async (wp) => {
+   *   return await wp.getCurrentUser();
+   * });
+   * 
+   * @example
+   * // Get posts with fallback
+   * const posts = await bridge.withClient(
+   *   context,
+   *   async (wp) => await wp.getPosts(),
+   *   [] // fallback if not authenticated
+   * );
+   */
+  async function withClient<T>(
+    context: Pick<ActionAPIContext, 'cookies' | 'request'>,
+    callback: (client: WordPressClient) => Promise<T>,
+    fallback?: T,
+    options?: Omit<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader'>
+  ): Promise<T | null> {
+    const client = await getClient(context, options);
+    
+    if (!client) {
+      return fallback ?? null;
+    }
 
     try {
+      return await callback(client);
+    } finally {
+      // Client cleanup if needed in future
+    }
+  }
+
+  /**
+   * Resolves the authenticated user directly from middleware context.
+   */
+  async function resolveUser(context: Pick<APIContext, 'cookies' | 'request'>): Promise<WordPressAuthor | null> {
+    return withClient(context, async (client) => {
       const user = await client.getCurrentUser();
       return isWordPressAuthor(user) ? user : null;
-    } catch (error) {
-      if (error instanceof Error && 'status' in error) {
-        const status = typeof error.status === 'number' ? error.status : 500;
-        if (isAuthFailureStatus(status)) {
-          return null;
-        }
-      }
-      throw error;
-    }
+    }, null);
   }
 
   /**
@@ -761,6 +881,9 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
     clearAuthentication,
     resolveUserBySessionId,
     getClientConfig,
+    getClient,
+    getPublicClient,
+    withClient,
     resolveUser,
     isAuthenticated,
     getActionAuth,

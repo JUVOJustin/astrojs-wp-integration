@@ -23,6 +23,14 @@ describe('Actions: Abilities', () => {
     expect(result.title.length).toBeGreaterThan(0);
   });
 
+  it('supports request-aware client resolvers in ability action factories', async () => {
+    const result = await callAction<{ title: string }>('getAbilityWithBridgeClient', {
+      name: 'test/get-site-title',
+    }, { authHeader: basicAuth });
+
+    expect(result.title.length).toBeGreaterThan(0);
+  });
+
   it('executes one run ability through the Astro action factory', async () => {
     const result = await callAction<{ current: string }>('runAbility', {
       name: 'test/update-option',

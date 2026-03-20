@@ -16,10 +16,9 @@ import type {
   PostFilter,
   TagFilter,
   TermFilter,
-  WordPressTermLoaderConfig,
-  WordPressContentLoaderConfig,
+  WordPressTermLoaderOptions,
+  WordPressContentLoaderOptions,
   UserFilter,
-  WordPressLoaderConfig,
 } from './types';
 
 /**
@@ -100,15 +99,13 @@ function createLiveEntry<TEntry extends IdentifiableEntry>(
  * Creates one reusable live loader backed by `WordPressClient` methods.
  */
 function createLiveWordPressLoader<TEntry extends IdentifiableEntry, TFilter>(
-  config: WordPressLoaderConfig,
+  client: WordPressClient,
   definition: LiveLoaderDefinition<TEntry, TFilter>,
 ): {
   name: string;
   loadCollection: (context: LiveLoaderContext) => Promise<{ entries: ReturnType<typeof createLiveEntry<TEntry>>[] } | { error: Error }>;
   loadEntry: (context: LiveLoaderContext) => Promise<ReturnType<typeof createLiveEntry<TEntry>> | { error: Error }>;
 } {
-  const client = new WordPressClient(config);
-
   return {
     name: definition.name,
     loadCollection: async ({ filter }: LiveLoaderContext) => {
@@ -294,9 +291,9 @@ async function loadUserEntry(
  * Creates a live loader for WordPress posts.
  */
 export function wordPressPostLoader(
-  config: WordPressLoaderConfig,
+  client: WordPressClient,
 ): LiveLoader<WordPressPost, PostFilter> {
-  return createLiveWordPressLoader(config, {
+  return createLiveWordPressLoader(client, {
     name: 'wordpress-post-loader',
     collectionError: 'Failed to load posts',
     entryError: 'Failed to load post',
@@ -317,9 +314,9 @@ export function wordPressPostLoader(
  * Creates a live loader for WordPress pages.
  */
 export function wordPressPageLoader(
-  config: WordPressLoaderConfig,
+  client: WordPressClient,
 ): LiveLoader<WordPressPage, PageFilter> {
-  return createLiveWordPressLoader(config, {
+  return createLiveWordPressLoader(client, {
     name: 'wordpress-page-loader',
     collectionError: 'Failed to load pages',
     entryError: 'Failed to load page',
@@ -336,9 +333,9 @@ export function wordPressPageLoader(
  * Creates a live loader for WordPress media items.
  */
 export function wordPressMediaLoader(
-  config: WordPressLoaderConfig,
+  client: WordPressClient,
 ): LiveLoader<WordPressMedia, MediaFilter> {
-  return createLiveWordPressLoader(config, {
+  return createLiveWordPressLoader(client, {
     name: 'wordpress-media-loader',
     collectionError: 'Failed to load media',
     entryError: 'Failed to load media',
@@ -352,9 +349,9 @@ export function wordPressMediaLoader(
  * Creates a live loader for WordPress categories and taxonomies.
  */
 export function wordPressCategoryLoader(
-  config: WordPressLoaderConfig,
+  client: WordPressClient,
 ): LiveLoader<WordPressCategory, CategoryFilter> {
-  return createLiveWordPressLoader(config, {
+  return createLiveWordPressLoader(client, {
     name: 'wordpress-category-loader',
     collectionError: 'Failed to load categories',
     entryError: 'Failed to load category',
@@ -373,9 +370,9 @@ export function wordPressCategoryLoader(
  * Creates a live loader for WordPress tags.
  */
 export function wordPressTagLoader(
-  config: WordPressLoaderConfig,
+  client: WordPressClient,
 ): LiveLoader<WordPressTag, TagFilter> {
-  return createLiveWordPressLoader(config, {
+  return createLiveWordPressLoader(client, {
     name: 'wordpress-tag-loader',
     collectionError: 'Failed to load tags',
     entryError: 'Failed to load tag',
@@ -398,11 +395,12 @@ export function wordPressTagLoader(
  * Creates a live loader for custom taxonomy term resources.
  */
 export function wordPressTermLoader(
-  config: WordPressTermLoaderConfig,
+  client: WordPressClient,
+  options: WordPressTermLoaderOptions,
 ): LiveLoader<WordPressCategory, TermFilter> {
-  const { resource, ...clientConfig } = config;
+  const { resource } = options;
 
-  return createLiveWordPressLoader(clientConfig, {
+  return createLiveWordPressLoader(client, {
     name: 'wordpress-term-loader',
     collectionError: `Failed to load ${resource}`,
     entryError: `Failed to load ${resource} term`,
@@ -436,9 +434,9 @@ async function loadContentEntry(
  * Creates a live loader for WordPress users.
  */
 export function wordPressUserLoader(
-  config: WordPressLoaderConfig,
+  client: WordPressClient,
 ): LiveLoader<WordPressAuthor, UserFilter> {
-  return createLiveWordPressLoader(config, {
+  return createLiveWordPressLoader(client, {
     name: 'wordpress-user-loader',
     collectionError: 'Failed to load users',
     entryError: 'Failed to load user',
@@ -457,11 +455,12 @@ export function wordPressUserLoader(
  * Aligns with fluent-wp-client's content(resource) naming.
  */
 export function wordPressContentLoader(
-  config: WordPressContentLoaderConfig,
+  client: WordPressClient,
+  options: WordPressContentLoaderOptions,
 ): LiveLoader<WordPressPost, ContentFilter> {
-  const { resource, ...clientConfig } = config;
+  const { resource } = options;
 
-  return createLiveWordPressLoader(clientConfig, {
+  return createLiveWordPressLoader(client, {
     name: 'wordpress-content-loader',
     collectionError: `Failed to load ${resource}`,
     entryError: `Failed to load ${resource} entry`,
