@@ -30,17 +30,7 @@ export const bookSchema = contentWordPressSchema.extend({
     acf_subtitle: z.string().nullable().optional(),
     acf_summary: z.string().nullable().optional(),
     acf_priority_score: z.preprocess(
-      (value) => {
-        if (value === '' || value === null || value === undefined) {
-          return null;
-        }
-
-        if (typeof value === 'string') {
-          return Number(value);
-        }
-
-        return value;
-      },
+      (value) => value === '' ? null : value,
       z.number().nullable().optional(),
     ),
     acf_external_url: z.preprocess(
