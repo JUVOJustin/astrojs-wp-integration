@@ -886,8 +886,11 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
     }
 
     return new WordPressClient({
-      ...clientOptions,
       ...clientConfig,
+      ...clientOptions,
+      baseUrl: clientConfig.baseUrl,
+      auth: clientConfig.auth,
+      authHeader: clientConfig.authHeader,
     });
   }
 

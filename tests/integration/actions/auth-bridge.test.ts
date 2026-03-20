@@ -123,4 +123,11 @@ describe('Actions: Auth Bridge', () => {
     expect(user).not.toBeNull();
     expect(user?.slug).toBe('admin');
   });
+
+  it('lets per-call authHeaders override bridge-level authHeaders', async () => {
+    const user = await callAction<{ slug: string } | null>('authBridgeRespectsPerCallAuthHeaders', {});
+
+    expect(user).not.toBeNull();
+    expect(user?.slug).toBe('admin');
+  });
 });

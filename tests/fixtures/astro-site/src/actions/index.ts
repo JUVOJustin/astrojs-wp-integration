@@ -45,6 +45,12 @@ const staticBridge = createWordPressAuthBridge({
     password: import.meta.env.WP_APP_PASSWORD ?? '',
   },
 });
+const staticInvalidAuthHeadersBridge = createWordPressAuthBridge({
+  baseUrl,
+  authHeaders: () => ({
+    Authorization: `Basic ${btoa('admin:wrong-password')}`,
+  }),
+});
 const requestHeaderBridge = createWordPressAuthBridge({
   baseUrl,
   authResolver: createAuthResolver<ActionAPIContext>((context) => {
@@ -394,6 +400,30 @@ const authBridgeResolveUserWithOptInStaticFallback = defineAction({
   },
 });
 
+const authBridgeRespectsPerCallAuthHeaders = defineAction({
+  handler: async () => {
+    const client = await staticInvalidAuthHeadersBridge.getClient({
+      cookies: createCookieReader(staticInvalidAuthHeadersBridge.cookieName) as ActionAPIContext['cookies'],
+      request: new Request('http://localhost'),
+    }, {
+      allowStaticAuthFallback: true,
+      authHeaders: () => ({
+        Authorization: `Basic ${btoa(`admin:${import.meta.env.WP_APP_PASSWORD ?? ''}`)}`,
+      }),
+    });
+
+    if (!client) {
+      return null;
+    }
+
+    const user = await client.getCurrentUser();
+
+    return {
+      slug: user.slug,
+    };
+  },
+});
+
 const authBridgeIsAuthenticated = defineAction({
   input: z.object({ token: z.string().optional() }),
   handler: async ({ token }) => bridge.isAuthenticated({
@@ -452,5 +482,6 @@ export const server = {
   authBridgeResolveUser,
   authBridgeResolveUserIgnoringStaticFallback,
   authBridgeResolveUserWithOptInStaticFallback,
+  authBridgeRespectsPerCallAuthHeaders,
   authBridgeIsAuthenticated,
 };
