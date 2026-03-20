@@ -141,8 +141,6 @@ export interface WordPressAuthBridge {
    * if (!config) return new Response('Unauthorized', { status: 401 });
    * const client = new WordPressClient(config);
    * const user = await client.getCurrentUser();
-   * 
-   * @example
    */
   /**
    * Returns a configured WordPressClient instance for the current request context.
