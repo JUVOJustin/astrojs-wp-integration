@@ -46,12 +46,6 @@ describe('Actions: Auth Bridge', () => {
     ).rejects.toThrow();
   });
 
-  it('returns JWT auth config for action handlers', async () => {
-    const actionAuth = await callAction<{ token: string } | null>('authBridgeGetActionAuth', { token });
-
-    expect(actionAuth).toEqual({ token });
-  });
-
   it('resolves middleware user context from cookie-backed JWT session', async () => {
     const user = await callAction<{ slug: string } | null>('authBridgeResolveUser', { token });
 

@@ -329,24 +329,6 @@ const authBridgeResolveUserBySessionIdUnreachable = defineAction({
   },
 });
 
-const authBridgeGetActionAuth = defineAction({
-  input: tokenInputSchema,
-  handler: async ({ token }) => {
-    const auth = await bridge.getActionAuth({
-      cookies: createCookieReader(bridge.cookieName, token) as ActionAPIContext['cookies'],
-      request: new Request('http://localhost'),
-    });
-
-    if (!auth) {
-      return null;
-    }
-
-    return {
-      token: auth.token,
-    };
-  },
-});
-
 const authBridgeResolveUser = defineAction({
   input: tokenInputSchema,
   handler: async ({ token }) => {
@@ -420,7 +402,6 @@ export const server = {
   authBridgeGetSessionWithoutBuffer,
   authBridgeResolveUserBySessionId,
   authBridgeResolveUserBySessionIdUnreachable,
-  authBridgeGetActionAuth,
   authBridgeResolveUser,
   authBridgeIsAuthenticated,
 };

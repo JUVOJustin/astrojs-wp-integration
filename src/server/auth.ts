@@ -11,7 +11,6 @@ import {
   createAuthResolver,
   resolveWordPressAuth,
   createJwtAuthHeader,
-  type JwtAuthCredentials,
   type JwtAuthTokenResponse,
   type WordPressAuthor,
   type WordPressClientConfig,
@@ -131,22 +130,10 @@ export interface WordPressAuthBridge {
   clearAuthentication: (cookies: APIContext['cookies'], sessionId?: string | undefined) => void;
   resolveUserBySessionId: (sessionId: string | undefined) => Promise<WordPressAuthor | null>;
   /**
-   * Returns a complete WordPressClientConfig for the current request context.
-   * This config can be used directly with new WordPressClient() or other custom wrappers.
-   * Returns null if no auth is available.
-   * 
-   * @example
-   * // Use with fluent-wp-client directly
-   * const config = await bridge.getClientConfig(context);
-   * if (!config) return new Response('Unauthorized', { status: 401 });
-   * const client = new WordPressClient(config);
-   * const user = await client.getCurrentUser();
-   * 
-   * @example
-   */
-  /**
    * Returns a configured WordPressClient instance for the current request context.
    * This is a convenience method that creates a client from getClientConfig().
+   * Note: Creates a new client instance on each call. For repeated use within a
+   * single request, consider caching the client manually or using withClient().
    * Returns null if no auth is available.
    * 
    * @example
@@ -202,6 +189,9 @@ export interface WordPressAuthBridge {
    * This config can be used directly with new WordPressClient() or other custom wrappers.
    * Returns null if no auth is available.
    * 
+   * Tries to resolve auth from the authResolver first, then falls back to static
+   * auth/authHeader/authHeaders configured on the bridge.
+   * 
    * @example
    * // Use with fluent-wp-client directly
    * const config = await bridge.getClientConfig(context);
@@ -214,13 +204,9 @@ export interface WordPressAuthBridge {
    * const config = await bridge.getClientConfig(context);
    * const client = config ? new WordPressClient(config) : null;
    */
-  getClientConfig: (context: Pick<ActionAPIContext, 'cookies' | 'request'>) => Promise<Pick<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader'> | null>;
+  getClientConfig: (context: Pick<ActionAPIContext, 'cookies' | 'request'>) => Promise<Pick<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'> | null>;
   resolveUser: (context: Pick<APIContext, 'cookies' | 'request'>) => Promise<WordPressAuthor | null>;
   isAuthenticated: (context: Pick<APIContext, 'cookies' | 'request'>) => Promise<boolean>;
-  /**
-   * @deprecated Use getClient(), getPublicClient(), withClient(), or getClientConfig() instead.
-   */
-  getActionAuth: (context: Pick<ActionAPIContext, 'cookies' | 'request'>) => Promise<JwtAuthCredentials | null>;
 }
 
 /**
@@ -436,14 +422,19 @@ function getCookieMaxAge(defaultSeconds: number, expiresAt: number | null): numb
 
 /**
  * Creates a WordPress client with the bridge's base configuration.
+ * Handles both object-based auth configs and string-based auth headers.
  */
 function createBridgeClient(
   config: Pick<WordPressAuthBridgeConfig, 'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'>
 ): WordPressClient {
+  // Handle string-based auth by treating it as authHeader
+  const effectiveAuthHeader =
+    config.authHeader ?? (typeof config.auth === 'string' ? config.auth : undefined);
+
   return new WordPressClient({
     baseUrl: config.baseUrl,
     auth: typeof config.auth === 'object' ? config.auth : undefined,
-    authHeader: config.authHeader,
+    authHeader: effectiveAuthHeader,
     authHeaders: config.authHeaders,
   });
 }
@@ -687,68 +678,76 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
   }
 
   /**
-   * Creates JWT action auth config from the current request context using the resolver.
-   * @deprecated Use getClientConfig() instead to get full WordPressClientConfig
+   * Returns a complete WordPressClientConfig for the current request context.
+   * This config can be used directly with new WordPressClient() or spread into action factories.
+   * Returns null if no auth is available.
+   * 
+   * Tries to resolve auth from the authResolver first, then falls back to static
+   * auth/authHeader/authHeaders configured on the bridge.
    */
-  async function getActionAuth(
+  async function getClientConfig(
     context: Pick<ActionAPIContext, 'cookies' | 'request'>
-  ): Promise<JwtAuthCredentials | null> {
-    const clientConfig = await getClientConfig(context);
+  ): Promise<Pick<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'> | null> {
+    // First, try to resolve auth from the resolver (cookie-based or custom)
+    const resolvedAuth = await resolveWordPressAuth(authResolver, context);
     
-    if (!clientConfig) {
-      return null;
-    }
-
-    // If authHeader is set, extract token from Bearer
-    if (clientConfig.authHeader) {
-      const match = clientConfig.authHeader.match(/Bearer\s+(.+)/i);
-      if (match) {
-        return { token: match[1] };
+    if (resolvedAuth) {
+      // If the resolved auth is a string (prebuilt header), use it as authHeader
+      if (typeof resolvedAuth === 'string') {
+        return {
+          baseUrl: normalizedConfig.baseUrl,
+          authHeader: resolvedAuth,
+        };
       }
-      return null;
-    }
 
-    // If auth has a token, return it
-    if (clientConfig.auth && 'token' in clientConfig.auth && clientConfig.auth.token) {
-      return { token: clientConfig.auth.token };
+      // Otherwise, use it as auth config
+      return {
+        baseUrl: normalizedConfig.baseUrl,
+        auth: resolvedAuth,
+      };
+    }
+    
+    // Fall back to static auth configuration if resolver returns nothing
+    // Check for static authHeader first
+    if (normalizedConfig.authHeader) {
+      return {
+        baseUrl: normalizedConfig.baseUrl,
+        authHeader: normalizedConfig.authHeader,
+      };
+    }
+    
+    // Check for string-based auth (treat as authHeader)
+    if (typeof normalizedConfig.auth === 'string') {
+      return {
+        baseUrl: normalizedConfig.baseUrl,
+        authHeader: normalizedConfig.auth,
+      };
+    }
+    
+    // Check for object-based auth
+    if (typeof normalizedConfig.auth === 'object' && normalizedConfig.auth !== null) {
+      return {
+        baseUrl: normalizedConfig.baseUrl,
+        auth: normalizedConfig.auth,
+      };
+    }
+    
+    // Check for authHeaders provider
+    if (normalizedConfig.authHeaders) {
+      return {
+        baseUrl: normalizedConfig.baseUrl,
+        authHeaders: normalizedConfig.authHeaders,
+      };
     }
 
     return null;
   }
 
   /**
-   * Returns a complete WordPressClientConfig for the current request context.
-   * This config can be used directly with new WordPressClient() or spread into action factories.
-   * Returns null if no auth is available.
-   */
-  async function getClientConfig(
-    context: Pick<ActionAPIContext, 'cookies' | 'request'>
-  ): Promise<Pick<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader'> | null> {
-    const resolvedAuth = await resolveWordPressAuth(authResolver, context);
-    
-    if (!resolvedAuth) {
-      return null;
-    }
-
-    // If the resolved auth is a string (prebuilt header), use it as authHeader
-    if (typeof resolvedAuth === 'string') {
-      return {
-        baseUrl: normalizedConfig.baseUrl,
-        authHeader: resolvedAuth,
-      };
-    }
-
-    // Otherwise, use it as auth config
-    return {
-      baseUrl: normalizedConfig.baseUrl,
-      auth: resolvedAuth,
-    };
-  }
-
-  /**
    * Returns a configured WordPressClient instance for the current request context.
    * Convenience wrapper around getClientConfig() that creates the client for you.
-   * Caches the client per request for better performance on multiple calls.
+   * Note: Creates a new client instance on each call. For repeated use within a
+   * single request, consider caching the client manually or using withClient().
    */
   async function getClient(
     context: Pick<ActionAPIContext, 'cookies' | 'request'>,
@@ -886,6 +885,5 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
     withClient,
     resolveUser,
     isAuthenticated,
-    getActionAuth,
   };
 }
