@@ -38,6 +38,13 @@ import { z } from 'astro/zod';
 
 const baseUrl = import.meta.env.WP_BASE_URL ?? 'http://localhost:8888';
 const bridge = createWordPressAuthBridge({ baseUrl });
+const staticBridge = createWordPressAuthBridge({
+  baseUrl,
+  auth: {
+    username: 'admin',
+    password: import.meta.env.WP_APP_PASSWORD ?? '',
+  },
+});
 const requestHeaderBridge = createWordPressAuthBridge({
   baseUrl,
   authResolver: createAuthResolver<ActionAPIContext>((context) => {
@@ -347,6 +354,46 @@ const authBridgeResolveUser = defineAction({
   },
 });
 
+const authBridgeResolveUserIgnoringStaticFallback = defineAction({
+  input: z.object({ token: z.string().optional() }),
+  handler: async ({ token }) => {
+    const user = await staticBridge.resolveUser({
+      cookies: createCookieReader(staticBridge.cookieName, token) as ActionAPIContext['cookies'],
+      request: new Request('http://localhost'),
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    return {
+      slug: user.slug,
+    };
+  },
+});
+
+const authBridgeResolveUserWithOptInStaticFallback = defineAction({
+  input: z.object({ token: z.string().optional() }),
+  handler: async ({ token }) => {
+    const client = await staticBridge.getClient({
+      cookies: createCookieReader(staticBridge.cookieName, token) as ActionAPIContext['cookies'],
+      request: new Request('http://localhost'),
+    }, {
+      allowStaticAuthFallback: true,
+    });
+
+    if (!client) {
+      return null;
+    }
+
+    const user = await client.getCurrentUser();
+
+    return {
+      slug: user.slug,
+    };
+  },
+});
+
 const authBridgeIsAuthenticated = defineAction({
   input: z.object({ token: z.string().optional() }),
   handler: async ({ token }) => bridge.isAuthenticated({
@@ -403,5 +450,7 @@ export const server = {
   authBridgeResolveUserBySessionId,
   authBridgeResolveUserBySessionIdUnreachable,
   authBridgeResolveUser,
+  authBridgeResolveUserIgnoringStaticFallback,
+  authBridgeResolveUserWithOptInStaticFallback,
   authBridgeIsAuthenticated,
 };

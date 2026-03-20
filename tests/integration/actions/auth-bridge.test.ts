@@ -3,6 +3,19 @@ import { callAction } from '../../helpers/action-client';
 import { getBaseUrl } from '../../helpers/wp-client';
 
 /**
+ * Creates one expired JWT-like token for bridge fallback tests.
+ */
+function createExpiredToken(): string {
+  const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({
+    exp: Math.floor(Date.now() / 1000) - 60,
+    data: { user: { id: 1 } },
+  })).toString('base64url');
+
+  return `${header}.${payload}.expired-signature`;
+}
+
+/**
  * Integration tests for the packaged JWT auth bridge middleware/action helpers.
  */
 describe('Actions: Auth Bridge', () => {
@@ -59,6 +72,14 @@ describe('Actions: Auth Bridge', () => {
     expect(authenticated).toBe(false);
   });
 
+  it('treats expired cookie-backed JWT sessions as unauthenticated', async () => {
+    const authenticated = await callAction<boolean>('authBridgeIsAuthenticated', {
+      token: createExpiredToken(),
+    });
+
+    expect(authenticated).toBe(false);
+  });
+
   it('matches the wp-env JWT endpoint auth failure status for invalid credentials', async () => {
     const response = await fetch(`${getBaseUrl()}/wp-json/jwt-auth/v1/token`, {
       method: 'POST',
@@ -84,5 +105,22 @@ describe('Actions: Auth Bridge', () => {
     const authenticated = await callAction<boolean>('authBridgeIsAuthenticated', { token });
 
     expect(authenticated).toBe(true);
+  });
+
+  it('ignores static bridge auth while resolving request user state', async () => {
+    const user = await callAction<{ slug: string } | null>('authBridgeResolveUserIgnoringStaticFallback', {
+      token: createExpiredToken(),
+    });
+
+    expect(user).toBeNull();
+  });
+
+  it('allows explicit static auth fallback when requesting a client', async () => {
+    const user = await callAction<{ slug: string } | null>('authBridgeResolveUserWithOptInStaticFallback', {
+      token: createExpiredToken(),
+    });
+
+    expect(user).not.toBeNull();
+    expect(user?.slug).toBe('admin');
   });
 });

@@ -1,8 +1,11 @@
 ---
 title: Auth Action Bridge
+description: Use the packaged Astro auth bridge to resolve request-scoped WordPress clients, login sessions, and explicit static auth fallback options.
 ---
 
 import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## Overview
 
 The package ships a JWT-first Astro auth bridge for WordPress.
 It is built on top of `fluent-wp-client` and is meant to be the central place where Astro resolves one authenticated WordPress client or client config per request.
@@ -17,6 +20,8 @@ It is built on top of `fluent-wp-client` and is meant to be the central place wh
 
 The bridge is client-first, uses web-standard runtime APIs, and does not expose a legacy raw JWT action-auth helper.
 It uses the published client's `loginWithJwt()` and `getCurrentUser()` helpers instead of duplicating request handling.
+`resolveUser()` and `isAuthenticated()` only describe request user state.
+If you want `getClient()` or `getClientConfig()` to fall back to bridge-level static credentials, opt in with `{ allowStaticAuthFallback: true }`.
 
 ## WordPress Requirement
 
@@ -126,6 +131,21 @@ if (!clientConfig) {
 }
 
 const wp = new WordPressClient(clientConfig);
+```
+
+## Optional Static Fallback
+
+If the same bridge also has static `auth`, `authHeader`, or `authHeaders`, keep request-user checks on `resolveUser()` / `isAuthenticated()`.
+Only opt into static fallback when you explicitly want one service-capable client.
+
+```ts
+const wp = await wordPressAuthBridge.getClient(Astro, {
+  allowStaticAuthFallback: true,
+});
+
+if (!wp) {
+  return Astro.redirect('/login');
+}
 ```
 
 ## Custom Auth Resolution

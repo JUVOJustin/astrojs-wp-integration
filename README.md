@@ -130,7 +130,8 @@ Action factories accept an optional `responseSchema` that follows the Standard S
 ## Auth bridge
 
 The auth bridge is the central client-first request-auth layer for Astro middleware and actions.
-It resolves request auth into either a ready-to-use `WordPressClient` or the corresponding client config.
+Helpers like `resolveUser()` and `isAuthenticated()` only reflect end-user request auth.
+`getClient()` and `getClientConfig()` can opt into bridge-level static credentials with `{ allowStaticAuthFallback: true }` when you explicitly want a service-client fallback.
 
 ```ts
 import { defineMiddleware } from 'astro:middleware';
