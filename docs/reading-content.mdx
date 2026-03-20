@@ -30,10 +30,11 @@ Choose the loader type based on your deployment strategy and content freshness r
 
 ### 1. Configure content collections
 
-Create `src/content.config.ts` (or `src/content/config.ts` in older Astro versions):
+Create `src/live.config.ts` for live collections and `src/content.config.ts` for static collections:
 
 ```ts
-import { defineCollection, defineLiveCollection } from 'astro:content';
+// src/live.config.ts
+import { defineLiveCollection } from 'astro:content';
 import {
   postSchema,
   pageSchema,
@@ -41,9 +42,6 @@ import {
   wordPressPostLoader,
   wordPressPageLoader,
   wordPressCategoryLoader,
-  wordPressPostStaticLoader,
-  wordPressPageStaticLoader,
-  wordPressCategoryStaticLoader,
 } from 'wp-astrojs-integration';
 
 // Live collections (SSR) - fetch on every request
@@ -67,6 +65,17 @@ const categories = defineLiveCollection({
   }),
   schema: categorySchema,
 });
+
+export const collections = { posts, pages, categories };
+```
+
+```ts
+// src/content.config.ts
+import { defineCollection } from 'astro:content';
+import {
+  postSchema,
+  wordPressPostStaticLoader,
+} from 'wp-astrojs-integration';
 
 // Static collections (SSG) - fetch at build time
 const staticPosts = defineCollection({
@@ -97,7 +106,7 @@ PUBLIC_WORDPRESS_BASE_URL=https://your-wordpress-site.com
 // src/pages/blog/index.astro
 import { getLiveCollection } from 'astro:content';
 
-const posts = await getLiveCollection('posts');
+const { entries: posts } = await getLiveCollection('posts');
 ---
 
 <ul>
@@ -149,24 +158,16 @@ const { entry: post } = await getLiveEntry('posts', { id: 42 });
 
 ```ts
 // Posts in specific categories
-const techPosts = await getLiveCollection('posts', {
-  filter: { categories: [3, 7] }
-});
+const { entries: techPosts } = await getLiveCollection('posts', { categories: [3, 7] });
 
 // Posts with specific tags
-const featuredPosts = await getLiveCollection('posts', {
-  filter: { tags: [12, 15] }
-});
+const { entries: featuredPosts } = await getLiveCollection('posts', { tags: [12, 15] });
 
 // Draft posts (requires auth)
-const drafts = await getLiveCollection('posts', {
-  filter: { status: 'draft' }
-});
+const { entries: drafts } = await getLiveCollection('posts', { status: 'draft' });
 
 // Ordered posts
-const recentPosts = await getLiveCollection('posts', {
-  filter: { orderby: 'date', order: 'desc' }
-});
+const { entries: recentPosts } = await getLiveCollection('posts', { orderby: 'date', order: 'desc' });
 ```
 
 ---
@@ -179,7 +180,7 @@ Pages work identically to posts but use the page loader.
 
 ```astro
 ---
-const pages = await getLiveCollection('pages');
+const { entries: pages } = await getLiveCollection('pages');
 ---
 
 <nav>
@@ -215,13 +216,13 @@ WordPress custom post types use the `wordPressContentLoader` (aligned with fluen
 ### Configure the collection
 
 ```ts
-// src/content.config.ts
+// src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
-import { wordPressContentLoader, postSchema } from 'wp-astrojs-integration';
+import { contentWordPressSchema, wordPressContentLoader } from 'wp-astrojs-integration';
 import { z } from 'astro/zod';
 
 // Extend schema for CPT-specific fields
-const productSchema = postSchema.extend({
+const productSchema = contentWordPressSchema.extend({
   acf: z.object({
     price: z.number().optional(),
     sku: z.string().optional(),
@@ -246,7 +247,7 @@ export const collections = { products };
 // src/pages/products/index.astro
 import { getLiveCollection } from 'astro:content';
 
-const products = await getLiveCollection('products');
+const { entries: products } = await getLiveCollection('products');
 ---
 
 <div class="product-grid">
@@ -300,7 +301,7 @@ const featuredMedia = product.data._embedded?.['wp:featuredmedia']?.[0];
 ### Categories
 
 ```ts
-// src/content.config.ts
+// src/live.config.ts
 const categories = defineLiveCollection({
   loader: wordPressCategoryLoader({
     baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
@@ -312,15 +313,13 @@ const categories = defineLiveCollection({
 ```astro
 ---
 // Fetch all categories
-const categories = await getLiveCollection('categories');
+const { entries: categories } = await getLiveCollection('categories');
 
 // Fetch specific category
 const { entry: category } = await getLiveEntry('categories', { slug: 'technology' });
 
 // Filter categories
-const parentCategories = await getLiveCollection('categories', {
-  filter: { parent: 0, hideEmpty: true }
-});
+const { entries: parentCategories } = await getLiveCollection('categories', { parent: 0, hideEmpty: true });
 ---
 
 <ul>
@@ -337,7 +336,7 @@ const parentCategories = await getLiveCollection('categories', {
 ### Tags
 
 ```ts
-// src/content.config.ts
+// src/live.config.ts
 import { wordPressTagLoader } from 'wp-astrojs-integration';
 
 const tags = defineLiveCollection({
@@ -351,9 +350,7 @@ const tags = defineLiveCollection({
 ```astro
 ---
 // Tag cloud
-const tags = await getLiveCollection('tags', {
-  filter: { orderby: 'count', order: 'desc', perPage: 20 }
-});
+const { entries: tags } = await getLiveCollection('tags', { orderby: 'count', order: 'desc', perPage: 20 });
 ---
 
 <div class="tag-cloud">
@@ -373,7 +370,7 @@ const tags = await getLiveCollection('tags', {
 Custom taxonomies work like built-in terms with the `wordPressTermLoader`. Ensure your taxonomy is registered in WordPress with `show_in_rest => true` and a `rest_base` (e.g., `genres`).
 
 ```ts
-// src/content.config.ts
+// src/live.config.ts
 import { wordPressTermLoader } from 'wp-astrojs-integration';
 
 const genres = defineLiveCollection({
@@ -388,7 +385,7 @@ const genres = defineLiveCollection({
 ```astro
 ---
 // Fetch genres
-const genres = await getLiveCollection('genres');
+const { entries: genres } = await getLiveCollection('genres');
 
 // Single genre
 const { entry: genre } = await getLiveEntry('genres', { slug: 'science-fiction' });
@@ -520,7 +517,7 @@ Private posts, drafts, and password-protected content require authentication.
 ### Basic auth (app passwords)
 
 ```ts
-// src/content.config.ts
+// src/live.config.ts
 const posts = defineLiveCollection({
   loader: wordPressPostLoader({
     baseUrl: import.meta.env.WP_URL,
@@ -552,7 +549,7 @@ const posts = defineLiveCollection({
 For user-specific content, use the auth bridge to resolve credentials per-request:
 
 ```ts
-// src/content.config.ts
+// src/live.config.ts
 import { createWordPressAuthBridge } from 'wp-astrojs-integration';
 
 const authBridge = createWordPressAuthBridge({
@@ -642,16 +639,19 @@ const featuredMedia = post.data._embedded?.['wp:featuredmedia']?.[0];
 import { getLiveCollection } from 'astro:content';
 
 const [posts, categories] = await Promise.all([
-  getLiveCollection('posts', { filter: { perPage: 10 } }),
+  getLiveCollection('posts', { perPage: 10 }),
   getLiveCollection('categories'),
 ]);
+
+const postEntries = posts.entries ?? [];
+const categoryEntries = categories.entries ?? [];
 ---
 
 <div class="blog-layout">
   <aside>
     <h3>Categories</h3>
     <ul>
-      {categories.map((cat) => (
+      {categoryEntries.map((cat) => (
         <li>
           <a href={`/category/${cat.data.slug}`}>
             {cat.data.name} ({cat.data.count})
@@ -662,7 +662,7 @@ const [posts, categories] = await Promise.all([
   </aside>
   
   <main>
-    {posts.map((post) => (
+      {postEntries.map((post) => (
       <article>
         <h2>
           <a href={`/blog/${post.data.slug}`}>
@@ -684,12 +684,10 @@ const [posts, categories] = await Promise.all([
 // src/pages/shop/index.astro
 import { getLiveCollection } from 'astro:content';
 
-const products = await getLiveCollection('products', {
-  filter: { orderby: 'title', order: 'asc' }
-});
+const { entries: products } = await getLiveCollection('products', { orderby: 'title', order: 'asc' });
 
 // Group by category if using custom taxonomies
-const categories = await getLiveCollection('product-categories');
+const { entries: categories } = await getLiveCollection('product-categories');
 ---
 
 <div class="shop">
@@ -730,7 +728,7 @@ const categories = await getLiveCollection('product-categories');
 | Tags | `wordPressTagLoader` | `wordPressTagStaticLoader` | `categorySchema` |
 | Custom taxonomies | `wordPressTermLoader` | `wordPressTermStaticLoader` | `categorySchema` |
 | Users | `wordPressUserLoader` | `wordPressUserStaticLoader` | `authorSchema` |
-| Custom post types | `wordPressContentLoader` | `wordPressContentStaticLoader` | `postSchema` (extend as needed) |
+| Custom post types | `wordPressContentLoader` | `wordPressContentStaticLoader` | `contentWordPressSchema` (extend as needed) |
 
 ---
 

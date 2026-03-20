@@ -4,7 +4,6 @@
  * Build tests use these static collections to verify end-to-end content loading.
  */
 import { defineCollection } from 'astro:content';
-import { z } from 'astro/zod';
 import {
   wordPressPostStaticLoader,
   wordPressPageStaticLoader,
@@ -12,10 +11,11 @@ import {
   wordPressContentStaticLoader,
 } from '../../../../src/loaders/static';
 import {
-  postSchema,
-  pageSchema,
+  bookSchema,
   categorySchema,
-} from '../../../../src/index';
+  pageSchema,
+  postSchema,
+} from './collection-schemas';
 
 const baseUrl = process.env.WP_BASE_URL ?? 'http://localhost:8888';
 
@@ -35,22 +35,6 @@ const pages = defineCollection({
 const categories = defineCollection({
   loader: wordPressCategoryStaticLoader({ baseUrl }),
   schema: categorySchema,
-});
-
-/**
- * Extended schema for Books CPT with ACF field validation.
- * Tests CPT-specific schema extension capabilities.
- * Matches ACF field names as exposed in REST API (acf_* prefix).
- */
-const bookSchema = postSchema.extend({
-  acf: z.object({
-    acf_subtitle: z.string().optional(),
-    acf_summary: z.string().optional(),
-    acf_priority_score: z.number().optional(),
-    acf_external_url: z.string().url().optional(),
-    acf_related_posts: z.array(z.any()).optional(),
-    acf_featured_post: z.any().optional(),
-  }).optional(),
 });
 
 /** Static CPT (books) collection loaded at build time with extended schema validation. */

@@ -5,7 +5,7 @@ import { getAstroDevUrl } from '../../helpers/action-client';
  * Live loader runtime coverage through one real Astro SSR route.
  */
 describe('Live Loaders: Astro runtime', () => {
-  it('renders live collection entries through the shared Astro fixture route', async () => {
+  it('renders live post entries through Astro live collections', async () => {
     const response = await fetch(`${getAstroDevUrl()}/live-posts`);
     const html = await response.text();
 
@@ -14,13 +14,10 @@ describe('Live Loaders: Astro runtime', () => {
     }
 
     expect(html).not.toContain('id="live-loader-error"');
-    expect(html).toMatch(/Live Posts \(\d+\)/);
-
-    const countMatch = html.match(/Live Posts \((\d+)\)/);
-    expect(countMatch).not.toBeNull();
-    const count = parseInt(countMatch![1], 10);
-    expect(count).toBeGreaterThan(0);
-
+    expect(html).toContain('Live Posts (100)');
     expect(html).toContain('<li data-id="');
+    expect(html).toContain('Test Post 150');
+    expect(html).toContain('Test Post 149');
+    expect(html).toContain('Test Post 148');
   });
 });
