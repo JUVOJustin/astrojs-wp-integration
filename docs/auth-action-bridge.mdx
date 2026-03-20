@@ -48,6 +48,10 @@ type LoginPayload = z.input<typeof wordPressLoginInputSchema>;
 
 ## Setup
 
+### Basic Setup (Cookie-based JWT)
+
+The simplest setup uses cookie-based JWT sessions:
+
 ```typescript
 // src/lib/auth/bridge.ts
 import { createWordPressAuthBridge } from 'wp-astrojs-integration';
@@ -58,6 +62,52 @@ export const wordPressAuthBridge = createWordPressAuthBridge({
   sessionDurationSeconds: 60 * 60 * 12,
 });
 ```
+
+### Advanced Setup (Unified Auth Configuration)
+
+The bridge now supports unified auth configuration aligned with `WordPressClientConfig` patterns used by loaders and actions. You can provide static auth, custom resolvers, or auth headers:
+
+```typescript
+// src/lib/auth/bridge.ts
+import { createWordPressAuthBridge, createAuthResolver } from 'wp-astrojs-integration';
+import type { ActionAPIContext } from 'astro:actions';
+
+// Using static auth (e.g., for service-to-service calls)
+export const serviceBridge = createWordPressAuthBridge({
+  baseUrl: 'https://your-wordpress-site.com',
+  auth: { username: 'api-user', password: 'app-password' },
+});
+
+// Using custom auth resolver
+const customAuthResolver = createAuthResolver<ActionAPIContext>((context) => {
+  // Check custom cookie
+  const token = context.cookies.get('custom_auth')?.value;
+  if (token) {
+    return { token };
+  }
+  
+  // Check Authorization header
+  const authHeader = context.request.headers.get('authorization');
+  if (authHeader?.startsWith('Bearer ')) {
+    return authHeader;
+  }
+  
+  return null;
+});
+
+export const customBridge = createWordPressAuthBridge({
+  baseUrl: 'https://your-wordpress-site.com',
+  authResolver: customAuthResolver,
+});
+
+// Using prebuilt auth headers
+export const headerBridge = createWordPressAuthBridge({
+  baseUrl: 'https://your-wordpress-site.com',
+  authHeader: 'Bearer static-token-for-builds',
+});
+```
+
+## Using with Actions
 
 ```typescript
 // src/actions/index.ts
@@ -84,6 +134,8 @@ export const server = {
   }),
 };
 ```
+
+Note: `getActionAuth()` is now async and returns `Promise<JwtAuthCredentials | null>`, so you can await it in your auth resolvers.
 
 If you need a custom auth integration (for example OAuth-style signatures), action factories also accept request-aware `authHeaders`.
 
@@ -165,6 +217,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
 });
 ```
 
+Note: `resolveUser()` and `isAuthenticated()` are now async and require both `cookies` and `request` in the context.
+
 ## Protected Update Flow (Middleware + Action)
 
 This flow reuses the same JWT cookie across middleware and actions:
@@ -207,6 +261,33 @@ if (Astro.request.method === 'POST') {
   <input type="text" name="title" value="Updated from Astro" required />
   <button type="submit">Update post</button>
 </form>
+```
+
+## Unified Configuration Across Loaders, Actions, and Bridge
+
+The auth bridge now aligns with the same configuration patterns used by loaders and actions:
+
+| Component | Config Pattern | Auth Support |
+|-----------|---------------|--------------|
+| **Loaders** | `WordPressLoaderConfig` (picks from `WordPressClientConfig`) | Static `auth`, `authHeader`, `authHeaders` |
+| **Actions** | `ActionAuthConfig` via `ResolvableWordPressAuth` | Static or context-aware resolvers |
+| **Bridge** | `WordPressAuthBridgeConfig` (extends `WordPressClientConfig`) | Static `auth`, `authHeader`, `authHeaders`, or custom `authResolver` |
+
+This means you can use the same auth configuration across your entire Astro application:
+
+```typescript
+// Shared auth config
+const baseUrl = import.meta.env.WP_BASE_URL;
+const auth = { token: import.meta.env.WP_JWT_TOKEN };
+
+// Use in loaders (static build time)
+wordPressPostStaticLoader({ baseUrl, auth })
+
+// Use in actions (runtime)
+createCreatePostAction({ baseUrl, auth })
+
+// Use in bridge (session management)
+createWordPressAuthBridge({ baseUrl, auth, cookieName: 'wp_jwt' })
 ```
 
 <CardGrid>

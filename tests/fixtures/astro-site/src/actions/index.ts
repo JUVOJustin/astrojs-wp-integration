@@ -405,9 +405,10 @@ const authBridgeResolveUserBySessionIdUnreachable = defineAction({
 
 const authBridgeGetActionAuth = defineAction({
   input: tokenInputSchema,
-  handler: ({ token }) => {
-    const auth = bridge.getActionAuth({
+  handler: async ({ token }) => {
+    const auth = await bridge.getActionAuth({
       cookies: createCookieReader(bridge.cookieName, token) as ActionAPIContext['cookies'],
+      request: new Request('http://localhost'),
     });
 
     if (!auth) {
@@ -425,6 +426,7 @@ const authBridgeResolveUser = defineAction({
   handler: async ({ token }) => {
     const user = await bridge.resolveUser({
       cookies: createCookieReader(bridge.cookieName, token) as ActionAPIContext['cookies'],
+      request: new Request('http://localhost'),
     });
 
     if (!user) {
@@ -439,8 +441,9 @@ const authBridgeResolveUser = defineAction({
 
 const authBridgeIsAuthenticated = defineAction({
   input: z.object({ token: z.string().optional() }),
-  handler: ({ token }) => bridge.isAuthenticated({
+  handler: async ({ token }) => bridge.isAuthenticated({
     cookies: createCookieReader(bridge.cookieName, token) as ActionAPIContext['cookies'],
+    request: new Request('http://localhost'),
   }),
 });
 

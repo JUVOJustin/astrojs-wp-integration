@@ -122,14 +122,34 @@ Action factories accept an optional `responseSchema` that follows the Standard S
 
 ## Auth bridge
 
+The auth bridge now supports unified auth configuration aligned with `WordPressClientConfig` patterns used by loaders and actions:
+
 ```ts
 import { createWordPressAuthBridge } from 'wp-astrojs-integration';
 
+// Basic cookie-based JWT
 export const wordPressAuthBridge = createWordPressAuthBridge({
   baseUrl: import.meta.env.WP_URL,
   cookieName: 'wp_user_session',
 });
+
+// With static auth (service-to-service)
+export const serviceBridge = createWordPressAuthBridge({
+  baseUrl: import.meta.env.WP_URL,
+  auth: { username: 'api-user', password: 'app-password' },
+});
+
+// With custom auth resolver
+export const customBridge = createWordPressAuthBridge({
+  baseUrl: import.meta.env.WP_URL,
+  authResolver: createAuthResolver((context) => {
+    const token = context.cookies.get('custom_auth')?.value;
+    return token ? { token } : null;
+  }),
+});
 ```
+
+Note: `getActionAuth()`, `resolveUser()`, and `isAuthenticated()` are now async and support the unified auth resolver patterns.
 
 ## Auth utility exports
 
