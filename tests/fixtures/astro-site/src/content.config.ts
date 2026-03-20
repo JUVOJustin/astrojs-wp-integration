@@ -40,15 +40,16 @@ const categories = defineCollection({
 /**
  * Extended schema for Books CPT with ACF field validation.
  * Tests CPT-specific schema extension capabilities.
+ * Matches ACF field names as exposed in REST API (acf_* prefix).
  */
 const bookSchema = postSchema.extend({
   acf: z.object({
-    subtitle: z.string().optional(),
-    summary: z.string().optional(),
-    priority_score: z.number().optional(),
-    external_url: z.string().url().optional(),
-    related_posts: z.array(z.any()).optional(),
-    featured_post: z.any().optional(),
+    acf_subtitle: z.string().optional(),
+    acf_summary: z.string().optional(),
+    acf_priority_score: z.number().optional(),
+    acf_external_url: z.string().url().optional(),
+    acf_related_posts: z.array(z.any()).optional(),
+    acf_featured_post: z.any().optional(),
   }).optional(),
 });
 
