@@ -118,7 +118,7 @@ export interface WordPressAuthSession {
 /**
  * Resolved client config returned by bridge helpers for one request.
  */
-export type WordPressAuthBridgeResolvedClientConfig = Pick<
+type ResolvedAuthBridgeClientConfig = Pick<
   WordPressClientConfig,
   'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'
 >;
@@ -126,18 +126,18 @@ export type WordPressAuthBridgeResolvedClientConfig = Pick<
 /**
  * Shared request-resolution options used by bridge client helpers.
  */
-export interface WordPressAuthBridgeRequestOptions {
+type AuthBridgeFallbackOptions = {
   /** Opts into bridge-level static auth when request auth is unavailable. */
   allowStaticAuthFallback?: boolean;
-}
+};
 
 /**
  * Client options accepted by helpers that create one request-scoped client.
  */
-export interface WordPressAuthBridgeClientOptions extends Omit<
+type AuthBridgeClientOptions = Omit<
   WordPressClientConfig,
   'baseUrl' | 'auth' | 'authHeader'
->, WordPressAuthBridgeRequestOptions {}
+> & AuthBridgeFallbackOptions;
 
 /**
  * Return value of the packaged auth bridge factory used by Astro actions and middleware.
@@ -172,7 +172,9 @@ export interface WordPressAuthBridge {
    */
   getClient: (
     context: Pick<ActionAPIContext, 'cookies' | 'request'>,
-    options?: WordPressAuthBridgeClientOptions,
+    options?: Omit<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader'> & {
+      allowStaticAuthFallback?: boolean;
+    },
   ) => Promise<WordPressClient | null>;
   /**
    * Returns a public (unauthenticated) WordPressClient for the configured baseUrl.
@@ -206,7 +208,9 @@ export interface WordPressAuthBridge {
     context: Pick<ActionAPIContext, 'cookies' | 'request'>,
     callback: (client: WordPressClient) => Promise<T>,
     fallback?: T,
-    options?: WordPressAuthBridgeClientOptions,
+    options?: Omit<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader'> & {
+      allowStaticAuthFallback?: boolean;
+    },
   ) => Promise<T | null>;
   /**
    * Returns a complete WordPressClientConfig for one request-authenticated context.
@@ -231,8 +235,8 @@ export interface WordPressAuthBridge {
    */
   getClientConfig: (
     context: Pick<ActionAPIContext, 'cookies' | 'request'>,
-    options?: WordPressAuthBridgeRequestOptions,
-  ) => Promise<WordPressAuthBridgeResolvedClientConfig | null>;
+    options?: { allowStaticAuthFallback?: boolean },
+  ) => Promise<Pick<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'> | null>;
   /**
    * Resolves the current authenticated user from request-derived auth only.
    * Bridge-level static auth is intentionally ignored.
@@ -545,7 +549,7 @@ function createBridgeClient(
 function createRequestClientConfig(
   config: Pick<WordPressAuthBridgeConfig, 'baseUrl' | 'authHeaders'>,
   resolvedAuth: unknown,
-): WordPressAuthBridgeResolvedClientConfig {
+): ResolvedAuthBridgeClientConfig {
   if (typeof resolvedAuth === 'string') {
     return {
       baseUrl: config.baseUrl,
@@ -556,7 +560,7 @@ function createRequestClientConfig(
 
   return {
     baseUrl: config.baseUrl,
-    auth: resolvedAuth as WordPressAuthBridgeResolvedClientConfig['auth'],
+    auth: resolvedAuth as ResolvedAuthBridgeClientConfig['auth'],
     authHeaders: config.authHeaders,
   };
 }
@@ -566,7 +570,7 @@ function createRequestClientConfig(
  */
 function getStaticClientConfig(
   config: Pick<WordPressAuthBridgeConfig, 'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'>,
-): WordPressAuthBridgeResolvedClientConfig | null {
+): ResolvedAuthBridgeClientConfig | null {
   const authHeader = config.authHeader ?? (typeof config.auth === 'string' ? config.auth : undefined);
 
   if (authHeader) {
@@ -845,8 +849,8 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
    */
   async function getClientConfig(
     context: Pick<ActionAPIContext, 'cookies' | 'request'>,
-    options?: WordPressAuthBridgeRequestOptions,
-  ): Promise<WordPressAuthBridgeResolvedClientConfig | null> {
+    options?: AuthBridgeFallbackOptions,
+  ): Promise<ResolvedAuthBridgeClientConfig | null> {
     const resolvedAuth = await resolveWordPressAuth(authResolver, context);
 
     if (resolvedAuth && !isResolvedAuthExpired(resolvedAuth)) {
@@ -869,7 +873,7 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
    */
   async function getClient(
     context: Pick<ActionAPIContext, 'cookies' | 'request'>,
-    options?: WordPressAuthBridgeClientOptions,
+    options?: AuthBridgeClientOptions,
   ): Promise<WordPressClient | null> {
     const {
       allowStaticAuthFallback,
@@ -923,7 +927,7 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
     context: Pick<ActionAPIContext, 'cookies' | 'request'>,
     callback: (client: WordPressClient) => Promise<T>,
     fallback?: T,
-    options?: WordPressAuthBridgeClientOptions,
+    options?: AuthBridgeClientOptions,
   ): Promise<T | null> {
     const client = await getClient(context, options);
     

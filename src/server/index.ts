@@ -8,10 +8,7 @@ export {
 
 export type {
   WordPressAuthBridge,
-  WordPressAuthBridgeClientOptions,
   WordPressAuthBridgeConfig,
-  WordPressAuthBridgeRequestOptions,
-  WordPressAuthBridgeResolvedClientConfig,
   WordPressAuthSession,
   WordPressLoginAction,
   WordPressLoginActionPayload,
