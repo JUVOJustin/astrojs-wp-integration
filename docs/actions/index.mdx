@@ -7,7 +7,7 @@ import { Aside, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 Actions are Astro server actions that wrap the WordPress REST API, providing type-safe authenticated operations from any server-side Astro context.
 
-Every action factory can now work directly with a `WordPressClient` or a request-aware client resolver such as `wordPressAuthBridge.getClient`. Under the hood, each action delegates to `fluent-wp-client` and maps failures to `ActionError`.
+Every action factory works directly with a `WordPressClient` or a request-aware client resolver such as `wordPressAuthBridge.getClient`. Under the hood, each action delegates to `fluent-wp-client` and maps failures to `ActionError`.
 
 <CardGrid>
   <LinkCard title="Post actions" href="./posts.mdx" description="Create, update, and delete posts, pages, and custom post types." />
@@ -31,7 +31,7 @@ Use `npm run test:integration` for action/loaders/auth integration checks throug
 Use `wordPressAuthBridge.getClient` as the shared action input when auth depends on the current Astro request.
 </Aside>
 
-All write operations now use one `WordPressClient` or one request-aware client resolver.
+All write operations use one `WordPressClient` or one request-aware client resolver.
 
 ### Client-first (recommended)
 

@@ -65,7 +65,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
 ## Action Factories with the Bridge Client
 
-Action factories can now use the bridge client directly, so you do not need to rebuild `baseUrl`, `auth`, or `authHeaders` for each action.
+Action factories use the bridge client directly, so you do not need to rebuild `baseUrl`, `auth`, or `authHeaders` for each action.
 
 ```ts
 // src/actions/index.ts
@@ -111,7 +111,7 @@ export const server = {
 
 ## Low-Level Escape Hatch
 
-If you need to create the client yourself, the bridge can still return the resolved config.
+If you need to create the client yourself, the bridge can also return the resolved config.
 
 ```ts
 import { WordPressClient } from 'wp-astrojs-integration';
