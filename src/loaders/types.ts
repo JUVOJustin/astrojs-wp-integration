@@ -13,9 +13,34 @@ import type {
 } from 'fluent-wp-client';
 
 /**
+ * Base loader options for all loader types.
+ */
+export interface WordPressLoaderOptions {
+  /** 
+   * Restrict the response to a subset of fields. 
+   * Maps to the WordPress `_fields` REST API parameter.
+   * When provided, only these fields are fetched, reducing payload size.
+   * 
+   * @example
+   * ```typescript
+   * // Only fetch essential fields
+   * const loader = wordPressPostLoader(client, {
+   *   fields: ['id', 'title.rendered', 'slug', 'excerpt.rendered']
+   * });
+   * 
+   * // Use auto-extracted fields from a schema
+   * const loader = wordPressPostLoader(client, {
+   *   fields: extractFieldsFromSchema(postSchema)
+   * });
+   * ```
+   */
+  fields?: string[];
+}
+
+/**
  * Options for generic taxonomy loaders targeting one REST term resource.
  */
-export interface WordPressTermLoaderOptions {
+export interface WordPressTermLoaderOptions extends WordPressLoaderOptions {
   /** REST resource path (examples: 'categories', 'tags', 'genres') */
   resource: string;
 }
@@ -79,7 +104,7 @@ export type TermFilter = QueryParams & LoaderEntryLookup & {
 /**
  * Options for generic content loaders targeting one REST post resource.
  */
-export interface WordPressContentLoaderOptions {
+export interface WordPressContentLoaderOptions extends WordPressLoaderOptions {
   /** REST resource path (examples: 'posts', 'pages', 'products', 'books') */
   resource: string;
 }

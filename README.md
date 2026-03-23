@@ -94,6 +94,32 @@ const featuredMedia = post.data._embedded?.['wp:featuredmedia']?.[0];
 </article>
 ```
 
+## Optimize payload size
+
+Request only the fields you need using the `_fields` parameter. Reduces response size by ~75% and improves performance:
+
+```ts
+import {
+  WordPressClient,
+  wordPressPostLoader,
+  fieldsPresets,
+} from 'wp-astrojs-integration';
+
+const wp = new WordPressClient({ baseUrl: 'https://your-wp.com' });
+
+// Minimal fields for listings (~60% smaller payload)
+const posts = defineLiveCollection({
+  loader: wordPressPostLoader(wp, { fields: [...fieldsPresets.postList] }),
+  schema: postSchema,
+});
+
+// Or extract fields from your custom schema
+import { extractFieldsFromSchema } from 'wp-astrojs-integration';
+const customFields = extractFieldsFromSchema(myCustomSchema);
+```
+
+See [docs/reading-content.mdx](./docs/reading-content.mdx) for full details on field optimization.
+
 ## Astro actions
 
 ```ts

@@ -2,6 +2,7 @@ import type { Loader } from 'astro/loaders';
 import { WordPressClient } from 'fluent-wp-client';
 import type {
   WordPressContentStaticLoaderOptions,
+  WordPressLoaderOptions,
   WordPressTermStaticLoaderOptions,
 } from './types';
 
@@ -27,7 +28,7 @@ type RenderableEntry = IdentifiableEntry & {
 interface StaticLoaderDefinition<TEntry extends IdentifiableEntry> {
   name: string;
   logLabel: string;
-  loadEntries: (client: WordPressClient) => Promise<TEntry[]>;
+  loadEntries: (client: WordPressClient, fields?: string[]) => Promise<TEntry[]>;
   renderHtml?: (entry: TEntry) => string | undefined;
 }
 
@@ -64,14 +65,17 @@ function createStaticStoreEntry<TEntry extends IdentifiableEntry>(
 function createStaticWordPressLoader<TEntry extends IdentifiableEntry>(
   client: WordPressClient,
   definition: StaticLoaderDefinition<TEntry>,
+  options: WordPressLoaderOptions = {},
 ): Loader {
+  const { fields } = options;
+
   return {
     name: definition.name,
     load: async ({ store, logger }) => {
       logger.info(`Loading all WordPress ${definition.logLabel}...`);
 
       try {
-        const entries = await definition.loadEntries(client);
+        const entries = await definition.loadEntries(client, fields);
 
         store.clear();
 
@@ -98,58 +102,93 @@ function renderContentHtml(entry: RenderableEntry): string {
 /**
  * Creates a static loader for WordPress posts.
  */
-export function wordPressPostStaticLoader(client: WordPressClient): Loader {
-  return createStaticWordPressLoader(client, {
-    name: 'wordpress-post-static-loader',
-    logLabel: 'posts',
-    loadEntries: (client) => client.getAllPosts(),
-    renderHtml: renderContentHtml,
-  });
+export function wordPressPostStaticLoader(
+  client: WordPressClient,
+  options: WordPressLoaderOptions = {},
+): Loader {
+  return createStaticWordPressLoader(
+    client,
+    {
+      name: 'wordpress-post-static-loader',
+      logLabel: 'posts',
+      loadEntries: (client, fields) => client.getAllPosts(fields ? { fields } : undefined),
+      renderHtml: renderContentHtml,
+    },
+    options,
+  );
 }
 
 /**
  * Creates a static loader for WordPress pages.
  */
-export function wordPressPageStaticLoader(client: WordPressClient): Loader {
-  return createStaticWordPressLoader(client, {
-    name: 'wordpress-page-static-loader',
-    logLabel: 'pages',
-    loadEntries: (client) => client.getAllPages(),
-    renderHtml: renderContentHtml,
-  });
+export function wordPressPageStaticLoader(
+  client: WordPressClient,
+  options: WordPressLoaderOptions = {},
+): Loader {
+  return createStaticWordPressLoader(
+    client,
+    {
+      name: 'wordpress-page-static-loader',
+      logLabel: 'pages',
+      loadEntries: (client, fields) => client.getAllPages(fields ? { fields } : undefined),
+      renderHtml: renderContentHtml,
+    },
+    options,
+  );
 }
 
 /**
  * Creates a static loader for WordPress media.
  */
-export function wordPressMediaStaticLoader(client: WordPressClient): Loader {
-  return createStaticWordPressLoader(client, {
-    name: 'wordpress-media-static-loader',
-    logLabel: 'media items',
-    loadEntries: (client) => client.getAllMedia(),
-  });
+export function wordPressMediaStaticLoader(
+  client: WordPressClient,
+  options: WordPressLoaderOptions = {},
+): Loader {
+  return createStaticWordPressLoader(
+    client,
+    {
+      name: 'wordpress-media-static-loader',
+      logLabel: 'media items',
+      loadEntries: (client, fields) => client.getAllMedia(fields ? { fields } : undefined),
+    },
+    options,
+  );
 }
 
 /**
  * Creates a static loader for WordPress categories.
  */
-export function wordPressCategoryStaticLoader(client: WordPressClient): Loader {
-  return createStaticWordPressLoader(client, {
-    name: 'wordpress-category-static-loader',
-    logLabel: 'categories',
-    loadEntries: (client) => client.getAllCategories(),
-  });
+export function wordPressCategoryStaticLoader(
+  client: WordPressClient,
+  options: WordPressLoaderOptions = {},
+): Loader {
+  return createStaticWordPressLoader(
+    client,
+    {
+      name: 'wordpress-category-static-loader',
+      logLabel: 'categories',
+      loadEntries: (client, fields) => client.getAllCategories(fields ? { fields } : undefined),
+    },
+    options,
+  );
 }
 
 /**
  * Creates a static loader for WordPress tags.
  */
-export function wordPressTagStaticLoader(client: WordPressClient): Loader {
-  return createStaticWordPressLoader(client, {
-    name: 'wordpress-tag-static-loader',
-    logLabel: 'tags',
-    loadEntries: (client) => client.getAllTags(),
-  });
+export function wordPressTagStaticLoader(
+  client: WordPressClient,
+  options: WordPressLoaderOptions = {},
+): Loader {
+  return createStaticWordPressLoader(
+    client,
+    {
+      name: 'wordpress-tag-static-loader',
+      logLabel: 'tags',
+      loadEntries: (client, fields) => client.getAllTags(fields ? { fields } : undefined),
+    },
+    options,
+  );
 }
 
 /**
@@ -159,24 +198,36 @@ export function wordPressTermStaticLoader(
   client: WordPressClient,
   options: WordPressTermStaticLoaderOptions,
 ): Loader {
-  const { resource } = options;
+  const { resource, fields } = options;
 
-  return createStaticWordPressLoader(client, {
-    name: 'wordpress-term-static-loader',
-    logLabel: resource,
-    loadEntries: (client) => client.getAllTermCollection(resource),
-  });
+  return createStaticWordPressLoader(
+    client,
+    {
+      name: 'wordpress-term-static-loader',
+      logLabel: resource,
+      loadEntries: (client, loaderFields) =>
+        client.getAllTermCollection(resource, loaderFields ? { fields: loaderFields } : undefined),
+    },
+    { fields },
+  );
 }
 
 /**
  * Creates a static loader for WordPress users.
  */
-export function wordPressUserStaticLoader(client: WordPressClient): Loader {
-  return createStaticWordPressLoader(client, {
-    name: 'wordpress-user-static-loader',
-    logLabel: 'users',
-    loadEntries: (client) => client.getAllUsers(),
-  });
+export function wordPressUserStaticLoader(
+  client: WordPressClient,
+  options: WordPressLoaderOptions = {},
+): Loader {
+  return createStaticWordPressLoader(
+    client,
+    {
+      name: 'wordpress-user-static-loader',
+      logLabel: 'users',
+      loadEntries: (client, fields) => client.getAllUsers(fields ? { fields } : undefined),
+    },
+    options,
+  );
 }
 
 /**
@@ -187,12 +238,17 @@ export function wordPressContentStaticLoader(
   client: WordPressClient,
   options: WordPressContentStaticLoaderOptions,
 ): Loader {
-  const { resource } = options;
+  const { resource, fields } = options;
 
-  return createStaticWordPressLoader(client, {
-    name: 'wordpress-content-static-loader',
-    logLabel: resource,
-    loadEntries: (client) => client.getAllContentCollection(resource),
-    renderHtml: renderContentHtml,
-  });
+  return createStaticWordPressLoader(
+    client,
+    {
+      name: 'wordpress-content-static-loader',
+      logLabel: resource,
+      loadEntries: (client, loaderFields) =>
+        client.getAllContentCollection(resource, loaderFields ? { fields: loaderFields } : undefined),
+      renderHtml: renderContentHtml,
+    },
+    { fields },
+  );
 }

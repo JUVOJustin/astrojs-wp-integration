@@ -10,6 +10,14 @@ export default defineConfig({
     projects: [
       {
         test: {
+          name: 'unit',
+          include: ['tests/unit/**/*.test.ts'],
+          environment: 'node',
+          testTimeout: 10_000,
+        },
+      },
+      {
+        test: {
           name: 'integration',
           include: ['tests/integration/**/*.test.ts'],
           exclude: ['tests/integration/loaders/static-loader-build.test.ts'],

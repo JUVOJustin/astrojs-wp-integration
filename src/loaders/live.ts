@@ -19,6 +19,7 @@ import type {
   WordPressTermLoaderOptions,
   WordPressContentLoaderOptions,
   UserFilter,
+  WordPressLoaderOptions,
 } from './types';
 
 /**
@@ -292,7 +293,10 @@ async function loadUserEntry(
  */
 export function wordPressPostLoader(
   client: WordPressClient,
+  options: WordPressLoaderOptions = {},
 ): LiveLoader<WordPressPost, PostFilter> {
+  const { fields } = options;
+
   return createLiveWordPressLoader(client, {
     name: 'wordpress-post-loader',
     collectionError: 'Failed to load posts',
@@ -304,6 +308,7 @@ export function wordPressPostLoader(
       tags: filter?.tags,
       orderby: filter?.orderby,
       order: filter?.order,
+      fields: filter?.fields ?? fields,
     }),
     loadEntryData: loadPostEntry,
     renderHtml: (entry) => entry.content.rendered,
@@ -315,7 +320,10 @@ export function wordPressPostLoader(
  */
 export function wordPressPageLoader(
   client: WordPressClient,
+  options: WordPressLoaderOptions = {},
 ): LiveLoader<WordPressPage, PageFilter> {
+  const { fields } = options;
+
   return createLiveWordPressLoader(client, {
     name: 'wordpress-page-loader',
     collectionError: 'Failed to load pages',
@@ -323,6 +331,7 @@ export function wordPressPageLoader(
     notFoundError: 'Page not found',
     loadCollectionData: (client, filter) => client.getPages({
       status: filter?.status as never,
+      fields: filter?.fields ?? fields,
     }),
     loadEntryData: loadPageEntry,
     renderHtml: (entry) => entry.content.rendered,
@@ -334,13 +343,16 @@ export function wordPressPageLoader(
  */
 export function wordPressMediaLoader(
   client: WordPressClient,
+  options: WordPressLoaderOptions = {},
 ): LiveLoader<WordPressMedia, MediaFilter> {
+  const { fields } = options;
+
   return createLiveWordPressLoader(client, {
     name: 'wordpress-media-loader',
     collectionError: 'Failed to load media',
     entryError: 'Failed to load media',
     notFoundError: 'Media not found',
-    loadCollectionData: (client) => client.getAllMedia(),
+    loadCollectionData: (client, filter) => client.getAllMedia(filter?.fields ?? fields ? { fields: filter?.fields ?? fields } : undefined),
     loadEntryData: loadMediaEntry,
   }) as LiveLoader<WordPressMedia, MediaFilter>;
 }
@@ -350,7 +362,10 @@ export function wordPressMediaLoader(
  */
 export function wordPressCategoryLoader(
   client: WordPressClient,
+  options: WordPressLoaderOptions = {},
 ): LiveLoader<WordPressCategory, CategoryFilter> {
+  const { fields } = options;
+
   return createLiveWordPressLoader(client, {
     name: 'wordpress-category-loader',
     collectionError: 'Failed to load categories',
@@ -361,6 +376,7 @@ export function wordPressCategoryLoader(
       parent: filter?.parent,
       orderby: filter?.orderby,
       order: filter?.order,
+      fields: filter?.fields ?? fields,
     }),
     loadEntryData: loadCategoryEntry,
   }) as LiveLoader<WordPressCategory, CategoryFilter>;
@@ -371,7 +387,10 @@ export function wordPressCategoryLoader(
  */
 export function wordPressTagLoader(
   client: WordPressClient,
+  options: WordPressLoaderOptions = {},
 ): LiveLoader<WordPressTag, TagFilter> {
+  const { fields } = options;
+
   return createLiveWordPressLoader(client, {
     name: 'wordpress-tag-loader',
     collectionError: 'Failed to load tags',
@@ -386,6 +405,7 @@ export function wordPressTagLoader(
       order: filter?.order,
       page: filter?.page,
       perPage: filter?.perPage,
+      fields: filter?.fields ?? fields,
     }),
     loadEntryData: loadTagEntry,
   }) as LiveLoader<WordPressTag, TagFilter>;
@@ -398,14 +418,20 @@ export function wordPressTermLoader(
   client: WordPressClient,
   options: WordPressTermLoaderOptions,
 ): LiveLoader<WordPressCategory, TermFilter> {
-  const { resource } = options;
+  const { resource, fields: loaderFields } = options;
 
   return createLiveWordPressLoader(client, {
     name: 'wordpress-term-loader',
     collectionError: `Failed to load ${resource}`,
     entryError: `Failed to load ${resource} term`,
     notFoundError: `${resource} term not found`,
-    loadCollectionData: (client, filter: TermFilter | undefined) => client.getTermCollection(resource, createTermQueryFilter(filter)),
+    loadCollectionData: (client, filter: TermFilter | undefined) => {
+      const termFilter = createTermQueryFilter(filter);
+      return client.getTermCollection(resource, {
+        ...termFilter,
+        fields: filter?.fields ?? loaderFields,
+      });
+    },
     loadEntryData: (client, filter: TermFilter | undefined) => loadTermEntry(client, resource, filter),
   }) as LiveLoader<WordPressCategory, TermFilter>;
 }
@@ -435,7 +461,10 @@ async function loadContentEntry(
  */
 export function wordPressUserLoader(
   client: WordPressClient,
+  options: WordPressLoaderOptions = {},
 ): LiveLoader<WordPressAuthor, UserFilter> {
+  const { fields } = options;
+
   return createLiveWordPressLoader(client, {
     name: 'wordpress-user-loader',
     collectionError: 'Failed to load users',
@@ -445,6 +474,7 @@ export function wordPressUserLoader(
       roles: filter?.roles,
       orderby: filter?.orderby,
       order: filter?.order,
+      fields: filter?.fields ?? fields,
     }),
     loadEntryData: loadUserEntry,
   }) as LiveLoader<WordPressAuthor, UserFilter>;
@@ -458,7 +488,7 @@ export function wordPressContentLoader(
   client: WordPressClient,
   options: WordPressContentLoaderOptions,
 ): LiveLoader<WordPressPost, ContentFilter> {
-  const { resource } = options;
+  const { resource, fields: loaderFields } = options;
 
   return createLiveWordPressLoader(client, {
     name: 'wordpress-content-loader',
@@ -473,6 +503,7 @@ export function wordPressContentLoader(
       order: filter?.order,
       perPage: filter?.perPage,
       page: filter?.page,
+      fields: filter?.fields ?? loaderFields,
     }),
     loadEntryData: (client, filter: ContentFilter | undefined) => loadContentEntry(client, resource, filter),
     renderHtml: (entry) => entry.content?.rendered,

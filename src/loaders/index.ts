@@ -11,6 +11,7 @@ export type {
   WordPressTermStaticLoaderOptions,
   WordPressContentLoaderOptions,
   WordPressContentStaticLoaderOptions,
+  WordPressLoaderOptions,
   ContentFilter,
   PostFilter,
   PageFilter,
@@ -20,6 +21,14 @@ export type {
   TermFilter,
   UserFilter,
 } from './types';
+
+// Re-export schema field utilities
+export {
+  extractFieldsFromSchema,
+  fieldsPresets,
+  mergeFields,
+  type ExtractFieldsOptions,
+} from './schema-fields';
 
 // Re-export live loaders
 export {

@@ -34,6 +34,7 @@ export type {
   WordPressTermStaticLoaderOptions,
   WordPressContentLoaderOptions,
   WordPressContentStaticLoaderOptions,
+  WordPressLoaderOptions,
   ContentFilter,
   PostFilter,
   PageFilter,
@@ -43,6 +44,15 @@ export type {
   TermFilter,
   UserFilter,
 } from './loaders';
+
+// Export schema field utilities for _fields optimization
+export {
+  extractFieldsFromSchema,
+  fieldsPresets,
+  mergeFields,
+} from './loaders';
+
+export type { ExtractFieldsOptions } from './loaders';
 
 // Export schemas and core WP types from standalone client package
 export {
