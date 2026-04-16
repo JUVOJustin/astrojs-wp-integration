@@ -30,6 +30,8 @@ export {
 } from './loaders';
 
 export type {
+  WordPressEmbedMode,
+  WordPressLiveContentLoaderOptions,
   WordPressTermLoaderOptions,
   WordPressTermStaticLoaderOptions,
   WordPressContentLoaderOptions,
@@ -52,6 +54,7 @@ export {
   pageSchema,
   mediaSchema,
   categorySchema,
+  tagSchema,
   embeddedMediaSchema,
   abilityAnnotationsSchema,
   abilitySchema,
@@ -65,6 +68,40 @@ export {
   jwtAuthValidationResponseSchema,
   commentSchema,
   authorSchema,
+  searchResultSchema,
+} from 'fluent-wp-client/zod';
+
+// Export embed extraction helpers
+export {
+  getEmbeddedAuthor,
+  getEmbeddedFeaturedMedia,
+  getEmbeddedParent,
+  getEmbeddedTerms,
+  getEmbeddedReplies,
+  getEmbeddedData,
+  getAcfEmbeddedPosts,
+  getAcfEmbeddedTerms,
+  getAcfFieldPosts,
+  getAcfFieldPost,
+  getAcfFieldTerms,
+  getAcfFieldIds,
+  getAcfFieldId,
+  getLinkEntries,
+  getEmbeddableLinkKeys,
+  ACF_POSTS_EMBED_KEY,
+  ACF_TERMS_EMBED_KEY,
+} from 'fluent-wp-client/zod';
+
+// Export schema discovery helpers
+export {
+  zodFromJsonSchema,
+  zodSchemasFromDescription,
+  stripDateTimeFormats,
+} from 'fluent-wp-client/zod';
+
+export type {
+  ResourceZodSchemas,
+  AbilityZodSchemas,
 } from 'fluent-wp-client/zod';
 
 export type {
@@ -183,25 +220,27 @@ export type {
 } from './actions';
 
 // Export runtime-agnostic standalone client
-export { WordPressClient, WordPressRequestBuilder, PostRelationQueryBuilder, WordPressAbilityBuilder } from 'fluent-wp-client';
+export { WordPressClient, WordPressAbilityBuilder } from 'fluent-wp-client';
 export type {
   WordPressClientConfig,
-  WordPressNamespaceClient,
+  ContentResourceClient,
+  TermsResourceClient,
+  MediaResourceClient,
+  UsersResourceClient,
+  CommentsResourceClient,
+  SettingsResourceClient,
   FetchResult,
   WordPressRequestOptions,
   WordPressRequestResult,
-  WordPressRequestDeleteOptions,
+  WordPressRequestOverrides,
   WordPressMediaUploadInput,
-  PostRelation,
-  SelectedPostRelations,
   DeleteOptions,
   WordPressDeleteResult,
   UserDeleteOptions,
   UserWriteInput,
-} from 'fluent-wp-client';
-
-// Export client filter types for typesafe API calls
-export type {
+  TermWriteInput,
+  WordPressWritePayload,
+  QueryParams,
   PaginationParams,
   PaginatedResponse,
   PostsFilter,
@@ -225,7 +264,6 @@ export {
 } from 'fluent-wp-client';
 
 export {
-  WordPressSchemaValidationError,
   isStandardSchema,
 } from 'fluent-wp-client';
 
@@ -248,6 +286,16 @@ export type {
   WordPressSchemaIssue,
   WordPressStandardSchema,
   ResolvableWordPressAuth,
+  // Discovery types
+  WordPressDiscoveryCatalog,
+  WordPressDiscoveryOptions,
+  WordPressJsonSchema,
+  WordPressResourceDescription,
+  WordPressAbilityDescription,
+  WordPressResourceSchemaSet,
+  WordPressAbilitySchemaSet,
+  WordPressResourceCapabilities,
+  WordPressDiscoveryWarning,
 } from 'fluent-wp-client';
 
 // Export server auth bridge helpers

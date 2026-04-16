@@ -2,6 +2,7 @@ import { execSync } from 'child_process';
 import { writeFileSync, unlinkSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
+import { resolveWpBaseUrl } from '../helpers/wp-env';
 /** DevServer type imported at runtime to avoid TS resolution issues in globalSetup context. */
 interface AstroDevServer {
   address: { port: number };
@@ -200,7 +201,7 @@ async function createCookieAuthSession(baseUrl: string): Promise<{ cookieHeader:
  * and cookie+nonce auth credentials for integration tests.
  */
 export async function setup(): Promise<void> {
-  const baseUrl = process.env.WP_BASE_URL || 'http://localhost:8888';
+  const baseUrl = resolveWpBaseUrl();
 
   console.log('[global-setup] Resetting admin password...');
   resetAdminPassword();

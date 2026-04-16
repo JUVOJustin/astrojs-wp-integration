@@ -6,6 +6,7 @@
  */
 import { defineLiveCollection } from 'astro:content';
 import { WordPressClient } from 'fluent-wp-client';
+import { resolveWpBaseUrl } from '../../../helpers/wp-env';
 import {
   wordPressCategoryLoader,
   wordPressContentLoader,
@@ -13,37 +14,37 @@ import {
   wordPressPostLoader,
 } from '../../../../src/loaders/live';
 import {
-  bookSchema,
-  categorySchema,
-  pageSchema,
-  postSchema,
-} from './collection-schemas';
+  booksItemSchema,
+  categoriesItemSchema,
+  pagesItemSchema,
+  postsItemSchema,
+} from './generated/wp-schemas';
 
-const baseUrl = process.env.WP_BASE_URL ?? 'http://localhost:8888';
+const baseUrl = resolveWpBaseUrl();
 const wp = new WordPressClient({ baseUrl });
 
 /** Live post collection loaded at request time with schema validation. */
 const livePosts = defineLiveCollection({
   loader: wordPressPostLoader(wp),
-  schema: postSchema,
+  schema: postsItemSchema,
 });
 
 /** Live page collection loaded at request time with schema validation. */
 const livePages = defineLiveCollection({
   loader: wordPressPageLoader(wp),
-  schema: pageSchema,
+  schema: pagesItemSchema,
 });
 
 /** Live category collection loaded at request time with schema validation. */
 const liveCategories = defineLiveCollection({
   loader: wordPressCategoryLoader(wp),
-  schema: categorySchema,
+  schema: categoriesItemSchema,
 });
 
 /** Live books collection loaded at request time with extended CPT validation. */
 const liveBooks = defineLiveCollection({
   loader: wordPressContentLoader(wp, { resource: 'books' }),
-  schema: bookSchema,
+  schema: booksItemSchema,
 });
 
 export const collections = {

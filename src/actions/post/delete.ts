@@ -64,7 +64,7 @@ export async function executeDeletePost(
   const resource = options?.resource ?? 'posts';
 
   return withActionClient(client, async (resolvedClient) => {
-    const result = await resolvedClient.deleteContent(resource, input.id, { force: input.force });
+    const result = await resolvedClient.content(resource).delete(input.id, { force: input.force });
     return { id: result.id, deleted: result.deleted };
   });
 }

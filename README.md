@@ -2,7 +2,7 @@
 
 Astro-first integration for WordPress with content loaders, server actions, auth bridge helpers, and rendering components.
 
-This package is built against `fluent-wp-client` `^2.1.0`.
+This package is built against `fluent-wp-client` `^3.0.0`.
 It supports Astro `^6.0.0`.
 
 ## Install
@@ -19,6 +19,7 @@ npm install wp-astrojs-integration
 | Static content collections | Build-time WordPress snapshots for SSG | `defineCollection` + `wordPress*StaticLoader` |
 | Server actions | Typed create/update/delete actions for posts, pages, users, and abilities | `create*Action` factories |
 | Auth bridge | Login/session helpers for Astro server actions and middleware | `createWordPressAuthBridge` |
+| Discovery + typesafety | Re-exported discovery types, embed helpers, and Zod conversion utilities from `fluent-wp-client` v3 | `zodFromJsonSchema`, `zodSchemasFromDescription`, `getEmbedded*` |
 | Rendering components | Gutenberg-friendly HTML and media rendering in Astro | `WPContent`, `WPImage` |
 
 ## Available entities
@@ -80,19 +81,18 @@ export const collections = { posts };
 ---
 import { getLiveEntry } from 'astro:content';
 import WPContent from 'wp-astrojs-integration/components/WPContent.astro';
-import WPImage from 'wp-astrojs-integration/components/WPImage.astro';
 
 const { slug } = Astro.params;
 const { entry: post } = await getLiveEntry('posts', { slug });
-const featuredMedia = post.data._embedded?.['wp:featuredmedia']?.[0];
 ---
 
 <article>
-  {featuredMedia && <WPImage media={featuredMedia} loading="eager" />}
   <h1 set:html={post.data.title.rendered} />
   <WPContent content={post.data.content.rendered} baseUrl={import.meta.env.PUBLIC_WORDPRESS_BASE_URL} />
 </article>
 ```
+
+Live loaders return the base resource payload by default. If you need embedded relations like featured media, fetch that entry with `WordPressClient` and `embed: true`.
 
 ## Astro actions
 
@@ -125,7 +125,9 @@ export const server = {
 };
 ```
 
-Action factories accept an optional `responseSchema` that follows the Standard Schema spec (for example Zod schemas).
+Action factories accept an optional `responseSchema` for resource and ability actions when you want Astro-side response validation with a Standard Schema-compatible validator (for example Zod).
+
+For a schema-generation and discovery-based workflow, see `docs/typesafe-integration.mdx`.
 
 ## Auth bridge
 
@@ -155,7 +157,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return Response.redirect(new URL('/login', context.url), 302);
   }
 
-  const user = await wp.getCurrentUser();
+  const user = await wp.users().me();
   context.locals.user = user;
 
   return next();
@@ -261,11 +263,14 @@ const posts = defineLiveCollection({
 
 ```bash
 npm run wp:start
+npm run wp:status
 npm test                    # Run all test projects
 npm run test:integration    # Integration project (actions/loaders/auth)
 npm run test:build          # Static build project
 npm run wp:stop
 ```
+
+`wp-env` uses automatic port selection in this repository. If `8888` is unavailable, run `npm run wp:status` to see the active local WordPress URL and ports.
 
 Other useful commands:
 

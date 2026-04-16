@@ -10,7 +10,7 @@ This repository ships one npm package:
 
 - Treat `WordPressClient` from `fluent-wp-client` as the core integration layer. Add or harden client-backed behavior before introducing higher-level loaders, bridges, or actions that depend on it.
 - Build loaders, actions, and helpers on top of proven published client primitives.
-- The package is aligned to `fluent-wp-client` `^2.1.0`; loader payloads for post/page resources must remain plain serializable objects (no legacy helper methods on `entry.data`).
+- The package is aligned to `fluent-wp-client` `^3.0.0`; loader payloads for post/page resources must remain plain serializable objects (no legacy helper methods on `entry.data`).
 - Keep the package aligned with WordPress' extensibility model. Default to generic resource-oriented patterns that work for core entities, custom post types, custom taxonomies, plugin endpoints, and custom auth flows.
 - Prefer Standard Schema-compatible validators for client response validation interfaces so consumers can use Zod or any other compliant schema library.
 - Validate and require only the minimum data needed for a feature to work.
@@ -36,7 +36,7 @@ This repository ships one npm package:
 |---|---|
 | `@wordpress/env` | Spawns a local WordPress Docker container |
 | `Vitest` | Root test runner with projects (`integration`, `static-build`) in `vitest.config.ts` |
-| `.wp-env.json` | wp-env config — PHP version, mu-plugin mappings, lifecycle scripts |
+| `.wp-env.json` | wp-env config — PHP version, automatic port selection, mu-plugin mappings, lifecycle scripts |
 | `tests/wp-env/mu-plugins/` | Must-use plugins mounted into the WP container |
 | `tests/wp-env/seed-content.php` | Idempotent PHP script that generates all test content on startup |
 | `tests/setup/global-setup.ts` | Waits for WP API, creates app password + JWT token, seeds cookie+nonce auth env vars, and boots the shared Astro dev server fixture |
@@ -151,6 +151,8 @@ Reference suites:
 - Astro loaders are split into `src/loaders/static.ts` and `src/loaders/live.ts`.
 - Shared runtime helpers for Astro middleware, actions, and auth flows should prefer web-standard APIs so they work on Node and non-Node adapters.
 - All public API is re-exported from `src/index.ts`.
+- New discovery features (CLI, runtime schema conversion, embed extraction helpers) are re-exported from `fluent-wp-client` and `fluent-wp-client/zod` subpackages.
+- Actions and loaders use the v3 client API: `client.content('posts').list()` instead of `client.getPosts()`, `client.users().me()` instead of `client.getCurrentUser()`.
 
 ## npm Package
 

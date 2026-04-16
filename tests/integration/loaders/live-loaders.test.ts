@@ -102,12 +102,20 @@ describe('Live Loaders', () => {
       const loader = wordPressPostLoader(createPublicClient());
       const result = await loader.loadEntry!({ filter: { filter: { slug: 'test-post-001' } } } as never) as {
         id: string;
-        data: { slug: string; content: { rendered: string }; _embedded?: unknown };
+        data: { slug: string; content: { rendered: string } };
         rendered?: { html: string };
       };
 
       expect(result.data.slug).toBe('test-post-001');
       expect(result.rendered?.html).toBe(result.data.content.rendered);
+    });
+
+    it('loads embedded relations only when embed is explicitly enabled', async () => {
+      const loader = wordPressPostLoader(createPublicClient(), { embed: true });
+      const result = await loader.loadEntry!({ filter: { slug: 'test-post-001' } } as never) as {
+        data: { _embedded?: unknown };
+      };
+
       expect(result.data._embedded).toBeDefined();
     });
 
@@ -357,6 +365,19 @@ describe('Live Loaders', () => {
 
       // Should not error with auth
       expect(result.error).toBeUndefined();
+    });
+
+    it('supports opt-in embeds for custom content resources', async () => {
+      const loader = wordPressContentLoader(createPublicClient(), {
+        resource: 'books',
+        embed: true,
+      });
+
+      const result = await loader.loadEntry!({ filter: { slug: 'test-book-001' } } as never) as {
+        data: { _embedded?: unknown };
+      };
+
+      expect(result.data._embedded).toBeDefined();
     });
   });
 });

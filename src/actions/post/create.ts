@@ -5,12 +5,14 @@ import {
   postWriteBaseSchema,
   type WordPressPost,
   type WordPressStandardSchema,
+  type WordPressPostWriteBase,
 } from 'fluent-wp-client/zod';
 import {
   resolveRequiredActionClient,
   withActionClient,
   type ResolvableActionClient,
 } from './client';
+import { validateActionResponse } from '../response-validation';
 import { getDefaultContentResponseSchema } from './response-schema';
 
 /**
@@ -86,13 +88,10 @@ export async function executeCreatePost<T = WordPressPost>(
   const resource = options?.resource ?? 'posts';
 
   return withActionClient(client, async (resolvedClient) => {
+    const created = await resolvedClient.content(resource).create(input as WordPressPostWriteBase);
     const responseSchema = (options?.responseSchema ?? getDefaultContentResponseSchema(resource)) as WordPressStandardSchema<T>;
 
-    return resolvedClient.createContent<T, CreatePostInput & Record<string, unknown>>(
-      resource,
-      input,
-      responseSchema,
-    );
+    return validateActionResponse(created, responseSchema, `WordPress ${resource} create action`);
   });
 }
 

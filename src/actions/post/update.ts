@@ -10,6 +10,7 @@ import {
   withActionClient,
   type ResolvableActionClient,
 } from './client';
+import { validateActionResponse } from '../response-validation';
 import { getDefaultContentResponseSchema } from './response-schema';
 import { createPostInputSchema } from './create';
 
@@ -88,15 +89,11 @@ export async function executeUpdatePost<T = WordPressPost>(
   const resource = options?.resource ?? 'posts';
 
   return withActionClient(client, async (resolvedClient) => {
-    const responseSchema = (options?.responseSchema ?? getDefaultContentResponseSchema(resource)) as WordPressStandardSchema<T>;
     const { id, ...fields } = input;
+    const updated = await resolvedClient.content(resource).update(id, fields);
+    const responseSchema = (options?.responseSchema ?? getDefaultContentResponseSchema(resource)) as WordPressStandardSchema<T>;
 
-    return resolvedClient.updateContent<T, Record<string, unknown>>(
-      resource,
-      id,
-      fields,
-      responseSchema,
-    );
+    return validateActionResponse(updated, responseSchema, `WordPress ${resource} update action`);
   });
 }
 

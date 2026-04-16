@@ -5,7 +5,7 @@ description: Run integration and static-build test projects against a real wp-en
 
 import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-# Testing
+## Testing
 
 This package uses integration-first testing against a real local WordPress instance.
 
@@ -31,7 +31,10 @@ Start local WordPress first:
 
 ```bash
 npm run wp:start
+npm run wp:status
 ```
+
+`wp-env` is configured with automatic port selection. If `8888` is unavailable, run `npm run wp:status` to see the active local WordPress URL and ports.
 
 Run tests:
 

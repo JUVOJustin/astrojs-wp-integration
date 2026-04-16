@@ -8,6 +8,7 @@ import {
   withActionClient,
   type ResolvableActionClient,
 } from '../post/client';
+import { validateActionResponse } from '../response-validation';
 import {
   createAbilityAction,
   type AbilityActionOptions,
@@ -51,7 +52,10 @@ export async function executeDeleteAbility<T = unknown>(
   input: DeleteAbilityInput,
   options?: ExecuteDeleteAbilityOptions<T>,
 ): Promise<T> {
-  return withActionClient(client, (resolvedClient) => resolvedClient.executeDeleteAbility(input.name, input.input, options?.responseSchema));
+  return withActionClient(client, async (resolvedClient) => {
+    const result = await resolvedClient.executeDeleteAbility(input.name, input.input);
+    return validateActionResponse(result, options?.responseSchema, 'WordPress ability DELETE action');
+  });
 }
 
 /**

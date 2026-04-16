@@ -1,6 +1,11 @@
-# Reading WordPress Content
+---
+title: Reading WordPress Content
+description: Read posts, pages, custom post types, and taxonomy terms from WordPress into Astro live and static content collections.
+---
 
 import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## Reading WordPress Content
 
 Fetch posts, pages, custom post types, and taxonomy terms from WordPress into Astro content collections. This guide covers static (build-time) and live (request-time) data fetching patterns.
 
@@ -9,8 +14,6 @@ Fetch posts, pages, custom post types, and taxonomy terms from WordPress into As
   <LinkCard title="Post actions" href="./actions/posts.mdx" description="Programmatically create and manage posts." />
   <LinkCard title="Auth bridge" href="./auth-action-bridge.mdx" description="Session-based authentication for middleware and actions." />
 </CardGrid>
-
----
 
 ## Static vs Live loaders
 
@@ -23,8 +26,6 @@ Choose the loader type based on your deployment strategy and content freshness r
 | **Astro API** | `defineCollection` | `defineLiveCollection` |
 | **Fetch method** | `getEntry()`, `getCollection()` | `getLiveEntry()`, `getLiveCollection()` |
 | **Caching** | Built into Astro content store | Per-request fetch |
-
----
 
 ## Setup
 
@@ -91,8 +92,6 @@ export const collections = { posts, pages, categories, staticPosts };
 # .env
 PUBLIC_WORDPRESS_BASE_URL=https://your-wordpress-site.com
 ```
-
----
 
 ## Fetching posts
 
@@ -167,8 +166,6 @@ const { entries: drafts } = await getLiveCollection('posts', { status: 'draft' }
 const { entries: recentPosts } = await getLiveCollection('posts', { orderby: 'date', order: 'desc' });
 ```
 
----
-
 ## Fetching pages
 
 Pages work identically to posts but use the page loader.
@@ -203,8 +200,6 @@ if (!page) {
 <h1 set:html={page.data.title.rendered} />
 <div set:html={page.data.content.rendered} />
 ```
-
----
 
 ## Custom Post Types (CPT)
 
@@ -269,20 +264,38 @@ const { entries: products } = await getLiveCollection('products');
 
 ### Single CPT entry
 
+Live loaders return the base resource payload by default. If you need embedded relations such as featured media, fetch that entry with `WordPressClient` and `embed: true`.
+
+If you want embedded relations through the loader itself, opt in with the loader `embed` option.
+
+```ts title="Enable embeds in one live loader"
+const posts = defineLiveCollection({
+  loader: wordPressPostLoader(wp, {
+    embed: ['author', 'wp:featuredmedia', 'wp:term'],
+  }),
+});
+```
+
 ```astro
 ---
 // src/pages/products/[slug].astro
 import { getLiveEntry } from 'astro:content';
+import { WordPressClient } from 'wp-astrojs-integration';
 import WPImage from 'wp-astrojs-integration/components/WPImage.astro';
 
 const { slug } = Astro.params;
 const { entry: product } = await getLiveEntry('products', { slug });
 
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+});
+
 if (!product) {
   return Astro.redirect('/404');
 }
 
-const featuredMedia = product.data._embedded?.['wp:featuredmedia']?.[0];
+const embeddedProduct = await wp.content('products').item(slug, { embed: ['wp:featuredmedia'] });
+const featuredMedia = embeddedProduct._embedded?.['wp:featuredmedia']?.[0];
 ---
 
 <article>
@@ -630,12 +643,21 @@ const { entry: post } = await getLiveEntry('posts', { slug });
 
 ### Featured media
 
+Live loader entries do not include `_embedded` data automatically. Use the standalone client when you need embedded relations.
+
+Post, page, and custom content live loaders also support an explicit `embed` option when you want `_embedded` data through Astro collections.
+
 ```astro
 ---
+import { WordPressClient } from 'wp-astrojs-integration';
 import WPImage from 'wp-astrojs-integration/components/WPImage.astro';
 
-const { entry: post } = await getLiveEntry('posts', { slug });
-const featuredMedia = post.data._embedded?.['wp:featuredmedia']?.[0];
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+});
+
+const post = await wp.content('posts').item(slug, { embed: ['wp:featuredmedia'] });
+const featuredMedia = post._embedded?.['wp:featuredmedia']?.[0];
 ---
 
 <article>

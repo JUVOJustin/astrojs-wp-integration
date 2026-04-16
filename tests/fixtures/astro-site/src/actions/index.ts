@@ -35,6 +35,17 @@ import {
   categorySchema,
 } from 'fluent-wp-client';
 import { z } from 'astro/zod';
+import {
+  booksCreateSchema,
+  booksItemSchema,
+  booksUpdateSchema,
+  categoriesCreateSchema,
+  categoriesItemSchema,
+  pagesItemSchema,
+  postsCreateSchema,
+  postsItemSchema,
+  postsUpdateSchema,
+} from '../generated/wp-schemas';
 
 const baseUrl = import.meta.env.WP_BASE_URL ?? 'http://localhost:8888';
 const bridge = createWordPressAuthBridge({ baseUrl });
@@ -91,7 +102,7 @@ const createPost = createCreatePostAction(requestClient);
 const createPostWithBridgeClient = createCreatePostAction(requestHeaderBridge.getClient);
 
 const createPostCustomSchema = createCreatePostAction(requestClient, {
-  schema: createPostInputSchema.extend({
+  schema: postsCreateSchema.extend({
     acf: z.object({ acf_subtitle: z.string().optional() }).optional(),
   }),
 });
@@ -106,16 +117,17 @@ const createPostAcf = createCreatePostAction(requestClient, {
 });
 
 const createPostResponseOverride = createCreatePostAction(requestClient, {
-  responseSchema: z.object({
-    id: z.number().int().positive(),
-    status: z.string(),
+  schema: postsCreateSchema,
+  responseSchema: postsItemSchema.pick({
+    id: true,
+    status: true,
   }),
 });
 
 const updatePost = createUpdatePostAction(requestClient);
 
 const updatePostCustomSchema = createUpdatePostAction(requestClient, {
-  schema: updatePostInputSchema.extend({
+  schema: postsUpdateSchema.extend({
     acf: z.object({ acf_subtitle: z.string().optional() }).optional(),
   }),
 });
@@ -135,17 +147,17 @@ const deletePost = createDeletePostAction(requestClient);
 
 const createPage = createCreatePostAction(requestClient, {
   resource: 'pages',
-  responseSchema: pageSchema,
+  responseSchema: pagesItemSchema,
 });
 
 const createPageWithStaticClient = createCreatePostAction(staticJwtClient, {
   resource: 'pages',
-  responseSchema: pageSchema,
+  responseSchema: pagesItemSchema,
 });
 
 const updatePage = createUpdatePostAction(requestClient, {
   resource: 'pages',
-  responseSchema: pageSchema,
+  responseSchema: pagesItemSchema,
   schema: updatePostInputSchema.extend({
     acf: z.object({ acf_subtitle: z.string().optional() }).optional(),
   }),
@@ -166,15 +178,14 @@ const deletePage = createDeletePostAction(requestClient, { resource: 'pages' });
 
 const createBook = createCreatePostAction(requestClient, {
   resource: 'books',
-  responseSchema: contentWordPressSchema,
+  schema: booksCreateSchema,
+  responseSchema: booksItemSchema,
 });
 
 const createBookCustomSchema = createCreatePostAction(requestClient, {
   resource: 'books',
-  responseSchema: contentWordPressSchema,
-  schema: createPostInputSchema.extend({
-    custom_note: z.string().min(3).optional(),
-  }),
+  responseSchema: booksItemSchema,
+  schema: booksCreateSchema,
 });
 
 const createBookResponseOverride = createCreatePostAction(requestClient, {
@@ -188,10 +199,8 @@ const createBookResponseOverride = createCreatePostAction(requestClient, {
 
 const updateBook = createUpdatePostAction(requestClient, {
   resource: 'books',
-  responseSchema: contentWordPressSchema,
-  schema: updatePostInputSchema.extend({
-    custom_note: z.string().optional(),
-  }),
+  responseSchema: booksItemSchema,
+  schema: booksUpdateSchema,
 });
 
 const deleteBook = createDeletePostAction(requestClient, { resource: 'books' });
@@ -200,8 +209,8 @@ const deleteBook = createDeletePostAction(requestClient, { resource: 'books' });
 
 const createCategory = createCreateTermAction(requestClient, {
   resource: 'categories',
-  responseSchema: categorySchema,
-  schema: createTermInputSchema.extend({
+  responseSchema: categoriesItemSchema,
+  schema: categoriesCreateSchema.extend({
     custom_note: z.string().optional(),
   }),
 });
@@ -392,7 +401,7 @@ const authBridgeResolveUserWithOptInStaticFallback = defineAction({
       return null;
     }
 
-    const user = await client.getCurrentUser();
+    const user = await client.users().me();
 
     return {
       slug: user.slug,
@@ -416,7 +425,7 @@ const authBridgeRespectsPerCallAuthHeaders = defineAction({
       return null;
     }
 
-    const user = await client.getCurrentUser();
+    const user = await client.users().me();
 
     return {
       slug: user.slug,

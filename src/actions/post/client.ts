@@ -1,6 +1,6 @@
 import { ActionError, type ActionAPIContext } from 'astro:actions';
 import {
-  WordPressApiError,
+  WordPressHttpError,
   WordPressClient,
 } from 'fluent-wp-client';
 
@@ -73,7 +73,7 @@ export function toActionError(error: unknown): ActionError {
     return error;
   }
 
-  if (error instanceof WordPressApiError) {
+  if (error instanceof WordPressHttpError) {
     return new ActionError({
       code: ActionError.statusToCode(error.status),
       message: error.message,

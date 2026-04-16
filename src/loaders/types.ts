@@ -13,6 +13,22 @@ import type {
 } from 'fluent-wp-client';
 
 /**
+ * Optional embed configuration forwarded to fluent-wp-client content reads.
+ */
+export type WordPressEmbedMode = boolean | string[];
+
+/**
+ * Options shared by live loaders that read post-like content resources.
+ */
+export interface WordPressLiveContentLoaderOptions {
+  /**
+   * Requests embedded relations for collection and entry reads.
+   * Leave unset for the lean default payload.
+   */
+  embed?: WordPressEmbedMode;
+}
+
+/**
  * Options for generic taxonomy loaders targeting one REST term resource.
  */
 export interface WordPressTermLoaderOptions {
@@ -82,6 +98,8 @@ export type TermFilter = QueryParams & LoaderEntryLookup & {
 export interface WordPressContentLoaderOptions {
   /** REST resource path (examples: 'posts', 'pages', 'products', 'books') */
   resource: string;
+  /** Optional embedded relation loading for live reads. */
+  embed?: WordPressEmbedMode;
 }
 
 /**

@@ -18,8 +18,17 @@ import type {
   TermFilter,
   WordPressTermLoaderOptions,
   WordPressContentLoaderOptions,
+  WordPressEmbedMode,
+  WordPressLiveContentLoaderOptions,
   UserFilter,
 } from './types';
+
+/**
+ * Minimal embed config shared by post-like live loaders.
+ */
+type EmbedConfig = {
+  embed?: WordPressEmbedMode;
+};
 
 /**
  * Shared shape used by Astro loader entry payloads.
@@ -143,13 +152,14 @@ function createLiveWordPressLoader<TEntry extends IdentifiableEntry, TFilter>(
 async function loadPostEntry(
   client: WordPressClient,
   filter: PostFilter | undefined,
+  options?: EmbedConfig,
 ): Promise<WordPressPost | undefined> {
   if (filter?.id) {
-    return client.getPost(filter.id);
+    return client.content('posts').item(filter.id, { embed: options?.embed });
   }
 
   if (filter?.slug) {
-    return client.getPostBySlug(filter.slug);
+    return client.content('posts').item(filter.slug, { embed: options?.embed });
   }
 
   return undefined;
@@ -161,13 +171,14 @@ async function loadPostEntry(
 async function loadPageEntry(
   client: WordPressClient,
   filter: PageFilter | undefined,
+  options?: EmbedConfig,
 ): Promise<WordPressPage | undefined> {
   if (filter?.id) {
-    return client.getPage(filter.id);
+    return client.content('pages').item(filter.id, { embed: options?.embed });
   }
 
   if (filter?.slug) {
-    return client.getPageBySlug(filter.slug);
+    return client.content('pages').item(filter.slug, { embed: options?.embed });
   }
 
   return undefined;
@@ -181,11 +192,11 @@ async function loadMediaEntry(
   filter: MediaFilter | undefined,
 ): Promise<WordPressMedia | undefined> {
   if (filter?.id) {
-    return client.getMediaItem(filter.id);
+    return client.media().item(filter.id);
   }
 
   if (filter?.slug) {
-    return client.getMediaBySlug(filter.slug);
+    return client.media().item(filter.slug);
   }
 
   return undefined;
@@ -199,11 +210,11 @@ async function loadCategoryEntry(
   filter: CategoryFilter | undefined,
 ): Promise<WordPressCategory | undefined> {
   if (filter?.id) {
-    return client.getCategory(filter.id);
+    return client.terms('categories').item(filter.id);
   }
 
   if (filter?.slug) {
-    return client.getCategoryBySlug(filter.slug);
+    return client.terms('categories').item(filter.slug);
   }
 
   return undefined;
@@ -217,11 +228,11 @@ async function loadTagEntry(
   filter: TagFilter | undefined,
 ): Promise<WordPressTag | undefined> {
   if (filter?.id) {
-    return client.getTag(filter.id);
+    return client.terms('tags').item(filter.id);
   }
 
   if (filter?.slug) {
-    return client.getTagBySlug(filter.slug);
+    return client.terms('tags').item(filter.slug);
   }
 
   return undefined;
@@ -258,11 +269,11 @@ async function loadTermEntry(
   filter: TermFilter | undefined,
 ): Promise<WordPressCategory | undefined> {
   if (filter?.id) {
-    return client.getTerm(resource, filter.id);
+    return client.terms(resource).item(filter.id);
   }
 
   if (filter?.slug) {
-    return client.getTermBySlug(resource, filter.slug);
+    return client.terms(resource).item(filter.slug);
   }
 
   return undefined;
@@ -276,14 +287,14 @@ async function loadUserEntry(
   filter: UserFilter | undefined,
 ): Promise<WordPressAuthor | undefined> {
   if (filter?.id) {
-    return client.getUser(filter.id);
+    return client.users().item(filter.id);
   }
 
   if (!filter?.slug) {
     return undefined;
   }
 
-  const users = await client.getUsers({ search: filter.slug });
+  const users = await client.users().list({ search: filter.slug });
   return users.find((candidate) => candidate.slug === filter.slug);
 }
 
@@ -292,20 +303,22 @@ async function loadUserEntry(
  */
 export function wordPressPostLoader(
   client: WordPressClient,
+  options?: WordPressLiveContentLoaderOptions,
 ): LiveLoader<WordPressPost, PostFilter> {
   return createLiveWordPressLoader(client, {
     name: 'wordpress-post-loader',
     collectionError: 'Failed to load posts',
     entryError: 'Failed to load post',
     notFoundError: 'Post not found',
-    loadCollectionData: (client, filter) => client.getPosts({
+    loadCollectionData: (client, filter: PostFilter | undefined) => client.content('posts').list({
       status: filter?.status as never,
       categories: filter?.categories,
       tags: filter?.tags,
       orderby: filter?.orderby,
       order: filter?.order,
+      embed: options?.embed,
     }),
-    loadEntryData: loadPostEntry,
+    loadEntryData: (client, filter: PostFilter | undefined) => loadPostEntry(client, filter, options),
     renderHtml: (entry) => entry.content.rendered,
   }) as LiveLoader<WordPressPost, PostFilter>;
 }
@@ -315,16 +328,18 @@ export function wordPressPostLoader(
  */
 export function wordPressPageLoader(
   client: WordPressClient,
+  options?: WordPressLiveContentLoaderOptions,
 ): LiveLoader<WordPressPage, PageFilter> {
   return createLiveWordPressLoader(client, {
     name: 'wordpress-page-loader',
     collectionError: 'Failed to load pages',
     entryError: 'Failed to load page',
     notFoundError: 'Page not found',
-    loadCollectionData: (client, filter) => client.getPages({
+    loadCollectionData: (client, filter: PageFilter | undefined) => client.content('pages').list({
       status: filter?.status as never,
+      embed: options?.embed,
     }),
-    loadEntryData: loadPageEntry,
+    loadEntryData: (client, filter: PageFilter | undefined) => loadPageEntry(client, filter, options),
     renderHtml: (entry) => entry.content.rendered,
   }) as LiveLoader<WordPressPage, PageFilter>;
 }
@@ -340,7 +355,7 @@ export function wordPressMediaLoader(
     collectionError: 'Failed to load media',
     entryError: 'Failed to load media',
     notFoundError: 'Media not found',
-    loadCollectionData: (client) => client.getAllMedia(),
+    loadCollectionData: (client) => client.media().listAll(),
     loadEntryData: loadMediaEntry,
   }) as LiveLoader<WordPressMedia, MediaFilter>;
 }
@@ -356,7 +371,7 @@ export function wordPressCategoryLoader(
     collectionError: 'Failed to load categories',
     entryError: 'Failed to load category',
     notFoundError: 'Category not found',
-    loadCollectionData: (client, filter) => client.getCategories({
+    loadCollectionData: (client, filter) => client.terms('categories').list({
       hideEmpty: filter?.hideEmpty ?? filter?.hide_empty,
       parent: filter?.parent,
       orderby: filter?.orderby,
@@ -377,7 +392,7 @@ export function wordPressTagLoader(
     collectionError: 'Failed to load tags',
     entryError: 'Failed to load tag',
     notFoundError: 'Tag not found',
-    loadCollectionData: (client, filter) => client.getTags({
+    loadCollectionData: (client, filter) => client.terms('tags').list({
       hideEmpty: filter?.hideEmpty ?? filter?.hide_empty,
       exclude: filter?.exclude,
       include: filter?.include,
@@ -405,7 +420,7 @@ export function wordPressTermLoader(
     collectionError: `Failed to load ${resource}`,
     entryError: `Failed to load ${resource} term`,
     notFoundError: `${resource} term not found`,
-    loadCollectionData: (client, filter: TermFilter | undefined) => client.getTermCollection(resource, createTermQueryFilter(filter)),
+    loadCollectionData: (client, filter: TermFilter | undefined) => client.terms(resource).list(createTermQueryFilter(filter)),
     loadEntryData: (client, filter: TermFilter | undefined) => loadTermEntry(client, resource, filter),
   }) as LiveLoader<WordPressCategory, TermFilter>;
 }
@@ -413,18 +428,21 @@ export function wordPressTermLoader(
 /**
  * Resolves one content entry from either `id` or `slug` filter input.
  * Used for custom post types via generic content resource helpers.
+ * The v3 client returns the broader post-like shape for generic resources,
+ * while Astro collections still expose this loader as post-compatible data.
  */
 async function loadContentEntry(
   client: WordPressClient,
   resource: string,
   filter: ContentFilter | undefined,
+  options?: EmbedConfig,
 ): Promise<WordPressPost | undefined> {
   if (filter?.id) {
-    return client.getContent(resource, filter.id);
+    return client.content(resource).item(filter.id, { embed: options?.embed }) as unknown as Promise<WordPressPost | undefined>;
   }
 
   if (filter?.slug) {
-    return client.getContentBySlug(resource, filter.slug);
+    return client.content(resource).item(filter.slug, { embed: options?.embed }) as unknown as Promise<WordPressPost | undefined>;
   }
 
   return undefined;
@@ -441,7 +459,7 @@ export function wordPressUserLoader(
     collectionError: 'Failed to load users',
     entryError: 'Failed to load user',
     notFoundError: 'User not found',
-    loadCollectionData: (client, filter) => client.getUsers({
+    loadCollectionData: (client, filter) => client.users().list({
       roles: filter?.roles,
       orderby: filter?.orderby,
       order: filter?.order,
@@ -458,14 +476,14 @@ export function wordPressContentLoader(
   client: WordPressClient,
   options: WordPressContentLoaderOptions,
 ): LiveLoader<WordPressPost, ContentFilter> {
-  const { resource } = options;
+  const { resource, embed } = options;
 
   return createLiveWordPressLoader(client, {
     name: 'wordpress-content-loader',
     collectionError: `Failed to load ${resource}`,
     entryError: `Failed to load ${resource} entry`,
     notFoundError: `${resource} entry not found`,
-    loadCollectionData: (client, filter: ContentFilter | undefined) => client.getContentCollection(resource, {
+    loadCollectionData: (client, filter: ContentFilter | undefined) => client.content(resource).list({
       status: filter?.status as never,
       categories: filter?.categories,
       tags: filter?.tags,
@@ -473,8 +491,9 @@ export function wordPressContentLoader(
       order: filter?.order,
       perPage: filter?.perPage,
       page: filter?.page,
+      embed,
     }),
-    loadEntryData: (client, filter: ContentFilter | undefined) => loadContentEntry(client, resource, filter),
+    loadEntryData: (client, filter: ContentFilter | undefined) => loadContentEntry(client, resource, filter, { embed }),
     renderHtml: (entry) => entry.content?.rendered,
   }) as LiveLoader<WordPressPost, ContentFilter>;
 }

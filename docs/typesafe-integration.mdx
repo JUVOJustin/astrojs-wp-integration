@@ -1,0 +1,340 @@
+---
+title: Typesafe Integration
+description: Use generated schemas or runtime discovery to build a strongly typed Astro integration on top of WordPress.
+---
+
+import { Steps, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## Overview
+
+The easiest way to get a very typesafe setup is:
+
+1. Generate Zod schemas from your real WordPress site with the `fluent-wp-client` CLI.
+2. Use those schemas in Astro collections and action factories.
+3. Use the standalone `WordPressClient` directly when you need advanced features such as embeds or discovery.
+
+This package is the Astro integration layer. `fluent-wp-client` is the source of truth for resource access, discovery, embeds, and schema generation.
+
+## Recommended Approach
+
+Use CLI-generated schemas for most projects.
+
+This is the best fit when:
+
+- you have one main WordPress backend
+- your content model is mostly known ahead of time
+- you want strong editor types and stable builds
+
+Use runtime discovery only when schemas are not known at build time, such as multi-tenant or per-site dynamic setups.
+
+## Quick Start
+
+<Steps>
+
+1. Generate schemas from your WordPress site.
+
+   ```bash title="Generate Zod schemas"
+   npx fluent-wp-client schemas \
+     --url https://example.com \
+     --format zod \
+     --zod-out src/generated/wp-schemas.ts
+   ```
+
+2. Create a shared WordPress client.
+
+   ```ts title="src/lib/wp.ts"
+   import { WordPressClient } from 'wp-astrojs-integration';
+
+   export const wp = new WordPressClient({
+     baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+   });
+   ```
+
+3. Use generated schemas in Astro content collections.
+
+   ```ts title="src/content.config.ts"
+   import { defineCollection, defineLiveCollection } from 'astro:content';
+   import {
+     wordPressPostStaticLoader,
+     wordPressContentLoader,
+   } from 'wp-astrojs-integration';
+   import { wp } from './lib/wp';
+   import {
+     postsItemSchema,
+     booksItemSchema,
+   } from './generated/wp-schemas';
+
+   export const collections = {
+     posts: defineCollection({
+       loader: wordPressPostStaticLoader(wp),
+       schema: postsItemSchema,
+     }),
+     books: defineLiveCollection({
+       loader: wordPressContentLoader(wp, { resource: 'books' }),
+       schema: booksItemSchema,
+     }),
+   };
+   ```
+
+4. Use generated schemas in actions.
+
+   ```ts title="src/actions/index.ts"
+   import { createCreatePostAction } from 'wp-astrojs-integration';
+   import { wp } from '../lib/wp';
+   import {
+     postsCreateSchema,
+     postsItemSchema,
+     booksCreateSchema,
+     booksItemSchema,
+   } from '../generated/wp-schemas';
+
+   export const server = {
+     createPost: createCreatePostAction(wp, {
+       schema: postsCreateSchema,
+       responseSchema: postsItemSchema,
+     }),
+     createBook: createCreatePostAction(wp, {
+       resource: 'books',
+       schema: booksCreateSchema,
+       responseSchema: booksItemSchema,
+     }),
+   };
+   ```
+
+</Steps>
+
+## What This Gives You
+
+With that setup you get:
+
+- typed collection entries in Astro
+- typed action inputs
+- optional typed action response validation via `responseSchema`
+- much better support for custom post types and custom fields
+
+## Collections
+
+Use the generated `*ItemSchema` for collection entry validation.
+
+```ts title="Static and live collections"
+import { defineCollection, defineLiveCollection } from 'astro:content';
+import {
+  wordPressPostStaticLoader,
+  wordPressPageLoader,
+  wordPressContentLoader,
+} from 'wp-astrojs-integration';
+import { wp } from './lib/wp';
+import {
+  postsItemSchema,
+  pagesItemSchema,
+  booksItemSchema,
+} from './generated/wp-schemas';
+
+export const collections = {
+  posts: defineCollection({
+    loader: wordPressPostStaticLoader(wp),
+    schema: postsItemSchema,
+  }),
+  pages: defineLiveCollection({
+    loader: wordPressPageLoader(wp),
+    schema: pagesItemSchema,
+  }),
+  books: defineLiveCollection({
+    loader: wordPressContentLoader(wp, { resource: 'books' }),
+    schema: booksItemSchema,
+  }),
+};
+```
+
+## Actions
+
+Use generated `*CreateSchema` or `*UpdateSchema` values as the Astro action input schema.
+Use generated `*ItemSchema` as `responseSchema` when you want the action result validated in Astro too.
+
+```ts title="Typed WordPress actions"
+import {
+  createCreatePostAction,
+  createUpdatePostAction,
+} from 'wp-astrojs-integration';
+import { wp } from '../lib/wp';
+import {
+  postsCreateSchema,
+  postsUpdateSchema,
+  postsItemSchema,
+} from '../generated/wp-schemas';
+
+export const server = {
+  createPost: createCreatePostAction(wp, {
+    schema: postsCreateSchema,
+    responseSchema: postsItemSchema,
+  }),
+  updatePost: createUpdatePostAction(wp, {
+    schema: postsUpdateSchema,
+    responseSchema: postsItemSchema,
+  }),
+};
+```
+
+## Custom Post Types And Taxonomies
+
+This pattern becomes especially useful for custom resources.
+
+```ts title="Typed custom resources"
+import {
+  createCreatePostAction,
+  wordPressContentLoader,
+  wordPressTermLoader,
+} from 'wp-astrojs-integration';
+import { wp } from './lib/wp';
+import {
+  booksCreateSchema,
+  booksItemSchema,
+  genresItemSchema,
+} from './generated/wp-schemas';
+
+const booksLoader = wordPressContentLoader(wp, { resource: 'books' });
+const genresLoader = wordPressTermLoader(wp, { resource: 'genres' });
+
+const createBook = createCreatePostAction(wp, {
+  resource: 'books',
+  schema: booksCreateSchema,
+  responseSchema: booksItemSchema,
+});
+
+void booksLoader;
+void genresLoader;
+void createBook;
+```
+
+This is the main benefit of the CLI workflow: your CPT and taxonomy schemas come from the real WordPress site instead of hand-written approximations.
+
+## Embeds And Advanced Reads
+
+Loaders return the base resource payload by default. They do not include `_embedded` relations automatically.
+
+If you need embeds, either enable the loader `embed` option for post, page, and custom content live loaders or use the standalone client directly.
+
+```ts title="Opt into embeds on a live loader"
+import { defineLiveCollection } from 'astro:content';
+import { wordPressPostLoader } from 'wp-astrojs-integration';
+import { wp } from './lib/wp';
+
+const posts = defineLiveCollection({
+  loader: wordPressPostLoader(wp, {
+    embed: ['author', 'wp:featuredmedia', 'wp:term'],
+  }),
+});
+
+void posts;
+```
+
+```ts title="Fetch embedded relations directly"
+import {
+  WordPressClient,
+  getEmbeddedAuthor,
+  getEmbeddedFeaturedMedia,
+  getEmbeddedTerms,
+} from 'wp-astrojs-integration';
+
+const wp = new WordPressClient({
+  baseUrl: 'https://example.com',
+});
+
+const post = await wp.content('posts').item('hello-world', {
+  embed: ['author', 'wp:featuredmedia', 'wp:term'],
+});
+
+const author = getEmbeddedAuthor(post);
+const featuredMedia = getEmbeddedFeaturedMedia(post);
+const categories = getEmbeddedTerms(post, 'category');
+```
+
+## Runtime Discovery
+
+Use discovery when the schema is not known ahead of time.
+
+This is useful when:
+
+- each site has different custom post types
+- plugins register unknown fields
+- you are building multi-site or SaaS tooling
+
+```ts title="Discover schemas at runtime"
+import {
+  WordPressClient,
+  zodFromJsonSchema,
+  zodSchemasFromDescription,
+} from 'wp-astrojs-integration';
+
+const wp = new WordPressClient({
+  baseUrl: 'https://example.com',
+  auth: { username: 'admin', password: 'app-password' },
+});
+
+const catalog = await wp.explore();
+
+const bookSchemas = zodSchemasFromDescription(catalog.content.books);
+const validatedBookInput = bookSchemas.create!.parse({
+  title: { raw: 'My new book' },
+  status: 'draft',
+});
+
+await wp.content('books').create(validatedBookInput);
+
+const description = await wp.content('posts').describe();
+const postCreateSchema = zodFromJsonSchema(description.schemas.create!);
+void postCreateSchema;
+```
+
+## Cache Discovery Catalogs
+
+If you use discovery, cache the catalog and restore it later.
+
+```ts title="Cache and reuse discovery data"
+const catalog = await wp.explore();
+
+await cache.set('wp:catalog', JSON.stringify(catalog));
+
+const restored = JSON.parse(await cache.get('wp:catalog'));
+wp.useCatalog(restored);
+```
+
+That avoids repeated discovery requests and makes builds or server startup more predictable.
+
+## Which Approach Should I Pick?
+
+| Approach | Best for | Recommendation |
+|---|---|---|
+| CLI-generated schemas | Normal Astro sites with one known WordPress backend | Start here |
+| Runtime discovery | Multi-tenant or per-site dynamic WordPress setups | Use only when needed |
+| Hybrid | Mostly known schemas plus runtime validation for drift | Good advanced option |
+
+## Practical Recommendation
+
+For most implementors:
+
+1. generate schemas with the CLI
+2. commit the generated file
+3. use generated item schemas in collections
+4. use generated create/update schemas in actions
+5. use `WordPressClient` directly only for embeds, discovery, or uncommon workflows
+
+## Helpful Script
+
+```json title="package.json"
+{
+  "scripts": {
+    "wp:types": "fluent-wp-client schemas --url $PUBLIC_WORDPRESS_BASE_URL --format zod --zod-out src/generated/wp-schemas.ts"
+  }
+}
+```
+
+Run that script whenever your WordPress resources or fields change.
+
+## Next Steps
+
+<CardGrid>
+  <LinkCard title="Reading Content" href="./reading-content" description="Use loaders to read posts, pages, terms, and custom resources in Astro." />
+  <LinkCard title="Auth Bridge" href="./auth-action-bridge" description="Use request-aware authenticated clients in middleware and actions." />
+  <LinkCard title="Actions" href="./actions/posts" description="Create, update, and delete WordPress resources through Astro action factories." />
+</CardGrid>

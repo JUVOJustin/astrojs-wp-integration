@@ -19,7 +19,7 @@ It is built on top of `fluent-wp-client` and is meant to be the central place wh
 - `getClientConfig(context)` when you need raw client config instead of the client instance
 
 The bridge is client-first, uses web-standard runtime APIs, and does not expose a legacy raw JWT action-auth helper.
-It uses the published client's `loginWithJwt()` and `getCurrentUser()` helpers instead of duplicating request handling.
+It uses the published client's `loginWithJwt()` and `users().me()` helpers instead of duplicating request handling.
 `resolveUser()` and `isAuthenticated()` only describe request user state.
 If you want `getClient()` or `getClientConfig()` to fall back to bridge-level static credentials, opt in with `{ allowStaticAuthFallback: true }`.
 
@@ -60,7 +60,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
   }
 
   try {
-    context.locals.user = await wp.getCurrentUser();
+    context.locals.user = await wp.users().me();
     context.locals.wp = wp;
   } catch {
     wordPressAuthBridge.clearAuthentication(context.cookies);

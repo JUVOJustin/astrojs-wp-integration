@@ -7,6 +7,8 @@
 
 // Re-export types
 export type {
+  WordPressEmbedMode,
+  WordPressLiveContentLoaderOptions,
   WordPressTermLoaderOptions,
   WordPressTermStaticLoaderOptions,
   WordPressContentLoaderOptions,
