@@ -44,7 +44,9 @@ function stripWpEnvOutput(raw: string): string {
     .filter((line) => {
       const trimmed = line.trim();
 
-      return trimmed !== '' && !trimmed.startsWith('ℹ') && !trimmed.startsWith('✔');
+      return (
+        trimmed !== '' && !trimmed.startsWith('ℹ') && !trimmed.startsWith('✔')
+      );
     })
     .join('\n')
     .trim();

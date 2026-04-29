@@ -6,17 +6,13 @@
  */
 import { z } from 'astro/zod';
 import {
-  contentWordPressSchema,
   categorySchema,
+  contentWordPressSchema,
   pageSchema,
   postSchema,
 } from '../../../../src/index';
 
-export {
-  postSchema,
-  pageSchema,
-  categorySchema,
-};
+export { categorySchema, pageSchema, postSchema };
 
 /**
  * Extends the shared content schema for the seeded Book CPT fields.
@@ -26,18 +22,20 @@ export {
  * and `format`.
  */
 export const bookSchema = contentWordPressSchema.extend({
-  acf: z.object({
-    acf_subtitle: z.string().nullable().optional(),
-    acf_summary: z.string().nullable().optional(),
-    acf_priority_score: z.preprocess(
-      (value) => value === '' ? null : value,
-      z.number().nullable().optional(),
-    ),
-    acf_external_url: z.preprocess(
-      (value) => value === '' ? null : value,
-      z.string().url().nullable().optional(),
-    ),
-    acf_related_posts: z.array(z.any()).nullable().optional(),
-    acf_featured_post: z.any().nullable().optional(),
-  }).optional(),
+  acf: z
+    .object({
+      acf_subtitle: z.string().nullable().optional(),
+      acf_summary: z.string().nullable().optional(),
+      acf_priority_score: z.preprocess(
+        (value) => (value === '' ? null : value),
+        z.number().nullable().optional(),
+      ),
+      acf_external_url: z.preprocess(
+        (value) => (value === '' ? null : value),
+        z.string().url().nullable().optional(),
+      ),
+      acf_related_posts: z.array(z.any()).nullable().optional(),
+      acf_featured_post: z.any().nullable().optional(),
+    })
+    .optional(),
 });

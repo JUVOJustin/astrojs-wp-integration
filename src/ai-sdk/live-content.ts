@@ -1,12 +1,16 @@
-import type { APIContext } from 'astro';
 import { getLiveCollection, getLiveEntry } from 'astro:content';
-import type { QueryParams, WordPressClient, WordPressPostLike } from 'fluent-wp-client';
+import type { APIContext } from 'astro';
+import type {
+  QueryParams,
+  WordPressClient,
+  WordPressPostLike,
+} from 'fluent-wp-client';
 import {
-  getContentCollectionTool,
-  getContentTool,
-  type ContentItemResult,
   type ContentCollectionToolOptions,
   type ContentGetToolOptions,
+  type ContentItemResult,
+  getContentCollectionTool,
+  getContentTool,
 } from 'fluent-wp-client/ai-sdk';
 
 type AstroCacheController = Pick<APIContext['cache'], 'set'>;
@@ -28,7 +32,9 @@ type LiveContentCollectionInput = {
 
 type MaybePromise<T> = T | Promise<T>;
 
-type PersonalizedResolver<TInput> = boolean | ((input: TInput) => MaybePromise<boolean>);
+type PersonalizedResolver<TInput> =
+  | boolean
+  | ((input: TInput) => MaybePromise<boolean>);
 
 interface AstroLiveToolOptions<TInput extends Record<string, unknown>> {
   /** Astro live collection name passed to `getLiveEntry()` / `getLiveCollection()`. */
@@ -83,7 +89,11 @@ async function applyRouteCache<TInput extends Record<string, unknown>>(
 /**
  * Adds collection context to Astro live collection failures.
  */
-function createLiveCollectionError(collection: string, action: 'entry' | 'collection', error: unknown): Error {
+function createLiveCollectionError(
+  collection: string,
+  action: 'entry' | 'collection',
+  error: unknown,
+): Error {
   const detail = error instanceof Error ? error.message : String(error);
 
   return new Error(
@@ -94,7 +104,10 @@ function createLiveCollectionError(collection: string, action: 'entry' | 'collec
 /**
  * Reads one Astro live entry and turns missing-collection failures into actionable errors.
  */
-async function readLiveEntry(collection: string, filter: { id: number } | { slug: string }) {
+async function readLiveEntry(
+  collection: string,
+  filter: { id: number } | { slug: string },
+) {
   try {
     return await getLiveEntry(collection, filter);
   } catch (error) {
@@ -130,11 +143,12 @@ export function getLiveContentTool(
         );
       }
 
-      const filter = input.id !== undefined
-        ? { id: input.id }
-        : input.slug !== undefined
-          ? { slug: input.slug }
-          : undefined;
+      const filter =
+        input.id !== undefined
+          ? { id: input.id }
+          : input.slug !== undefined
+            ? { slug: input.slug }
+            : undefined;
 
       if (!filter) {
         throw new Error('Either id or slug must be provided.');
@@ -143,10 +157,19 @@ export function getLiveContentTool(
       const result = await readLiveEntry(options.collection, filter);
 
       if (result.error) {
-        throw createLiveCollectionError(options.collection, 'entry', result.error);
+        throw createLiveCollectionError(
+          options.collection,
+          'entry',
+          result.error,
+        );
       }
 
-      await applyRouteCache(cache, input, result.entry as RouteCacheValue | undefined, options);
+      await applyRouteCache(
+        cache,
+        input,
+        result.entry as RouteCacheValue | undefined,
+        options,
+      );
 
       return {
         item: result.entry?.data,
@@ -169,11 +192,22 @@ export function getLiveContentCollectionTool(
       const result = await readLiveCollection(options.collection, input.filter);
 
       if (result.error) {
-        throw createLiveCollectionError(options.collection, 'collection', result.error);
+        throw createLiveCollectionError(
+          options.collection,
+          'collection',
+          result.error,
+        );
       }
 
-      await applyRouteCache(cache, input, result.cacheHint as RouteCacheValue | undefined, options);
-      return result.entries.map((entry: { data: unknown }) => entry.data) as WordPressPostLike[];
+      await applyRouteCache(
+        cache,
+        input,
+        result.cacheHint as RouteCacheValue | undefined,
+        options,
+      );
+      return result.entries.map(
+        (entry: { data: unknown }) => entry.data,
+      ) as WordPressPostLike[];
     },
   } as ContentCollectionToolOptions<Record<string, unknown>>);
 }

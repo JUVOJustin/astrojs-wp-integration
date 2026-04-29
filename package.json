@@ -40,6 +40,8 @@
     "build": "rm -rf dist && tsc",
     "dev": "tsc --watch",
     "prepublishOnly": "npm run build",
+    "format": "biome format --write .",
+    "format:check": "biome check .",
     "test": "vitest run",
     "test:integration": "vitest run --project integration",
     "test:build": "vitest run --project static-build",
@@ -82,6 +84,7 @@
   },
   "devDependencies": {
     "@astrojs/node": "^10.0.5",
+    "@biomejs/biome": "^2.4.12",
     "@wordpress/env": "^11.4.0",
     "ai": "^5.0.179",
     "astro": "^6.1.8",

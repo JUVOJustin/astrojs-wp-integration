@@ -50,9 +50,11 @@ export function useAcfChoiceCatalog(client: WordPressClient): WordPressClient {
 export async function getAcfChoiceLabels(
   client: WordPressClient,
 ): Promise<Map<string, Map<string, string>>> {
-  const acfFields = await client.content('posts').getSchemaValue<Record<string, AcfSchemaField>>(
-    'properties.acf.properties',
-  );
+  const acfFields = await client
+    .content('posts')
+    .getSchemaValue<Record<string, AcfSchemaField>>(
+      'properties.acf.properties',
+    );
   const choiceLabels = new Map<string, Map<string, string>>();
 
   for (const [fieldName, fieldSchema] of Object.entries(acfFields ?? {})) {
@@ -60,7 +62,9 @@ export async function getAcfChoiceLabels(
 
     choiceLabels.set(
       fieldName,
-      new Map(fieldSchema.choices.map((choice) => [choice.value, choice.label])),
+      new Map(
+        fieldSchema.choices.map((choice) => [choice.value, choice.label]),
+      ),
     );
   }
 

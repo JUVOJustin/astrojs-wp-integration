@@ -1,4 +1,8 @@
-import { defineAction, type ActionAPIContext, type ActionClient } from 'astro:actions';
+import {
+  type ActionAPIContext,
+  type ActionClient,
+  defineAction,
+} from 'astro:actions';
 import { z } from 'astro/zod';
 import type { WordPressClient } from 'fluent-wp-client';
 import {
@@ -8,27 +12,29 @@ import {
   type WordPressStandardSchema,
 } from 'fluent-wp-client';
 import {
+  type ResolvableActionClient,
   resolveRequiredActionClient,
   withActionClient,
-  type ResolvableActionClient,
 } from '../post/client';
 import { validateActionResponse } from '../response-validation';
 
 /**
  * Input schema for creating a WordPress user.
  */
-export const createUserInputSchema = z.object({
-  username: z.string().min(1),
-  email: z.string().email(),
-  password: z.string().min(1),
-  name: z.string().optional(),
-  first_name: z.string().optional(),
-  last_name: z.string().optional(),
-  nickname: z.string().optional(),
-  description: z.string().optional(),
-  roles: z.array(z.string()).optional(),
-  url: z.string().url().optional(),
-}).passthrough();
+export const createUserInputSchema = z
+  .object({
+    username: z.string().min(1),
+    email: z.string().email(),
+    password: z.string().min(1),
+    name: z.string().optional(),
+    first_name: z.string().optional(),
+    last_name: z.string().optional(),
+    nickname: z.string().optional(),
+    description: z.string().optional(),
+    roles: z.array(z.string()).optional(),
+    url: z.string().url().optional(),
+  })
+  .passthrough();
 
 export type CreateUserInput = z.infer<typeof createUserInputSchema>;
 
@@ -43,7 +49,8 @@ export interface ExecuteCreateUserOptions<T = WordPressAuthor> {
 /**
  * @deprecated Use `ExecuteCreateUserOptions` instead.
  */
-export type ExecuteCreateUserConfig<T = WordPressAuthor> = ExecuteCreateUserOptions<T>;
+export type ExecuteCreateUserConfig<T = WordPressAuthor> =
+  ExecuteCreateUserOptions<T>;
 
 /**
  * Shared non-auth options accepted by the create-user action factory.
@@ -56,7 +63,8 @@ export interface CreateUserActionOptions<T = WordPressAuthor> {
 /**
  * @deprecated Use `CreateUserActionOptions` instead.
  */
-export type CreateUserActionConfig<T = WordPressAuthor> = CreateUserActionOptions<T>;
+export type CreateUserActionConfig<T = WordPressAuthor> =
+  CreateUserActionOptions<T>;
 
 type CreateUserActionFactoryOptions<
   TResponse,
@@ -72,10 +80,17 @@ export async function executeCreateUser<T = WordPressAuthor>(
   options?: ExecuteCreateUserOptions<T>,
 ): Promise<T> {
   return withActionClient(client, async (resolvedClient) => {
-    const created = await resolvedClient.users().create(input as UserWriteInput);
-    const responseSchema = (options?.responseSchema ?? authorSchema) as WordPressStandardSchema<T>;
+    const created = await resolvedClient
+      .users()
+      .create(input as UserWriteInput);
+    const responseSchema = (options?.responseSchema ??
+      authorSchema) as WordPressStandardSchema<T>;
 
-    return validateActionResponse(created, responseSchema, 'WordPress user create action');
+    return validateActionResponse(
+      created,
+      responseSchema,
+      'WordPress user create action',
+    );
   });
 }
 

@@ -27,7 +27,11 @@ export function createAcfChoiceLabelMapper(client: WordPressClient) {
       return entry;
     }
 
-    const choiceLabels = await getChoiceLabels(client, context.resource, lookups);
+    const choiceLabels = await getChoiceLabels(
+      client,
+      context.resource,
+      lookups,
+    );
 
     return {
       ...entry,
@@ -57,9 +61,11 @@ async function loadChoiceLabels(
   client: WordPressClient,
   resource: string,
 ): Promise<Map<string, Map<string, string>>> {
-  const acfFields = await client.content(resource).getSchemaValue<
-    Record<string, AcfSchemaField>
-  >('properties.acf.properties');
+  const acfFields = await client
+    .content(resource)
+    .getSchemaValue<Record<string, AcfSchemaField>>(
+      'properties.acf.properties',
+    );
   const choiceLabels = new Map<string, Map<string, string>>();
 
   for (const [fieldName, fieldSchema] of Object.entries(acfFields ?? {})) {
@@ -67,7 +73,9 @@ async function loadChoiceLabels(
 
     choiceLabels.set(
       fieldName,
-      new Map(fieldSchema.choices.map((choice) => [choice.value, choice.label])),
+      new Map(
+        fieldSchema.choices.map((choice) => [choice.value, choice.label]),
+      ),
     );
   }
 

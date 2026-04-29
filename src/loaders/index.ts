@@ -1,50 +1,48 @@
 /**
  * WordPress Loaders for Astro Content Collections
- * 
+ *
  * Live loaders: Use with defineLiveCollection for SSR/real-time data
  * Static loaders: Use with defineCollection for build-time static generation
  */
 
-// Re-export types
-export type {
-  WordPressEmbedMode,
-  WordPressEntryMappingOptions,
-  WordPressLoaderEntryMapper,
-  WordPressLiveContentLoaderOptions,
-  WordPressTermLoaderOptions,
-  WordPressTermStaticLoaderOptions,
-  WordPressContentLoaderOptions,
-  WordPressContentStaticLoaderOptions,
-  ContentFilter,
-  PostFilter,
-  PageFilter,
-  MediaFilter,
-  CategoryFilter,
-  TagFilter,
-  TermFilter,
-  UserFilter,
-} from './types';
-
 // Re-export live loaders
 export {
-  wordPressPostLoader,
-  wordPressPageLoader,
-  wordPressMediaLoader,
   wordPressCategoryLoader,
+  wordPressContentLoader,
+  wordPressMediaLoader,
+  wordPressPageLoader,
+  wordPressPostLoader,
   wordPressTagLoader,
   wordPressTermLoader,
   wordPressUserLoader,
-  wordPressContentLoader,
 } from './live';
-
 // Re-export static loaders
 export {
-  wordPressPostStaticLoader,
-  wordPressPageStaticLoader,
-  wordPressMediaStaticLoader,
   wordPressCategoryStaticLoader,
+  wordPressContentStaticLoader,
+  wordPressMediaStaticLoader,
+  wordPressPageStaticLoader,
+  wordPressPostStaticLoader,
   wordPressTagStaticLoader,
   wordPressTermStaticLoader,
   wordPressUserStaticLoader,
-  wordPressContentStaticLoader,
 } from './static';
+// Re-export types
+export type {
+  CategoryFilter,
+  ContentFilter,
+  MediaFilter,
+  PageFilter,
+  PostFilter,
+  TagFilter,
+  TermFilter,
+  UserFilter,
+  WordPressContentLoaderOptions,
+  WordPressContentStaticLoaderOptions,
+  WordPressEmbedMode,
+  WordPressEntryMappingOptions,
+  WordPressLiveContentLoaderOptions,
+  WordPressLoaderEntryMapper,
+  WordPressTermLoaderOptions,
+  WordPressTermStaticLoaderOptions,
+} from './types';

@@ -1,4 +1,7 @@
-import { isStandardSchema, type WordPressStandardSchema } from 'fluent-wp-client';
+import {
+  isStandardSchema,
+  type WordPressStandardSchema,
+} from 'fluent-wp-client';
 
 /**
  * Validates one action response with a Standard Schema-compatible validator when provided.
@@ -13,7 +16,9 @@ export async function validateActionResponse<T>(
   }
 
   if (!isStandardSchema(schema)) {
-    throw new Error(`${context} received an invalid Standard Schema validator.`);
+    throw new Error(
+      `${context} received an invalid Standard Schema validator.`,
+    );
   }
 
   const result = await schema['~standard'].validate(value);
@@ -23,5 +28,7 @@ export async function validateActionResponse<T>(
   }
 
   const [issue] = result.issues;
-  throw new Error(`${context} returned an invalid response: ${issue?.message ?? 'Validation failed.'}`);
+  throw new Error(
+    `${context} returned an invalid response: ${issue?.message ?? 'Validation failed.'}`,
+  );
 }

@@ -152,6 +152,7 @@ Reference suites:
 
 ## Code Style
 
+- After making code changes, run `npm run format:check` and ensure Biome reports no formatting issues before finalizing.
 - Astro loaders are split into `src/loaders/static.ts` and `src/loaders/live.ts`.
 - Shared runtime helpers for Astro middleware, actions, and auth flows should prefer web-standard APIs so they work on Node and non-Node adapters.
 - All public API is re-exported from `src/index.ts`.

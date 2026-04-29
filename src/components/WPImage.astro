@@ -1,5 +1,5 @@
 ---
-import type { WordPressMedia, WordPressEmbeddedMedia } from 'fluent-wp-client';
+import type { WordPressEmbeddedMedia, WordPressMedia } from 'fluent-wp-client';
 
 /**
  * Props for the WPImage component.
@@ -38,7 +38,9 @@ if (providedMedia) {
   media = providedMedia;
 } else if (mediaId && baseUrl) {
   try {
-    const url = new URL(`${baseUrl}/index.php?rest_route=/wp/v2/media/${mediaId}`);
+    const url = new URL(
+      `${baseUrl}/index.php?rest_route=/wp/v2/media/${mediaId}`,
+    );
     const response = await fetch(url.toString());
     if (response.ok) {
       media = await response.json();
@@ -49,7 +51,9 @@ if (providedMedia) {
 }
 
 if (!media) {
-  console.error('WPImage: Either (mediaId + baseUrl) or media prop must be provided');
+  console.error(
+    'WPImage: Either (mediaId + baseUrl) or media prop must be provided',
+  );
   return;
 }
 
@@ -66,7 +70,9 @@ type MediaSize = {
 /**
  * Generates srcset string from WordPress media sizes for responsive images.
  */
-function generateSrcset(media: WordPressMedia | WordPressEmbeddedMedia): string {
+function generateSrcset(
+  media: WordPressMedia | WordPressEmbeddedMedia,
+): string {
   if (!media.media_details?.sizes) {
     return '';
   }

@@ -5,13 +5,26 @@ import { vi } from 'vitest';
  * Stores entries in a Map for assertion in tests
  */
 export function createMockStore() {
-  const entries = new Map<string, { data: unknown; rendered?: { html: string } }>();
+  const entries = new Map<
+    string,
+    { data: unknown; rendered?: { html: string } }
+  >();
 
   const store = {
     clear: vi.fn(() => entries.clear()),
-    set: vi.fn(({ id, data, rendered }: { id: string; data: unknown; rendered?: { html: string } }) => {
-      entries.set(id, { data, rendered });
-    }),
+    set: vi.fn(
+      ({
+        id,
+        data,
+        rendered,
+      }: {
+        id: string;
+        data: unknown;
+        rendered?: { html: string };
+      }) => {
+        entries.set(id, { data, rendered });
+      },
+    ),
   };
 
   return { store, entries };

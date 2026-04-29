@@ -15,10 +15,7 @@ export type WordPressCacheHint = {
   lastModified?: Date;
 };
 
-type WordPressPostLikeEntry = Pick<
-  WordPressPost | WordPressPage,
-  never
-> & {
+type WordPressPostLikeEntry = Pick<WordPressPost | WordPressPage, never> & {
   id: number;
   author?: number;
   categories?: number[];
@@ -30,10 +27,7 @@ type WordPressPostLikeEntry = Pick<
   modified_gmt?: string;
 };
 
-type WordPressMediaLikeEntry = Pick<
-  WordPressMedia,
-  never
-> & {
+type WordPressMediaLikeEntry = Pick<WordPressMedia, never> & {
   id: number;
   author?: number;
   post?: number | null;
@@ -43,7 +37,10 @@ type WordPressMediaLikeEntry = Pick<
   modified_gmt?: string;
 };
 
-type WordPressTermEntry = Pick<WordPressCategory | WordPressTag, 'id' | 'taxonomy' | 'parent'>;
+type WordPressTermEntry = Pick<
+  WordPressCategory | WordPressTag,
+  'id' | 'taxonomy' | 'parent'
+>;
 
 type WordPressUserEntry = Pick<WordPressAuthor, 'id'>;
 
@@ -82,21 +79,25 @@ export function getWordPressLastModified(entry: {
   date_gmt?: unknown;
   date?: unknown;
 }): Date | undefined {
-  return parseWordPressDate(entry.modified_gmt)
-    ?? parseWordPressDate(entry.modified)
-    ?? parseWordPressDate(entry.date_gmt)
-    ?? parseWordPressDate(entry.date);
+  return (
+    parseWordPressDate(entry.modified_gmt) ??
+    parseWordPressDate(entry.modified) ??
+    parseWordPressDate(entry.date_gmt) ??
+    parseWordPressDate(entry.date)
+  );
 }
 
 /**
  * Computes the newest valid timestamp across one loader result set.
  */
-function getMostRecentLastModified<TEntry extends {
-  modified_gmt?: unknown;
-  modified?: unknown;
-  date_gmt?: unknown;
-  date?: unknown;
-}>(entries: TEntry[]): Date | undefined {
+function getMostRecentLastModified<
+  TEntry extends {
+    modified_gmt?: unknown;
+    modified?: unknown;
+    date_gmt?: unknown;
+    date?: unknown;
+  },
+>(entries: TEntry[]): Date | undefined {
   let latest: Date | undefined;
 
   for (const entry of entries) {
@@ -128,7 +129,9 @@ function createBaseEntryTags(resource: string, id: number): string[] {
 /**
  * Creates narrow relationship tags for one post-like entry.
  */
-function createContentRelationshipTags(entry: WordPressPostLikeEntry): string[] {
+function createContentRelationshipTags(
+  entry: WordPressPostLikeEntry,
+): string[] {
   const tags: string[] = [];
 
   if (typeof entry.author === 'number') {
@@ -153,7 +156,10 @@ function createContentRelationshipTags(entry: WordPressPostLikeEntry): string[] 
 /**
  * Creates a cache hint for one post, page, or custom content entry.
  */
-export function createContentEntryCacheHint(resource: string, entry: WordPressPostLikeEntry): WordPressCacheHint {
+export function createContentEntryCacheHint(
+  resource: string,
+  entry: WordPressPostLikeEntry,
+): WordPressCacheHint {
   return {
     tags: dedupeTags([
       ...createBaseEntryTags(resource, entry.id),
@@ -171,10 +177,7 @@ export function createContentCollectionCacheHint(
   entries: WordPressPostLikeEntry[],
 ): WordPressCacheHint {
   return {
-    tags: dedupeTags([
-      GLOBAL_CACHE_TAG,
-      `wp:resource:${resource}`,
-    ]),
+    tags: dedupeTags([GLOBAL_CACHE_TAG, `wp:resource:${resource}`]),
     lastModified: getMostRecentLastModified(entries),
   };
 }
@@ -182,7 +185,9 @@ export function createContentCollectionCacheHint(
 /**
  * Creates a cache hint for one media entry.
  */
-export function createMediaEntryCacheHint(entry: WordPressMediaLikeEntry): WordPressCacheHint {
+export function createMediaEntryCacheHint(
+  entry: WordPressMediaLikeEntry,
+): WordPressCacheHint {
   const tags = createBaseEntryTags('media', entry.id);
 
   if (typeof entry.author === 'number') {
@@ -202,12 +207,11 @@ export function createMediaEntryCacheHint(entry: WordPressMediaLikeEntry): WordP
 /**
  * Creates the collection-level cache hint for media resources.
  */
-export function createMediaCollectionCacheHint(entries: WordPressMediaLikeEntry[]): WordPressCacheHint {
+export function createMediaCollectionCacheHint(
+  entries: WordPressMediaLikeEntry[],
+): WordPressCacheHint {
   return {
-    tags: dedupeTags([
-      GLOBAL_CACHE_TAG,
-      'wp:resource:media',
-    ]),
+    tags: dedupeTags([GLOBAL_CACHE_TAG, 'wp:resource:media']),
     lastModified: getMostRecentLastModified(entries),
   };
 }
@@ -215,7 +219,10 @@ export function createMediaCollectionCacheHint(entries: WordPressMediaLikeEntry[
 /**
  * Creates a cache hint for one category, tag, or custom taxonomy term.
  */
-export function createTermEntryCacheHint(resource: string, entry: WordPressTermEntry): WordPressCacheHint {
+export function createTermEntryCacheHint(
+  resource: string,
+  entry: WordPressTermEntry,
+): WordPressCacheHint {
   const tags = [
     ...createBaseEntryTags(resource, entry.id),
     `wp:term:${entry.taxonomy}:${entry.id}`,
@@ -251,7 +258,9 @@ export function createTermCollectionCacheHint(
 /**
  * Creates a cache hint for one WordPress user entry.
  */
-export function createUserEntryCacheHint(entry: WordPressUserEntry): WordPressCacheHint {
+export function createUserEntryCacheHint(
+  entry: WordPressUserEntry,
+): WordPressCacheHint {
   return {
     tags: dedupeTags([
       ...createBaseEntryTags('users', entry.id),
@@ -265,17 +274,17 @@ export function createUserEntryCacheHint(entry: WordPressUserEntry): WordPressCa
  */
 export function createUserCollectionCacheHint(): WordPressCacheHint {
   return {
-    tags: [
-      GLOBAL_CACHE_TAG,
-      'wp:resource:users',
-    ],
+    tags: [GLOBAL_CACHE_TAG, 'wp:resource:users'],
   };
 }
 
 /**
  * Creates the minimal invalidation tag set for one content entry change.
  */
-export function createContentInvalidationTags(resource: string, id: number): string[] {
+export function createContentInvalidationTags(
+  resource: string,
+  id: number,
+): string[] {
   return [`wp:entry:${resource}:${id}`];
 }
 

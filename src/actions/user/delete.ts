@@ -1,10 +1,14 @@
-import { defineAction, type ActionAPIContext, type ActionClient } from 'astro:actions';
+import {
+  type ActionAPIContext,
+  type ActionClient,
+  defineAction,
+} from 'astro:actions';
 import { z } from 'astro/zod';
 import type { WordPressClient } from 'fluent-wp-client';
 import {
+  type ResolvableActionClient,
   resolveRequiredActionClient,
   withActionClient,
-  type ResolvableActionClient,
 } from '../post/client';
 
 /**
@@ -55,7 +59,9 @@ export async function executeDeleteUser(
   input: DeleteUserInput,
 ): Promise<DeleteUserResult> {
   return withActionClient(client, async (resolvedClient) => {
-    const result = await resolvedClient.users().delete(input.id, { force: true, reassign: input.reassign });
+    const result = await resolvedClient
+      .users()
+      .delete(input.id, { force: true, reassign: input.reassign });
     return {
       id: result.id,
       deleted: result.deleted,
@@ -69,7 +75,8 @@ export async function executeDeleteUser(
  */
 export function createDeleteUserAction(
   client: ResolvableActionClient,
-): ActionClient<DeleteUserResult, undefined, typeof deleteUserInputSchema> & string {
+): ActionClient<DeleteUserResult, undefined, typeof deleteUserInputSchema> &
+  string {
   return defineAction({
     input: deleteUserInputSchema,
     handler: async (input: DeleteUserInput, context: ActionAPIContext) => {
@@ -77,5 +84,10 @@ export function createDeleteUserAction(
       return executeDeleteUser(resolvedClient, input);
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any) as ActionClient<DeleteUserResult, undefined, typeof deleteUserInputSchema> & string;
+  } as any) as ActionClient<
+    DeleteUserResult,
+    undefined,
+    typeof deleteUserInputSchema
+  > &
+    string;
 }

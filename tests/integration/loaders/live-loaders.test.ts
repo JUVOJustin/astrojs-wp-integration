@@ -1,22 +1,30 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { createJwtAuthHeader, WordPressClient } from 'fluent-wp-client';
+import { beforeAll, describe, expect, it } from 'vitest';
 import {
-  wordPressPostLoader,
-  wordPressPageLoader,
-  wordPressMediaLoader,
   wordPressCategoryLoader,
+  wordPressContentLoader,
+  wordPressMediaLoader,
+  wordPressPageLoader,
+  wordPressPostLoader,
   wordPressTagLoader,
   wordPressTermLoader,
   wordPressUserLoader,
-  wordPressContentLoader,
 } from '../../../src/loaders/live';
-import { createJwtAuthHeader, WordPressClient } from 'fluent-wp-client';
+import {
+  getAcfChoiceLabels,
+  useAcfChoiceCatalog,
+} from '../../helpers/acf-choice-catalog';
 import { getBaseUrl } from '../../helpers/wp-client';
-import { getAcfChoiceLabels, useAcfChoiceCatalog } from '../../helpers/acf-choice-catalog';
 
 /**
  * Legacy helper method keys from fluent-wp-client v1 content wrappers.
  */
-const LEGACY_CONTENT_METHOD_KEYS = ['get', 'getContent', 'getBlocks', 'then'] as const;
+const LEGACY_CONTENT_METHOD_KEYS = [
+  'get',
+  'getContent',
+  'getBlocks',
+  'then',
+] as const;
 
 /**
  * Asserts one live loader record data object is plain and serialization-safe.
@@ -73,8 +81,14 @@ describe('Live Loaders', () => {
   describe('wordPressPostLoader', () => {
     it('returns Astro live-collection entries with string IDs and rendered html', async () => {
       const loader = wordPressPostLoader(createPublicClient());
-      const result = await loader.loadCollection!({ filter: undefined } as never) as {
-        entries: Array<{ id: string; data: { id: number; content: { rendered: string } }; rendered?: { html: string } }>;
+      const result = (await loader.loadCollection!({
+        filter: undefined,
+      } as never)) as {
+        entries: Array<{
+          id: string;
+          data: { id: number; content: { rendered: string } };
+          rendered?: { html: string };
+        }>;
       };
 
       expect(Array.isArray(result.entries)).toBe(true);
@@ -88,7 +102,9 @@ describe('Live Loaders', () => {
 
     it('returns plain data objects suitable for serialization', async () => {
       const loader = wordPressPostLoader(createPublicClient());
-      const result = await loader.loadCollection!({ filter: undefined } as never) as {
+      const result = (await loader.loadCollection!({
+        filter: undefined,
+      } as never)) as {
         entries: Array<{ id: string; data: Record<string, unknown> }>;
       };
 
@@ -101,7 +117,9 @@ describe('Live Loaders', () => {
 
     it('normalizes nested Astro filter input for loadEntry', async () => {
       const loader = wordPressPostLoader(createPublicClient());
-      const result = await loader.loadEntry!({ filter: { filter: { slug: 'test-post-001' } } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { filter: { slug: 'test-post-001' } },
+      } as never)) as {
         id: string;
         data: { slug: string; content: { rendered: string } };
         rendered?: { html: string };
@@ -113,7 +131,9 @@ describe('Live Loaders', () => {
 
     it('loads embedded relations only when embed is explicitly enabled', async () => {
       const loader = wordPressPostLoader(createPublicClient(), { embed: true });
-      const result = await loader.loadEntry!({ filter: { slug: 'test-post-001' } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { slug: 'test-post-001' },
+      } as never)) as {
         data: { _embedded?: unknown };
       };
 
@@ -125,13 +145,17 @@ describe('Live Loaders', () => {
         mapEntry: (entry, context) => ({
           ...entry,
           acf: {
-            ...(typeof entry.acf === 'object' && entry.acf !== null ? entry.acf : {}),
+            ...(typeof entry.acf === 'object' && entry.acf !== null
+              ? entry.acf
+              : {}),
             acf_subtitle: `${context.resource}:Mapped label`,
           },
         }),
       });
 
-      const result = await loader.loadEntry!({ filter: { slug: 'test-post-001' } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { slug: 'test-post-001' },
+      } as never)) as {
         data: { acf?: { acf_subtitle?: string } };
       };
 
@@ -145,15 +169,21 @@ describe('Live Loaders', () => {
         mapEntry: (entry) => ({
           ...entry,
           acf: {
-            ...(typeof entry.acf === 'object' && entry.acf !== null ? entry.acf : {}),
-            acf_project_status: choiceLabels
-              .get('acf_project_status')
-              ?.get(String(entry.acf?.acf_project_status)) ?? entry.acf?.acf_project_status,
+            ...(typeof entry.acf === 'object' && entry.acf !== null
+              ? entry.acf
+              : {}),
+            acf_project_status:
+              choiceLabels
+                .get('acf_project_status')
+                ?.get(String(entry.acf?.acf_project_status)) ??
+              entry.acf?.acf_project_status,
           },
         }),
       });
 
-      const result = await loader.loadEntry!({ filter: { slug: 'test-post-001' } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { slug: 'test-post-001' },
+      } as never)) as {
         data: { acf?: { acf_project_status?: string } };
       };
 
@@ -162,21 +192,38 @@ describe('Live Loaders', () => {
 
     it('returns cache hints with lastModified and relationship tags', async () => {
       const loader = wordPressPostLoader(createPublicClient());
-      const result = await loader.loadEntry!({ filter: { slug: 'test-post-001' } } as never) as {
-        data: { id: number; author: number; categories?: number[]; tags?: number[] };
+      const result = (await loader.loadEntry!({
+        filter: { slug: 'test-post-001' },
+      } as never)) as {
+        data: {
+          id: number;
+          author: number;
+          categories?: number[];
+          tags?: number[];
+        };
         cacheHint?: { lastModified?: Date; tags?: string[] };
       };
 
       expect(result.cacheHint?.lastModified).toBeInstanceOf(Date);
-      expect(result.cacheHint?.tags).toContain(`wp:entry:posts:${result.data.id}`);
-      expect(result.cacheHint?.tags).toContain(`wp:author:${result.data.author}`);
-      expect(result.cacheHint?.tags).toContain(`wp:term:category:${result.data.categories?.[0]}`);
-      expect(result.cacheHint?.tags).toContain(`wp:term:post_tag:${result.data.tags?.[0]}`);
+      expect(result.cacheHint?.tags).toContain(
+        `wp:entry:posts:${result.data.id}`,
+      );
+      expect(result.cacheHint?.tags).toContain(
+        `wp:author:${result.data.author}`,
+      );
+      expect(result.cacheHint?.tags).toContain(
+        `wp:term:category:${result.data.categories?.[0]}`,
+      );
+      expect(result.cacheHint?.tags).toContain(
+        `wp:term:post_tag:${result.data.tags?.[0]}`,
+      );
     });
 
     it('returns collection cache hints with the newest lastModified', async () => {
       const loader = wordPressPostLoader(createPublicClient());
-      const result = await loader.loadCollection!({ filter: undefined } as never) as {
+      const result = (await loader.loadCollection!({
+        filter: undefined,
+      } as never)) as {
         entries: Array<{ data: { modified_gmt: string } }>;
         cacheHint?: { lastModified?: Date; tags?: string[] };
       };
@@ -185,15 +232,17 @@ describe('Live Loaders', () => {
         .map((entry) => new Date(entry.data.modified_gmt))
         .sort((left, right) => right.getTime() - left.getTime())[0];
 
-      expect(result.cacheHint?.lastModified?.toISOString()).toBe(expectedLastModified.toISOString());
+      expect(result.cacheHint?.lastModified?.toISOString()).toBe(
+        expectedLastModified.toISOString(),
+      );
       expect(result.cacheHint?.tags).toContain('wp:resource:posts');
     });
 
     it('forwards pagination filters for listing-style reads', async () => {
       const loader = wordPressPostLoader(createPublicClient());
-      const result = await loader.loadCollection!({
+      const result = (await loader.loadCollection!({
         filter: { orderby: 'slug', order: 'asc', perPage: 20, page: 1 },
-      } as never) as {
+      } as never)) as {
         entries: Array<{ data: { slug: string } }>;
       };
 
@@ -203,7 +252,9 @@ describe('Live Loaders', () => {
 
     it('returns one error object for missing entries', async () => {
       const loader = wordPressPostLoader(createPublicClient());
-      const result = await loader.loadEntry!({ filter: { slug: 'definitely-no-post' } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { slug: 'definitely-no-post' },
+      } as never)) as {
         error?: Error;
       };
 
@@ -213,7 +264,9 @@ describe('Live Loaders', () => {
 
     it('returns one error object for unauthorized collection access', async () => {
       const loader = wordPressPostLoader(createPublicClient());
-      const result = await loader.loadCollection!({ filter: { status: 'draft' } } as never) as {
+      const result = (await loader.loadCollection!({
+        filter: { status: 'draft' },
+      } as never)) as {
         error?: Error;
       };
 
@@ -223,7 +276,9 @@ describe('Live Loaders', () => {
     it('accepts request-aware auth headers when loading protected content', async () => {
       const loader = wordPressPostLoader(createJwtClient());
 
-      const result = await loader.loadCollection!({ filter: { status: 'draft' } } as never) as {
+      const result = (await loader.loadCollection!({
+        filter: { status: 'draft' },
+      } as never)) as {
         entries?: unknown[];
         error?: Error;
       };
@@ -235,15 +290,19 @@ describe('Live Loaders', () => {
     it('uses the client fetch override for live loader reads', async () => {
       let requestCount = 0;
 
-      const loader = wordPressPostLoader(new WordPressClient({
-        baseUrl,
-        fetch: async (input, init) => {
-          requestCount += 1;
-          return fetch(input, init);
-        },
-      }));
+      const loader = wordPressPostLoader(
+        new WordPressClient({
+          baseUrl,
+          fetch: async (input, init) => {
+            requestCount += 1;
+            return fetch(input, init);
+          },
+        }),
+      );
 
-      const result = await loader.loadEntry!({ filter: { slug: 'test-post-001' } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { slug: 'test-post-001' },
+      } as never)) as {
         data?: { slug: string };
         error?: Error;
       };
@@ -257,7 +316,9 @@ describe('Live Loaders', () => {
   describe('wordPressPageLoader', () => {
     it('includes rendered html for page entries', async () => {
       const loader = wordPressPageLoader(createPublicClient());
-      const result = await loader.loadEntry!({ filter: { slug: 'about' } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { slug: 'about' },
+      } as never)) as {
         data: { content: { rendered: string } };
         rendered?: { html: string };
       };
@@ -267,7 +328,9 @@ describe('Live Loaders', () => {
 
     it('returns plain data objects suitable for serialization', async () => {
       const loader = wordPressPageLoader(createPublicClient());
-      const result = await loader.loadCollection!({ filter: undefined } as never) as {
+      const result = (await loader.loadCollection!({
+        filter: undefined,
+      } as never)) as {
         entries: Array<{ id: string; data: Record<string, unknown> }>;
       };
 
@@ -280,21 +343,29 @@ describe('Live Loaders', () => {
 
     it('returns cache hints with page timestamps and author tags', async () => {
       const loader = wordPressPageLoader(createPublicClient());
-      const result = await loader.loadEntry!({ filter: { slug: 'about' } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { slug: 'about' },
+      } as never)) as {
         data: { id: number; author: number };
         cacheHint?: { lastModified?: Date; tags?: string[] };
       };
 
       expect(result.cacheHint?.lastModified).toBeInstanceOf(Date);
-      expect(result.cacheHint?.tags).toContain(`wp:entry:pages:${result.data.id}`);
-      expect(result.cacheHint?.tags).toContain(`wp:author:${result.data.author}`);
+      expect(result.cacheHint?.tags).toContain(
+        `wp:entry:pages:${result.data.id}`,
+      );
+      expect(result.cacheHint?.tags).toContain(
+        `wp:author:${result.data.author}`,
+      );
     });
   });
 
   describe('wordPressCategoryLoader', () => {
     it('returns taxonomy entries without rendered html blocks', async () => {
       const loader = wordPressCategoryLoader(createPublicClient());
-      const result = await loader.loadCollection!({ filter: undefined } as never) as {
+      const result = (await loader.loadCollection!({
+        filter: undefined,
+      } as never)) as {
         entries: Array<{ id: string; rendered?: { html: string } }>;
       };
 
@@ -307,21 +378,29 @@ describe('Live Loaders', () => {
 
     it('returns taxonomy-focused cache tags without timestamps', async () => {
       const loader = wordPressCategoryLoader(createPublicClient());
-      const result = await loader.loadEntry!({ filter: { slug: 'technology' } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { slug: 'technology' },
+      } as never)) as {
         data: { id: number; taxonomy: string };
         cacheHint?: { lastModified?: Date; tags?: string[] };
       };
 
       expect(result.cacheHint?.lastModified).toBeUndefined();
-      expect(result.cacheHint?.tags).toContain(`wp:entry:categories:${result.data.id}`);
-      expect(result.cacheHint?.tags).toContain(`wp:term:${result.data.taxonomy}:${result.data.id}`);
+      expect(result.cacheHint?.tags).toContain(
+        `wp:entry:categories:${result.data.id}`,
+      );
+      expect(result.cacheHint?.tags).toContain(
+        `wp:term:${result.data.taxonomy}:${result.data.id}`,
+      );
     });
   });
 
   describe('wordPressMediaLoader', () => {
     it('returns collection entries with string ids when media exists', async () => {
       const loader = wordPressMediaLoader(createPublicClient());
-      const result = await loader.loadCollection!({ filter: undefined } as never) as {
+      const result = (await loader.loadCollection!({
+        filter: undefined,
+      } as never)) as {
         entries: Array<{ id: string; data: { id: number } }>;
       };
 
@@ -334,7 +413,9 @@ describe('Live Loaders', () => {
 
     it('returns one error object for missing media entries', async () => {
       const loader = wordPressMediaLoader(createPublicClient());
-      const result = await loader.loadEntry!({ filter: { id: 999999999 } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { id: 999999999 },
+      } as never)) as {
         error?: Error;
       };
 
@@ -343,7 +424,9 @@ describe('Live Loaders', () => {
 
     it('returns media cache hints with lastModified values', async () => {
       const loader = wordPressMediaLoader(createPublicClient());
-      const collection = await loader.loadCollection!({ filter: undefined } as never) as {
+      const collection = (await loader.loadCollection!({
+        filter: undefined,
+      } as never)) as {
         entries: Array<{ id: string; data: { id: number } }>;
       };
 
@@ -351,20 +434,26 @@ describe('Live Loaders', () => {
         return;
       }
 
-      const result = await loader.loadEntry!({ filter: { id: collection.entries[0].data.id } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { id: collection.entries[0].data.id },
+      } as never)) as {
         data: { id: number };
         cacheHint?: { lastModified?: Date; tags?: string[] };
       };
 
       expect(result.cacheHint?.lastModified).toBeInstanceOf(Date);
-      expect(result.cacheHint?.tags).toContain(`wp:entry:media:${result.data.id}`);
+      expect(result.cacheHint?.tags).toContain(
+        `wp:entry:media:${result.data.id}`,
+      );
     });
   });
 
   describe('wordPressTagLoader', () => {
     it('loads tag entries by slug with non-rendered term payloads', async () => {
       const loader = wordPressTagLoader(createPublicClient());
-      const result = await loader.loadEntry!({ filter: { slug: 'featured' } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { slug: 'featured' },
+      } as never)) as {
         id: string;
         data: { slug: string; taxonomy: string };
         rendered?: { html: string };
@@ -377,13 +466,17 @@ describe('Live Loaders', () => {
 
     it('returns term cache tags for tag entries', async () => {
       const loader = wordPressTagLoader(createPublicClient());
-      const result = await loader.loadEntry!({ filter: { slug: 'featured' } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { slug: 'featured' },
+      } as never)) as {
         data: { id: number; taxonomy: string };
         cacheHint?: { tags?: string[]; lastModified?: Date };
       };
 
       expect(result.cacheHint?.lastModified).toBeUndefined();
-      expect(result.cacheHint?.tags).toContain(`wp:term:${result.data.taxonomy}:${result.data.id}`);
+      expect(result.cacheHint?.tags).toContain(
+        `wp:term:${result.data.taxonomy}:${result.data.id}`,
+      );
     });
   });
 
@@ -393,7 +486,9 @@ describe('Live Loaders', () => {
         resource: 'genres',
       });
 
-      const result = await loader.loadCollection!({ filter: undefined } as never) as {
+      const result = (await loader.loadCollection!({
+        filter: undefined,
+      } as never)) as {
         entries: Array<{ id: string; data: { taxonomy: string } }>;
       };
 
@@ -406,30 +501,44 @@ describe('Live Loaders', () => {
         resource: 'genres',
       });
 
-      const result = await loader.loadEntry!({ filter: { slug: 'sci-fi' } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { slug: 'sci-fi' },
+      } as never)) as {
         data: { id: number; taxonomy: string };
         cacheHint?: { tags?: string[] };
       };
 
-      expect(result.cacheHint?.tags).toContain(`wp:entry:genres:${result.data.id}`);
-      expect(result.cacheHint?.tags).toContain(`wp:term:${result.data.taxonomy}:${result.data.id}`);
+      expect(result.cacheHint?.tags).toContain(
+        `wp:entry:genres:${result.data.id}`,
+      );
+      expect(result.cacheHint?.tags).toContain(
+        `wp:term:${result.data.taxonomy}:${result.data.id}`,
+      );
     });
   });
 
   describe('wordPressUserLoader', () => {
     it('loads users publicly as Astro live entries with normalized ids', async () => {
       const loader = wordPressUserLoader(createPublicClient());
-      const result = await loader.loadCollection!({ filter: undefined } as never) as {
-        entries: Array<{ id: string; data: { id: number; slug: string; _links?: unknown } }>;
+      const result = (await loader.loadCollection!({
+        filter: undefined,
+      } as never)) as {
+        entries: Array<{
+          id: string;
+          data: { id: number; slug: string; _links?: unknown };
+        }>;
       };
 
       expect(result.entries.length).toBeGreaterThan(0);
       expect(result.entries[0].id).toBe(String(result.entries[0].data.id));
       expect(typeof result.entries[0].data.slug).toBe('string');
 
-      const publicAllow = ((result.entries[0].data._links as {
-        self?: Array<{ targetHints?: { allow?: string[] } }>;
-      })?.self?.[0]?.targetHints?.allow) ?? [];
+      const publicAllow =
+        (
+          result.entries[0].data._links as {
+            self?: Array<{ targetHints?: { allow?: string[] } }>;
+          }
+        )?.self?.[0]?.targetHints?.allow ?? [];
 
       expect(publicAllow).toContain('GET');
       expect(publicAllow).not.toContain('POST');
@@ -437,12 +546,16 @@ describe('Live Loaders', () => {
 
     it('resolves one user by slug in loadEntry', async () => {
       const loader = wordPressUserLoader(createPublicClient());
-      const collection = await loader.loadCollection!({ filter: undefined } as never) as {
+      const collection = (await loader.loadCollection!({
+        filter: undefined,
+      } as never)) as {
         entries: Array<{ data: { slug: string } }>;
       };
 
       const slug = collection.entries[0].data.slug;
-      const result = await loader.loadEntry!({ filter: { slug } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { slug },
+      } as never)) as {
         data: { slug: string };
       };
 
@@ -452,13 +565,18 @@ describe('Live Loaders', () => {
     it('loads users with auth and exposes auth-only capability hints', async () => {
       const loader = wordPressUserLoader(createJwtClient());
 
-      const result = await loader.loadEntry!({ filter: { id: 1 } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { id: 1 },
+      } as never)) as {
         data: { id: number; _links?: unknown };
       };
 
-      const authAllow = ((result.data._links as {
-        self?: Array<{ targetHints?: { allow?: string[] } }>;
-      })?.self?.[0]?.targetHints?.allow) ?? [];
+      const authAllow =
+        (
+          result.data._links as {
+            self?: Array<{ targetHints?: { allow?: string[] } }>;
+          }
+        )?.self?.[0]?.targetHints?.allow ?? [];
 
       expect(result.data.id).toBe(1);
       expect(authAllow).toContain('GET');
@@ -467,7 +585,9 @@ describe('Live Loaders', () => {
 
     it('returns user cache tags without synthetic timestamps', async () => {
       const loader = wordPressUserLoader(createPublicClient());
-      const result = await loader.loadEntry!({ filter: { id: 1 } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { id: 1 },
+      } as never)) as {
         data: { id: number };
         cacheHint?: { lastModified?: Date; tags?: string[] };
       };
@@ -484,8 +604,14 @@ describe('Live Loaders', () => {
         resource: 'books',
       });
 
-      const result = await loader.loadCollection!({ filter: undefined } as never) as {
-        entries: Array<{ id: string; data: { id: number; type: string; content: { rendered: string } }; rendered?: { html: string } }>;
+      const result = (await loader.loadCollection!({
+        filter: undefined,
+      } as never)) as {
+        entries: Array<{
+          id: string;
+          data: { id: number; type: string; content: { rendered: string } };
+          rendered?: { html: string };
+        }>;
       };
 
       expect(result.entries.length).toBeGreaterThan(0);
@@ -498,7 +624,9 @@ describe('Live Loaders', () => {
         resource: 'books',
       });
 
-      const result = await loader.loadEntry!({ filter: { slug: 'test-book-001' } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { slug: 'test-book-001' },
+      } as never)) as {
         data: { slug: string; content: { rendered: string } };
         rendered?: { html: string };
       };
@@ -512,7 +640,9 @@ describe('Live Loaders', () => {
         resource: 'books',
       });
 
-      const result = await loader.loadCollection!({ filter: undefined } as never) as {
+      const result = (await loader.loadCollection!({
+        filter: undefined,
+      } as never)) as {
         entries: Array<{ id: string; data: Record<string, unknown> }>;
       };
 
@@ -528,7 +658,9 @@ describe('Live Loaders', () => {
         resource: 'books',
       });
 
-      const result = await loader.loadEntry!({ filter: { slug: 'nonexistent-book-99999' } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { slug: 'nonexistent-book-99999' },
+      } as never)) as {
         error?: Error;
       };
 
@@ -541,7 +673,9 @@ describe('Live Loaders', () => {
         resource: 'books',
       });
 
-      const result = await loader.loadCollection!({ filter: { status: 'draft' } } as never) as {
+      const result = (await loader.loadCollection!({
+        filter: { status: 'draft' },
+      } as never)) as {
         entries?: unknown[];
         error?: Error;
       };
@@ -556,7 +690,9 @@ describe('Live Loaders', () => {
         embed: true,
       });
 
-      const result = await loader.loadEntry!({ filter: { slug: 'test-book-001' } } as never) as {
+      const result = (await loader.loadEntry!({
+        filter: { slug: 'test-book-001' },
+      } as never)) as {
         data: { _embedded?: unknown };
       };
 
@@ -568,17 +704,25 @@ describe('Live Loaders', () => {
         resource: 'books',
       });
 
-      const entryResult = await loader.loadEntry!({ filter: { slug: 'test-book-001' } } as never) as {
+      const entryResult = (await loader.loadEntry!({
+        filter: { slug: 'test-book-001' },
+      } as never)) as {
         data: { id: number; author: number };
         cacheHint?: { lastModified?: Date; tags?: string[] };
       };
-      const collectionResult = await loader.loadCollection!({ filter: undefined } as never) as {
+      const collectionResult = (await loader.loadCollection!({
+        filter: undefined,
+      } as never)) as {
         cacheHint?: { lastModified?: Date; tags?: string[] };
       };
 
       expect(entryResult.cacheHint?.lastModified).toBeInstanceOf(Date);
-      expect(entryResult.cacheHint?.tags).toContain(`wp:entry:books:${entryResult.data.id}`);
-      expect(entryResult.cacheHint?.tags).toContain(`wp:author:${entryResult.data.author}`);
+      expect(entryResult.cacheHint?.tags).toContain(
+        `wp:entry:books:${entryResult.data.id}`,
+      );
+      expect(entryResult.cacheHint?.tags).toContain(
+        `wp:author:${entryResult.data.author}`,
+      );
       expect(collectionResult.cacheHint?.lastModified).toBeInstanceOf(Date);
       expect(collectionResult.cacheHint?.tags).toContain('wp:resource:books');
     });

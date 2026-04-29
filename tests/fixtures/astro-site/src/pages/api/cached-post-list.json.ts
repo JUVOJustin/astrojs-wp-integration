@@ -1,5 +1,5 @@
-import type { APIRoute } from 'astro';
 import { getLiveCollection } from 'astro:content';
+import type { APIRoute } from 'astro';
 
 /**
  * Cached post-list endpoint used to verify collection caching independently from per-entry caching.

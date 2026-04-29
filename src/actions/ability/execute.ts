@@ -1,25 +1,22 @@
 import type { ActionClient } from 'astro:actions';
 import type { WordPressClient } from 'fluent-wp-client';
 import {
-  runAbilityInputSchema,
   type RunAbilityInput,
+  runAbilityInputSchema,
 } from 'fluent-wp-client/zod';
-import {
-  withActionClient,
-  type ResolvableActionClient,
-} from '../post/client';
+import { type ResolvableActionClient, withActionClient } from '../post/client';
 import { validateActionResponse } from '../response-validation';
 import {
-  createAbilityAction,
   type AbilityActionOptions,
+  createAbilityAction,
   type ExecuteAbilityOptions,
 } from './factory';
 
+export type { RunAbilityInput };
 /**
  * Input schema for executing one regular WordPress ability via POST.
  */
 export { runAbilityInputSchema };
-export type { RunAbilityInput };
 
 /**
  * Low-level options accepted by `executeRunAbility`.
@@ -53,8 +50,15 @@ export async function executeRunAbility<T = unknown>(
   options?: ExecuteRunAbilityOptions<T>,
 ): Promise<T> {
   return withActionClient(client, async (resolvedClient) => {
-    const result = await resolvedClient.executeRunAbility(input.name, input.input);
-    return validateActionResponse(result, options?.responseSchema, 'WordPress ability POST action');
+    const result = await resolvedClient.executeRunAbility(
+      input.name,
+      input.input,
+    );
+    return validateActionResponse(
+      result,
+      options?.responseSchema,
+      'WordPress ability POST action',
+    );
   });
 }
 
@@ -64,11 +68,15 @@ export async function executeRunAbility<T = unknown>(
 export function createRunAbilityAction<
   TResponse = unknown,
   TSchema extends typeof runAbilityInputSchema = typeof runAbilityInputSchema,
->(client: ResolvableActionClient, options?: RunAbilityActionOptions<TResponse, TSchema>): ActionClient<TResponse, undefined, TSchema> & string {
+>(
+  client: ResolvableActionClient,
+  options?: RunAbilityActionOptions<TResponse, TSchema>,
+): ActionClient<TResponse, undefined, TSchema> & string {
   return createAbilityAction<RunAbilityInput, TResponse, TSchema>({
     ...options,
     client,
     defaultSchema: runAbilityInputSchema as TSchema,
-    execute: (resolvedClient, input, executeOptions) => executeRunAbility<TResponse>(resolvedClient, input, executeOptions),
+    execute: (resolvedClient, input, executeOptions) =>
+      executeRunAbility<TResponse>(resolvedClient, input, executeOptions),
   });
 }
