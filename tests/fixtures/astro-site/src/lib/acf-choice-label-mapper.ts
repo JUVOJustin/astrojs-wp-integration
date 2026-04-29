@@ -1,12 +1,6 @@
-import type { WordPressClient } from 'fluent-wp-client';
-
 type AcfChoice = {
   label: string;
   value: string;
-};
-
-type AcfSchemaField = {
-  choices?: AcfChoice[];
 };
 
 type EntryWithAcf = {
@@ -15,19 +9,23 @@ type EntryWithAcf = {
 
 /**
  * Creates one callback that can normalize ACF choices for loaders and actions.
+ *
+ * Reads value → label mappings from the live WordPress REST API endpoint
+ * `/wp-json/wp-astrojs-integration/v1/acf-choices` registered by the test
+ * mu-plugin, eliminating the need for client-side catalog seeding.
  */
-export function createAcfChoiceLabelMapper(client: WordPressClient) {
+export function createAcfChoiceLabelMapper(baseUrl: string) {
   const lookups = new Map<string, Promise<Map<string, Map<string, string>>>>();
 
   return async function mapAcfChoiceLabels<TEntry extends EntryWithAcf>(
     entry: TEntry,
-    context: { resource: string },
+    _context: { resource: string },
   ): Promise<TEntry> {
     if (!entry.acf) {
       return entry;
     }
 
-    const choiceLabels = await getChoiceLabels(client, context.resource, lookups);
+    const choiceLabels = await getChoiceLabels(baseUrl, lookups);
 
     return {
       ...entry,
@@ -42,32 +40,36 @@ export function createAcfChoiceLabelMapper(client: WordPressClient) {
 }
 
 async function getChoiceLabels(
-  client: WordPressClient,
-  resource: string,
+  baseUrl: string,
   lookups: Map<string, Promise<Map<string, Map<string, string>>>>,
 ): Promise<Map<string, Map<string, string>>> {
-  if (!lookups.has(resource)) {
-    lookups.set(resource, loadChoiceLabels(client, resource));
+  if (!lookups.has('acf-choices')) {
+    lookups.set('acf-choices', loadChoiceLabels(baseUrl));
   }
 
-  return lookups.get(resource)!;
+  return lookups.get('acf-choices')!;
 }
 
 async function loadChoiceLabels(
-  client: WordPressClient,
-  resource: string,
+  baseUrl: string,
 ): Promise<Map<string, Map<string, string>>> {
-  const acfFields = await client.content(resource).getSchemaValue<
-    Record<string, AcfSchemaField>
-  >('properties.acf.properties');
+  const response = await fetch(
+    `${baseUrl.replace(/\/$/, '')}/wp-json/wp-astrojs-integration/v1/acf-choices`,
+  );
+
+  if (!response.ok) {
+    return new Map();
+  }
+
+  const data = (await response.json()) as Record<string, AcfChoice[]>;
   const choiceLabels = new Map<string, Map<string, string>>();
 
-  for (const [fieldName, fieldSchema] of Object.entries(acfFields ?? {})) {
-    if (!Array.isArray(fieldSchema.choices)) continue;
+  for (const [fieldName, choices] of Object.entries(data)) {
+    if (!Array.isArray(choices)) continue;
 
     choiceLabels.set(
       fieldName,
-      new Map(fieldSchema.choices.map((choice) => [choice.value, choice.label])),
+      new Map(choices.map((choice) => [choice.value, choice.label])),
     );
   }
 

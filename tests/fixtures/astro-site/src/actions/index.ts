@@ -41,7 +41,6 @@ import {
   resetRouteCacheMetrics,
 } from '../lib/wp-fetch-metrics';
 import { createAcfChoiceLabelMapper } from '../lib/acf-choice-label-mapper';
-import { useTestAcfChoiceCatalog } from '../lib/test-acf-catalog';
 import {
   booksCreateSchema,
   booksItemSchema,
@@ -101,8 +100,7 @@ function createCookieReader(cookieName: string, token?: string): CookieReader {
 }
 
 const requestClient = requestHeaderBridge.getClient;
-const mappingClient = useTestAcfChoiceCatalog(new WordPressClient({ baseUrl }), 'posts');
-const mapAcfChoiceLabels = createAcfChoiceLabelMapper(mappingClient);
+const mapAcfChoiceLabels = createAcfChoiceLabelMapper(baseUrl);
 
 /* ── Post actions ────────────────────────────────────── */
 

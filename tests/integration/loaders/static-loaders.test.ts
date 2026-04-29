@@ -12,7 +12,7 @@ import { WordPressClient } from 'fluent-wp-client';
 import { createMockStore } from '../../helpers/mock-store';
 import { createMockLogger } from '../../helpers/mock-logger';
 import { getBaseUrl } from '../../helpers/wp-client';
-import { getAcfChoiceLabels, useAcfChoiceCatalog } from '../../helpers/acf-choice-catalog';
+import { getAcfChoiceLabels } from '../../helpers/acf-choice-catalog';
 
 /**
  * Legacy helper method keys from fluent-wp-client v1 content wrappers.
@@ -138,10 +138,9 @@ describe('Static Loaders', () => {
       expect(mapped?.data.acf?.acf_subtitle).toBe('posts:Mapped label');
     });
 
-    it('supports callback-driven ACF choice labels from discovery metadata', async () => {
-      const client = useAcfChoiceCatalog(createClient());
-      const choiceLabels = await getAcfChoiceLabels(client);
-      const loader = wordPressPostStaticLoader(client, {
+    it('supports callback-driven ACF choice labels from live REST API', async () => {
+      const choiceLabels = await getAcfChoiceLabels(baseUrl);
+      const loader = wordPressPostStaticLoader(createClient(), {
         mapEntry: (entry) => ({
           ...entry,
           acf: {

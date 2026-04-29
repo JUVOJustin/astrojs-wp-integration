@@ -69,6 +69,21 @@ describe('Static Loaders: Astro build integration', () => {
       expect(booksCountMatch).not.toBeNull();
       const booksCount = parseInt(booksCountMatch![1], 10);
       expect(booksCount).toBeGreaterThan(0);
+
+      // Mapped posts page should have been generated and contain the ACF
+      // choice label (not the raw value). The mu-plugin
+      // `register-acf-fields.php` registers `acf_project_status` with
+      // choices; the seeded post `test-post-001` has value "in_progress",
+      // which the mapper should translate to "In progress".
+      const mappedPostsHtml = await readFile(
+        path.join(buildRoot, 'dist', 'mapped-posts', 'index.html'),
+        'utf-8',
+      );
+
+      expect(mappedPostsHtml).toContain('Static Mapped Posts Build Test');
+      expect(mappedPostsHtml).toContain('data-slug="test-post-001"');
+      expect(mappedPostsHtml).toContain('Project status: In progress');
+      expect(mappedPostsHtml).not.toContain('Project status: in_progress');
     } finally {
       await rm(buildRoot, { recursive: true, force: true });
     }

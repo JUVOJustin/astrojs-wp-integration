@@ -1,66 +1,36 @@
-import type { WordPressClient } from 'fluent-wp-client';
-
 type AcfChoice = {
   label: string;
   value: string;
 };
 
-type AcfSchemaField = {
-  choices?: AcfChoice[];
-};
-
 /**
- * Seeds discovery metadata that mirrors WordPressResourceDescription ACF choice fields.
- */
-export function useAcfChoiceCatalog(client: WordPressClient): WordPressClient {
-  return client.useCatalog({
-    abilities: {},
-    resources: {},
-    terms: {},
-    content: {
-      posts: {
-        kind: 'content',
-        namespace: 'wp/v2',
-        resource: 'posts',
-        route: '/wp/v2/posts',
-        schemas: {
-          item: {
-            properties: {
-              acf: {
-                properties: {
-                  acf_project_status: {
-                    choices: [
-                      { value: 'in_progress', label: 'In progress' },
-                      { value: 'done', label: 'Done' },
-                    ],
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  });
-}
-
-/**
- * Builds the same field-label lookup a consumer can pass into mapEntry.
+ * Builds a field-label lookup from the live WordPress REST API.
+ *
+ * Calls the custom `/wp-json/wp-astrojs-integration/v1/acf-choices` endpoint
+ * registered by the test mu-plugin instead of seeding a discovery catalog
+ * client-side. This ensures the mapping always reflects the current ACF
+ * field definitions in WordPress.
  */
 export async function getAcfChoiceLabels(
-  client: WordPressClient,
+  baseUrl: string,
 ): Promise<Map<string, Map<string, string>>> {
-  const acfFields = await client.content('posts').getSchemaValue<Record<string, AcfSchemaField>>(
-    'properties.acf.properties',
+  const response = await fetch(
+    `${baseUrl.replace(/\/$/, '')}/wp-json/wp-astrojs-integration/v1/acf-choices`,
   );
+
+  if (!response.ok) {
+    return new Map();
+  }
+
+  const data = (await response.json()) as Record<string, AcfChoice[]>;
   const choiceLabels = new Map<string, Map<string, string>>();
 
-  for (const [fieldName, fieldSchema] of Object.entries(acfFields ?? {})) {
-    if (!Array.isArray(fieldSchema.choices)) continue;
+  for (const [fieldName, choices] of Object.entries(data)) {
+    if (!Array.isArray(choices)) continue;
 
     choiceLabels.set(
       fieldName,
-      new Map(fieldSchema.choices.map((choice) => [choice.value, choice.label])),
+      new Map(choices.map((choice) => [choice.value, choice.label])),
     );
   }
 
