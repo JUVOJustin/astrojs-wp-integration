@@ -18,6 +18,7 @@ import {
   pagesItemSchema,
   postsItemSchema,
 } from './generated/wp-schemas';
+import { createAcfChoiceLabelMapper } from './lib/acf-choice-label-mapper';
 
 const baseUrl = resolveWpBaseUrl();
 const wp = new WordPressClient({ baseUrl });
@@ -25,6 +26,20 @@ const wp = new WordPressClient({ baseUrl });
 /** Static post collection loaded at build time with schema validation. */
 const posts = defineCollection({
   loader: wordPressPostStaticLoader(wp),
+  schema: postsItemSchema,
+});
+
+/**
+ * Static post collection with ACF choice label mapping.
+ *
+ * Demonstrates end-to-end mapping of dropdown values to human-readable labels
+ * by calling the live WordPress REST API endpoint registered by the test
+ * mu-plugin (`/wp-json/wp-astrojs-integration/v1/acf-choices`).
+ */
+const mappedPosts = defineCollection({
+  loader: wordPressPostStaticLoader(wp, {
+    mapEntry: createAcfChoiceLabelMapper(baseUrl),
+  }),
   schema: postsItemSchema,
 });
 
@@ -46,4 +61,4 @@ const books = defineCollection({
   schema: booksItemSchema,
 });
 
-export const collections = { posts, pages, categories, books };
+export const collections = { posts, mappedPosts, pages, categories, books };

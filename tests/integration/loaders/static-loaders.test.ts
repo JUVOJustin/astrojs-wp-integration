@@ -9,10 +9,7 @@ import {
   wordPressTermStaticLoader,
   wordPressUserStaticLoader,
 } from '../../../src/loaders/static';
-import {
-  getAcfChoiceLabels,
-  useAcfChoiceCatalog,
-} from '../../helpers/acf-choice-catalog';
+import { getAcfChoiceLabels } from '../../helpers/acf-choice-catalog';
 import { createMockLogger } from '../../helpers/mock-logger';
 import { createMockStore } from '../../helpers/mock-store';
 import { getBaseUrl } from '../../helpers/wp-client';
@@ -148,10 +145,9 @@ describe('Static Loaders', () => {
       expect(mapped?.data.acf?.acf_subtitle).toBe('posts:Mapped label');
     });
 
-    it('supports callback-driven ACF choice labels from discovery metadata', async () => {
-      const client = useAcfChoiceCatalog(createClient());
-      const choiceLabels = await getAcfChoiceLabels(client);
-      const loader = wordPressPostStaticLoader(client, {
+    it('supports callback-driven ACF choice labels from live REST API', async () => {
+      const choiceLabels = await getAcfChoiceLabels(baseUrl);
+      const loader = wordPressPostStaticLoader(createClient(), {
         mapEntry: (entry) => ({
           ...entry,
           acf: {
