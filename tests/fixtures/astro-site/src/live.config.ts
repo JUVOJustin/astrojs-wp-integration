@@ -5,12 +5,14 @@
  * collections defined in `src/content.config.ts` inside the same fixture app.
  */
 import { defineLiveCollection } from 'astro:content';
+import { z } from 'astro/zod';
 import { WordPressClient } from 'fluent-wp-client';
 import {
   wordPressCategoryLoader,
   wordPressContentLoader,
   wordPressPageLoader,
   wordPressPostLoader,
+  wordPressUserLoader,
 } from '../../../../src/loaders/live';
 import { resolveWpBaseUrl } from '../../../helpers/wp-env';
 import {
@@ -20,6 +22,7 @@ import {
   postsItemSchema,
 } from './generated/wp-schemas';
 import { createAcfChoiceLabelMapper } from './lib/acf-choice-label-mapper';
+import { useTestAcfChoiceCatalog } from './lib/test-acf-catalog';
 import { trackedWordPressFetch } from './lib/wp-fetch-metrics';
 
 const baseUrl = resolveWpBaseUrl();
@@ -62,10 +65,23 @@ const liveBooks = defineLiveCollection({
   schema: booksItemSchema,
 });
 
+/** Live user collection loaded at request time. */
+const liveUsers = defineLiveCollection({
+  loader: wordPressUserLoader(wp),
+  schema: z
+    .object({
+      id: z.union([z.number(), z.string()]),
+      name: z.string().optional(),
+      slug: z.string().optional(),
+    })
+    .passthrough(),
+});
+
 export const collections = {
   livePosts,
   liveMappedPosts,
   livePages,
   liveCategories,
   liveBooks,
+  liveUsers,
 };

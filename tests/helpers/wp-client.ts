@@ -70,6 +70,38 @@ export function createCookieAuthClient(): WordPressClient {
 }
 
 /**
+ * Creates an authenticated client using Alice's JWT generated during global setup.
+ */
+export function createAliceAuthClient(): WordPressClient {
+  const token = process.env.WP_ALICE_JWT_TOKEN;
+
+  if (!token) {
+    throw new Error('WP_ALICE_JWT_TOKEN not set — did global-setup run?');
+  }
+
+  return new WordPressClient({
+    baseUrl: getBaseUrl(),
+    auth: { token },
+  });
+}
+
+/**
+ * Creates an authenticated client using Bob's JWT generated during global setup.
+ */
+export function createBobAuthClient(): WordPressClient {
+  const token = process.env.WP_BOB_JWT_TOKEN;
+
+  if (!token) {
+    throw new Error('WP_BOB_JWT_TOKEN not set — did global-setup run?');
+  }
+
+  return new WordPressClient({
+    baseUrl: getBaseUrl(),
+    auth: { token },
+  });
+}
+
+/**
  * Creates the shared execute-action config used by Astro action integration tests.
  */
 export function createActionBaseConfig(): { baseUrl: string } {

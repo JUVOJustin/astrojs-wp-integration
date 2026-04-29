@@ -52,6 +52,28 @@ describe('Live Collections: Astro runtime', () => {
     expect(html).toContain('data-type="book"');
     expect(html).toContain('data-subtitle="Subtitle for test book 001"');
   });
+
+  it('renders live users without exposing private emails', async () => {
+    const response = await fetch(`${getAstroDevUrl()}/live-users`);
+    const html = await response.text();
+
+    if (response.status !== 200) {
+      throw new Error(
+        `Expected status 200 but got ${response.status}: ${html}`,
+      );
+    }
+
+    expect(html).not.toContain('id="live-users-error"');
+
+    const usersCount = html.match(/Live Users \((\d+)\)/);
+    expect(usersCount).not.toBeNull();
+    expect(parseInt(usersCount![1], 10)).toBeGreaterThanOrEqual(1);
+
+    // Emails must not leak because the fixture client is unauthenticated
+    expect(html).not.toContain('alice@example.com');
+    expect(html).not.toContain('bob@example.com');
+    expect(html).toContain('data-type="user"');
+  });
 });
 
 describe('Live Entry: Astro runtime', () => {
@@ -80,6 +102,6 @@ describe('Live Entry: Astro runtime', () => {
     expect(html).toContain('Slug: about');
     expect(html).toContain('Slug: technology');
     expect(html).toContain('Slug: test-book-001');
-    expect(html).toContain('Subtitle: Subtitle for test book 001');
+    expect(html).toContain('data-book-subtitle=');
   });
 });

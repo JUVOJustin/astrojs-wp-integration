@@ -452,6 +452,57 @@ if ( ! function_exists( 'update_field' ) ) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Low-permission users for data-isolation tests                      */
+/* ------------------------------------------------------------------ */
+
+$test_users = [
+	[
+		'user_login' => 'alice',
+		'user_pass'  => 'alice-test-password',
+		'user_email' => 'alice@example.com',
+		'role'       => 'subscriber',
+		'display_name' => 'Alice Test',
+	],
+	[
+		'user_login' => 'bob',
+		'user_pass'  => 'bob-test-password',
+		'user_email' => 'bob@example.com',
+		'role'       => 'subscriber',
+		'display_name' => 'Bob Test',
+	],
+];
+
+foreach ( $test_users as $def ) {
+	$existing = get_user_by( 'login', $def['user_login'] );
+
+	if ( ! $existing ) {
+		$user_id = wp_insert_user( [
+			'user_login'   => $def['user_login'],
+			'user_pass'    => $def['user_pass'],
+			'user_email'   => $def['user_email'],
+			'role'         => $def['role'],
+			'display_name' => $def['display_name'],
+		] );
+
+		if ( is_wp_error( $user_id ) ) {
+			WP_CLI::warning( "Failed to create user {$def['user_login']}: " . $user_id->get_error_message() );
+			continue;
+		}
+	} else {
+		// Ensure password stays deterministic for integration tests
+		wp_update_user( [
+			'ID'         => $existing->ID,
+			'user_pass'  => $def['user_pass'],
+			'user_email' => $def['user_email'],
+			'role'       => $def['role'],
+			'display_name' => $def['display_name'],
+		] );
+	}
+}
+
+WP_CLI::success( 'Test users created/verified: alice, bob' );
+
+/* ------------------------------------------------------------------ */
 /* Summary                                                            */
 /* ------------------------------------------------------------------ */
 

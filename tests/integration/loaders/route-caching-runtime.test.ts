@@ -52,6 +52,16 @@ type AiLivePostCollectionResponse = {
       };
 };
 
+type UserProfileResponse = {
+  renderToken: string;
+  user: {
+    id: number;
+    slug: string;
+    email: string;
+    name: string;
+  };
+};
+
 /**
  * Extracts one rendered cache token from the fixture page HTML.
  */
@@ -143,6 +153,28 @@ async function fetchAiLivePostEntryMissingCollection(
   baseUrl: string,
 ): Promise<Response> {
   return request(`${baseUrl}/api/ai-live-post-entry-missing-collection.json`);
+}
+
+async function fetchUserProfilePersonalized(
+  baseUrl: string,
+  authHeader: string,
+): Promise<Response> {
+  return request(`${baseUrl}/api/user-profile-personalized.json`, {
+    headers: {
+      'X-Test-Auth': authHeader,
+    },
+  });
+}
+
+async function fetchUserProfileCached(
+  baseUrl: string,
+  authHeader: string,
+): Promise<Response> {
+  return request(`${baseUrl}/api/user-profile-cached.json`, {
+    headers: {
+      'X-Test-Auth': authHeader,
+    },
+  });
 }
 
 /**
@@ -764,5 +796,57 @@ describe('Route Caching: Astro preview runtime', () => {
     expect(body.result.ok).toBe(false);
     expect(body.result.error?.message).toContain('missingLivePosts');
     expect(body.result.error?.message).toContain('src/live.config.ts');
+  });
+
+  it('bypasses route caching for personalized user-profile reads', async () => {
+    const aliceToken = process.env.WP_ALICE_JWT_TOKEN!;
+    const bobToken = process.env.WP_BOB_JWT_TOKEN!;
+    const aliceAuth = `Bearer ${aliceToken}`;
+    const bobAuth = `Bearer ${bobToken}`;
+
+    const firstResponse = await fetchUserProfilePersonalized(
+      previewSession.baseUrl,
+      aliceAuth,
+    );
+    const firstBody = (await firstResponse.json()) as UserProfileResponse;
+    const secondResponse = await fetchUserProfilePersonalized(
+      previewSession.baseUrl,
+      bobAuth,
+    );
+    const secondBody = (await secondResponse.json()) as UserProfileResponse;
+
+    expect(firstBody.user.slug).toBe('alice');
+    expect(firstBody.user.name).toBe('Alice Test');
+    expect(secondBody.user.slug).toBe('bob');
+    expect(secondBody.user.name).toBe('Bob Test');
+
+    // Render tokens must differ because cache is bypassed
+    expect(secondBody.renderToken).not.toBe(firstBody.renderToken);
+    expect(firstResponse.headers.get('x-astro-cache')).not.toBe('HIT');
+    expect(secondResponse.headers.get('x-astro-cache')).not.toBe('HIT');
+  });
+
+  it('demonstrates route-cache leakage when user-profile endpoint is not marked personalized', async () => {
+    const aliceToken = process.env.WP_ALICE_JWT_TOKEN!;
+    const bobToken = process.env.WP_BOB_JWT_TOKEN!;
+    const aliceAuth = `Bearer ${aliceToken}`;
+    const bobAuth = `Bearer ${bobToken}`;
+
+    const firstResponse = await fetchUserProfileCached(
+      previewSession.baseUrl,
+      aliceAuth,
+    );
+    const firstBody = (await firstResponse.json()) as UserProfileResponse;
+    const secondResponse = await fetchUserProfileCached(
+      previewSession.baseUrl,
+      bobAuth,
+    );
+    const secondBody = (await secondResponse.json()) as UserProfileResponse;
+
+    // Astro route cache keys by URL (not headers), so Bob receives Alice's cached response
+    expect(secondBody.renderToken).toBe(firstBody.renderToken);
+    expect(secondBody.user.slug).toBe('alice');
+    expect(secondBody.user.name).toBe('Alice Test');
+    expect(secondResponse.headers.get('x-astro-cache')).toBe('HIT');
   });
 });

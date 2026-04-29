@@ -85,15 +85,19 @@ function resetAdminPassword(): void {
 /**
  * Requests one JWT token from the local WordPress JWT auth endpoint.
  */
-async function createJwtToken(baseUrl: string): Promise<string> {
+async function createJwtToken(
+  baseUrl: string,
+  username: string,
+  password: string,
+): Promise<string> {
   const response = await fetch(`${baseUrl}/wp-json/jwt-auth/v1/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      username: DEFAULT_ADMIN_USERNAME,
-      password: DEFAULT_ADMIN_PASSWORD,
+      username,
+      password,
     }),
   });
 
@@ -105,7 +109,9 @@ async function createJwtToken(baseUrl: string): Promise<string> {
     data === null ||
     typeof (data as { token?: unknown }).token !== 'string'
   ) {
-    throw new Error('Failed to create JWT token during global setup.');
+    throw new Error(
+      `Failed to create JWT token for ${username} during global setup.`,
+    );
   }
 
   return (data as { token: string }).token;
@@ -230,8 +236,22 @@ export async function setup(): Promise<void> {
   console.log('[global-setup] Creating application password...');
   const appPassword = createAppPassword();
 
-  console.log('[global-setup] Creating JWT token...');
-  const jwtToken = await createJwtToken(baseUrl);
+  console.log('[global-setup] Creating admin JWT token...');
+  const jwtToken = await createJwtToken(
+    baseUrl,
+    DEFAULT_ADMIN_USERNAME,
+    DEFAULT_ADMIN_PASSWORD,
+  );
+
+  console.log('[global-setup] Creating alice JWT token...');
+  const aliceJwtToken = await createJwtToken(
+    baseUrl,
+    'alice',
+    'alice-test-password',
+  );
+
+  console.log('[global-setup] Creating bob JWT token...');
+  const bobJwtToken = await createJwtToken(baseUrl, 'bob', 'bob-test-password');
 
   console.log('[global-setup] Creating cookie auth session...');
   const cookieAuthSession = await createCookieAuthSession(baseUrl);
@@ -244,6 +264,8 @@ export async function setup(): Promise<void> {
     WP_JWT_TOKEN: jwtToken,
     WP_COOKIE_AUTH_HEADER: cookieAuthSession.cookieHeader,
     WP_REST_NONCE: cookieAuthSession.restNonce,
+    WP_ALICE_JWT_TOKEN: aliceJwtToken,
+    WP_BOB_JWT_TOKEN: bobJwtToken,
   };
 
   // Also set in this process so the Astro dev server picks them up via Vite

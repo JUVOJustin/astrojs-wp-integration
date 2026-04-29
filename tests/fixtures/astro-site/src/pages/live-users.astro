@@ -1,0 +1,31 @@
+---
+/**
+ * Runtime page used to validate live user collection behavior.
+ */
+import { getLiveCollection } from 'astro:content';
+
+const { entries: users = [], error: usersError } =
+  await getLiveCollection('liveUsers');
+---
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Live Users Test</title>
+</head>
+<body>
+  <h1>Live Users Test</h1>
+
+  <section id="live-users">
+    <h2>Live Users ({users.length})</h2>
+    {usersError && <p id="live-users-error">{usersError.message}</p>}
+    <ul>
+      {users.map((user) => (
+        <li data-id={user.id} data-type="user" data-slug={user.data.slug} data-email={user.data.email ?? ''}>
+          {user.data.name ?? user.data.slug}
+        </li>
+      ))}
+    </ul>
+  </section>
+</body>
+</html>
