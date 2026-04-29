@@ -58,7 +58,9 @@ describe('Live Collections: Astro runtime', () => {
     const html = await response.text();
 
     if (response.status !== 200) {
-      throw new Error(`Expected status 200 but got ${response.status}: ${html}`);
+      throw new Error(
+        `Expected status 200 but got ${response.status}: ${html}`,
+      );
     }
 
     expect(html).not.toContain('id="live-users-error"');

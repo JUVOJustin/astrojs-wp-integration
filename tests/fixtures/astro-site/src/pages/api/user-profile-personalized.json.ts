@@ -11,10 +11,7 @@ export const GET: APIRoute = async (context) => {
   const authHeader = context.request.headers.get('x-test-auth');
 
   if (!authHeader) {
-    return Response.json(
-      { error: 'Unauthorized' },
-      { status: 401 },
-    );
+    return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const client = new WordPressClient({

@@ -68,11 +68,13 @@ const liveBooks = defineLiveCollection({
 /** Live user collection loaded at request time. */
 const liveUsers = defineLiveCollection({
   loader: wordPressUserLoader(wp),
-  schema: z.object({
-    id: z.union([z.number(), z.string()]),
-    name: z.string().optional(),
-    slug: z.string().optional(),
-  }).passthrough(),
+  schema: z
+    .object({
+      id: z.union([z.number(), z.string()]),
+      name: z.string().optional(),
+      slug: z.string().optional(),
+    })
+    .passthrough(),
 });
 
 export const collections = {

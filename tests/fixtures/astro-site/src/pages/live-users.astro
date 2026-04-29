@@ -4,10 +4,8 @@
  */
 import { getLiveCollection } from 'astro:content';
 
-const {
-  entries: users = [],
-  error: usersError,
-} = await getLiveCollection('liveUsers');
+const { entries: users = [], error: usersError } =
+  await getLiveCollection('liveUsers');
 ---
 
 <html lang="en">

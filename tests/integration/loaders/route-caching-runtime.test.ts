@@ -155,7 +155,10 @@ async function fetchAiLivePostEntryMissingCollection(
   return request(`${baseUrl}/api/ai-live-post-entry-missing-collection.json`);
 }
 
-async function fetchUserProfilePersonalized(baseUrl: string, authHeader: string): Promise<Response> {
+async function fetchUserProfilePersonalized(
+  baseUrl: string,
+  authHeader: string,
+): Promise<Response> {
   return request(`${baseUrl}/api/user-profile-personalized.json`, {
     headers: {
       'X-Test-Auth': authHeader,
@@ -163,7 +166,10 @@ async function fetchUserProfilePersonalized(baseUrl: string, authHeader: string)
   });
 }
 
-async function fetchUserProfileCached(baseUrl: string, authHeader: string): Promise<Response> {
+async function fetchUserProfileCached(
+  baseUrl: string,
+  authHeader: string,
+): Promise<Response> {
   return request(`${baseUrl}/api/user-profile-cached.json`, {
     headers: {
       'X-Test-Auth': authHeader,
@@ -798,10 +804,16 @@ describe('Route Caching: Astro preview runtime', () => {
     const aliceAuth = `Bearer ${aliceToken}`;
     const bobAuth = `Bearer ${bobToken}`;
 
-    const firstResponse = await fetchUserProfilePersonalized(previewSession.baseUrl, aliceAuth);
-    const firstBody = await firstResponse.json() as UserProfileResponse;
-    const secondResponse = await fetchUserProfilePersonalized(previewSession.baseUrl, bobAuth);
-    const secondBody = await secondResponse.json() as UserProfileResponse;
+    const firstResponse = await fetchUserProfilePersonalized(
+      previewSession.baseUrl,
+      aliceAuth,
+    );
+    const firstBody = (await firstResponse.json()) as UserProfileResponse;
+    const secondResponse = await fetchUserProfilePersonalized(
+      previewSession.baseUrl,
+      bobAuth,
+    );
+    const secondBody = (await secondResponse.json()) as UserProfileResponse;
 
     expect(firstBody.user.slug).toBe('alice');
     expect(firstBody.user.name).toBe('Alice Test');
@@ -820,10 +832,16 @@ describe('Route Caching: Astro preview runtime', () => {
     const aliceAuth = `Bearer ${aliceToken}`;
     const bobAuth = `Bearer ${bobToken}`;
 
-    const firstResponse = await fetchUserProfileCached(previewSession.baseUrl, aliceAuth);
-    const firstBody = await firstResponse.json() as UserProfileResponse;
-    const secondResponse = await fetchUserProfileCached(previewSession.baseUrl, bobAuth);
-    const secondBody = await secondResponse.json() as UserProfileResponse;
+    const firstResponse = await fetchUserProfileCached(
+      previewSession.baseUrl,
+      aliceAuth,
+    );
+    const firstBody = (await firstResponse.json()) as UserProfileResponse;
+    const secondResponse = await fetchUserProfileCached(
+      previewSession.baseUrl,
+      bobAuth,
+    );
+    const secondBody = (await secondResponse.json()) as UserProfileResponse;
 
     // Astro route cache keys by URL (not headers), so Bob receives Alice's cached response
     expect(secondBody.renderToken).toBe(firstBody.renderToken);

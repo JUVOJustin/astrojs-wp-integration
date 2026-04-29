@@ -85,7 +85,11 @@ function resetAdminPassword(): void {
 /**
  * Requests one JWT token from the local WordPress JWT auth endpoint.
  */
-async function createJwtToken(baseUrl: string, username: string, password: string): Promise<string> {
+async function createJwtToken(
+  baseUrl: string,
+  username: string,
+  password: string,
+): Promise<string> {
   const response = await fetch(`${baseUrl}/wp-json/jwt-auth/v1/token`, {
     method: 'POST',
     headers: {
@@ -105,7 +109,9 @@ async function createJwtToken(baseUrl: string, username: string, password: strin
     data === null ||
     typeof (data as { token?: unknown }).token !== 'string'
   ) {
-    throw new Error(`Failed to create JWT token for ${username} during global setup.`);
+    throw new Error(
+      `Failed to create JWT token for ${username} during global setup.`,
+    );
   }
 
   return (data as { token: string }).token;
@@ -231,10 +237,18 @@ export async function setup(): Promise<void> {
   const appPassword = createAppPassword();
 
   console.log('[global-setup] Creating admin JWT token...');
-  const jwtToken = await createJwtToken(baseUrl, DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD);
+  const jwtToken = await createJwtToken(
+    baseUrl,
+    DEFAULT_ADMIN_USERNAME,
+    DEFAULT_ADMIN_PASSWORD,
+  );
 
   console.log('[global-setup] Creating alice JWT token...');
-  const aliceJwtToken = await createJwtToken(baseUrl, 'alice', 'alice-test-password');
+  const aliceJwtToken = await createJwtToken(
+    baseUrl,
+    'alice',
+    'alice-test-password',
+  );
 
   console.log('[global-setup] Creating bob JWT token...');
   const bobJwtToken = await createJwtToken(baseUrl, 'bob', 'bob-test-password');
