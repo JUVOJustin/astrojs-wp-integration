@@ -11,6 +11,7 @@ import {
 } from '../../../src/loaders/live';
 import { createJwtAuthHeader, WordPressClient } from 'fluent-wp-client';
 import { getBaseUrl } from '../../helpers/wp-client';
+import { getAcfChoiceLabels, useAcfChoiceCatalog } from '../../helpers/acf-choice-catalog';
 
 /**
  * Legacy helper method keys from fluent-wp-client v1 content wrappers.
@@ -119,6 +120,87 @@ describe('Live Loaders', () => {
       expect(result.data._embedded).toBeDefined();
     });
 
+    it('maps returned entry data with site-specific field labels', async () => {
+      const loader = wordPressPostLoader(createPublicClient(), {
+        mapEntry: (entry, context) => ({
+          ...entry,
+          acf: {
+            ...(typeof entry.acf === 'object' && entry.acf !== null ? entry.acf : {}),
+            acf_subtitle: `${context.resource}:Mapped label`,
+          },
+        }),
+      });
+
+      const result = await loader.loadEntry!({ filter: { slug: 'test-post-001' } } as never) as {
+        data: { acf?: { acf_subtitle?: string } };
+      };
+
+      expect(result.data.acf?.acf_subtitle).toBe('posts:Mapped label');
+    });
+
+    it('supports callback-driven ACF choice labels from discovery metadata', async () => {
+      const client = useAcfChoiceCatalog(createPublicClient());
+      const choiceLabels = await getAcfChoiceLabels(client);
+      const loader = wordPressPostLoader(client, {
+        mapEntry: (entry) => ({
+          ...entry,
+          acf: {
+            ...(typeof entry.acf === 'object' && entry.acf !== null ? entry.acf : {}),
+            acf_project_status: choiceLabels
+              .get('acf_project_status')
+              ?.get(String(entry.acf?.acf_project_status)) ?? entry.acf?.acf_project_status,
+          },
+        }),
+      });
+
+      const result = await loader.loadEntry!({ filter: { slug: 'test-post-001' } } as never) as {
+        data: { acf?: { acf_project_status?: string } };
+      };
+
+      expect(result.data.acf?.acf_project_status).toBe('In progress');
+    });
+
+    it('returns cache hints with lastModified and relationship tags', async () => {
+      const loader = wordPressPostLoader(createPublicClient());
+      const result = await loader.loadEntry!({ filter: { slug: 'test-post-001' } } as never) as {
+        data: { id: number; author: number; categories?: number[]; tags?: number[] };
+        cacheHint?: { lastModified?: Date; tags?: string[] };
+      };
+
+      expect(result.cacheHint?.lastModified).toBeInstanceOf(Date);
+      expect(result.cacheHint?.tags).toContain(`wp:entry:posts:${result.data.id}`);
+      expect(result.cacheHint?.tags).toContain(`wp:author:${result.data.author}`);
+      expect(result.cacheHint?.tags).toContain(`wp:term:category:${result.data.categories?.[0]}`);
+      expect(result.cacheHint?.tags).toContain(`wp:term:post_tag:${result.data.tags?.[0]}`);
+    });
+
+    it('returns collection cache hints with the newest lastModified', async () => {
+      const loader = wordPressPostLoader(createPublicClient());
+      const result = await loader.loadCollection!({ filter: undefined } as never) as {
+        entries: Array<{ data: { modified_gmt: string } }>;
+        cacheHint?: { lastModified?: Date; tags?: string[] };
+      };
+
+      const expectedLastModified = result.entries
+        .map((entry) => new Date(entry.data.modified_gmt))
+        .sort((left, right) => right.getTime() - left.getTime())[0];
+
+      expect(result.cacheHint?.lastModified?.toISOString()).toBe(expectedLastModified.toISOString());
+      expect(result.cacheHint?.tags).toContain('wp:resource:posts');
+    });
+
+    it('forwards pagination filters for listing-style reads', async () => {
+      const loader = wordPressPostLoader(createPublicClient());
+      const result = await loader.loadCollection!({
+        filter: { orderby: 'slug', order: 'asc', perPage: 20, page: 1 },
+      } as never) as {
+        entries: Array<{ data: { slug: string } }>;
+      };
+
+      expect(result.entries).toHaveLength(20);
+      expect(result.entries[0].data.slug).toBe('test-post-001');
+    });
+
     it('returns one error object for missing entries', async () => {
       const loader = wordPressPostLoader(createPublicClient());
       const result = await loader.loadEntry!({ filter: { slug: 'definitely-no-post' } } as never) as {
@@ -149,6 +231,27 @@ describe('Live Loaders', () => {
       expect(result.error).toBeUndefined();
       expect(Array.isArray(result.entries)).toBe(true);
     });
+
+    it('uses the client fetch override for live loader reads', async () => {
+      let requestCount = 0;
+
+      const loader = wordPressPostLoader(new WordPressClient({
+        baseUrl,
+        fetch: async (input, init) => {
+          requestCount += 1;
+          return fetch(input, init);
+        },
+      }));
+
+      const result = await loader.loadEntry!({ filter: { slug: 'test-post-001' } } as never) as {
+        data?: { slug: string };
+        error?: Error;
+      };
+
+      expect(result.error).toBeUndefined();
+      expect(result.data?.slug).toBe('test-post-001');
+      expect(requestCount).toBeGreaterThan(0);
+    });
   });
 
   describe('wordPressPageLoader', () => {
@@ -174,6 +277,18 @@ describe('Live Loaders', () => {
         expectSerializableContentData(entry.data);
       }
     });
+
+    it('returns cache hints with page timestamps and author tags', async () => {
+      const loader = wordPressPageLoader(createPublicClient());
+      const result = await loader.loadEntry!({ filter: { slug: 'about' } } as never) as {
+        data: { id: number; author: number };
+        cacheHint?: { lastModified?: Date; tags?: string[] };
+      };
+
+      expect(result.cacheHint?.lastModified).toBeInstanceOf(Date);
+      expect(result.cacheHint?.tags).toContain(`wp:entry:pages:${result.data.id}`);
+      expect(result.cacheHint?.tags).toContain(`wp:author:${result.data.author}`);
+    });
   });
 
   describe('wordPressCategoryLoader', () => {
@@ -188,6 +303,18 @@ describe('Live Loaders', () => {
         expect(typeof entry.id).toBe('string');
         expect(entry.rendered).toBeUndefined();
       }
+    });
+
+    it('returns taxonomy-focused cache tags without timestamps', async () => {
+      const loader = wordPressCategoryLoader(createPublicClient());
+      const result = await loader.loadEntry!({ filter: { slug: 'technology' } } as never) as {
+        data: { id: number; taxonomy: string };
+        cacheHint?: { lastModified?: Date; tags?: string[] };
+      };
+
+      expect(result.cacheHint?.lastModified).toBeUndefined();
+      expect(result.cacheHint?.tags).toContain(`wp:entry:categories:${result.data.id}`);
+      expect(result.cacheHint?.tags).toContain(`wp:term:${result.data.taxonomy}:${result.data.id}`);
     });
   });
 
@@ -213,6 +340,25 @@ describe('Live Loaders', () => {
 
       expect(result.error).toBeInstanceOf(Error);
     });
+
+    it('returns media cache hints with lastModified values', async () => {
+      const loader = wordPressMediaLoader(createPublicClient());
+      const collection = await loader.loadCollection!({ filter: undefined } as never) as {
+        entries: Array<{ id: string; data: { id: number } }>;
+      };
+
+      if (collection.entries.length === 0) {
+        return;
+      }
+
+      const result = await loader.loadEntry!({ filter: { id: collection.entries[0].data.id } } as never) as {
+        data: { id: number };
+        cacheHint?: { lastModified?: Date; tags?: string[] };
+      };
+
+      expect(result.cacheHint?.lastModified).toBeInstanceOf(Date);
+      expect(result.cacheHint?.tags).toContain(`wp:entry:media:${result.data.id}`);
+    });
   });
 
   describe('wordPressTagLoader', () => {
@@ -228,6 +374,17 @@ describe('Live Loaders', () => {
       expect(result.data.taxonomy).toBe('post_tag');
       expect(result.rendered).toBeUndefined();
     });
+
+    it('returns term cache tags for tag entries', async () => {
+      const loader = wordPressTagLoader(createPublicClient());
+      const result = await loader.loadEntry!({ filter: { slug: 'featured' } } as never) as {
+        data: { id: number; taxonomy: string };
+        cacheHint?: { tags?: string[]; lastModified?: Date };
+      };
+
+      expect(result.cacheHint?.lastModified).toBeUndefined();
+      expect(result.cacheHint?.tags).toContain(`wp:term:${result.data.taxonomy}:${result.data.id}`);
+    });
   });
 
   describe('wordPressTermLoader', () => {
@@ -242,6 +399,20 @@ describe('Live Loaders', () => {
 
       expect(result.entries.length).toBeGreaterThan(0);
       expect(result.entries[0].data.taxonomy).toBe('genre');
+    });
+
+    it('returns custom taxonomy cache tags from the resolved term taxonomy', async () => {
+      const loader = wordPressTermLoader(createPublicClient(), {
+        resource: 'genres',
+      });
+
+      const result = await loader.loadEntry!({ filter: { slug: 'sci-fi' } } as never) as {
+        data: { id: number; taxonomy: string };
+        cacheHint?: { tags?: string[] };
+      };
+
+      expect(result.cacheHint?.tags).toContain(`wp:entry:genres:${result.data.id}`);
+      expect(result.cacheHint?.tags).toContain(`wp:term:${result.data.taxonomy}:${result.data.id}`);
     });
   });
 
@@ -292,6 +463,18 @@ describe('Live Loaders', () => {
       expect(result.data.id).toBe(1);
       expect(authAllow).toContain('GET');
       expect(authAllow).toContain('POST');
+    });
+
+    it('returns user cache tags without synthetic timestamps', async () => {
+      const loader = wordPressUserLoader(createPublicClient());
+      const result = await loader.loadEntry!({ filter: { id: 1 } } as never) as {
+        data: { id: number };
+        cacheHint?: { lastModified?: Date; tags?: string[] };
+      };
+
+      expect(result.cacheHint?.lastModified).toBeUndefined();
+      expect(result.cacheHint?.tags).toContain('wp:resource:users');
+      expect(result.cacheHint?.tags).toContain(`wp:author:${result.data.id}`);
     });
   });
 
@@ -378,6 +561,26 @@ describe('Live Loaders', () => {
       };
 
       expect(result.data._embedded).toBeDefined();
+    });
+
+    it('returns cache hints for custom post type entries and collections', async () => {
+      const loader = wordPressContentLoader(createPublicClient(), {
+        resource: 'books',
+      });
+
+      const entryResult = await loader.loadEntry!({ filter: { slug: 'test-book-001' } } as never) as {
+        data: { id: number; author: number };
+        cacheHint?: { lastModified?: Date; tags?: string[] };
+      };
+      const collectionResult = await loader.loadCollection!({ filter: undefined } as never) as {
+        cacheHint?: { lastModified?: Date; tags?: string[] };
+      };
+
+      expect(entryResult.cacheHint?.lastModified).toBeInstanceOf(Date);
+      expect(entryResult.cacheHint?.tags).toContain(`wp:entry:books:${entryResult.data.id}`);
+      expect(entryResult.cacheHint?.tags).toContain(`wp:author:${entryResult.data.author}`);
+      expect(collectionResult.cacheHint?.lastModified).toBeInstanceOf(Date);
+      expect(collectionResult.cacheHint?.tags).toContain('wp:resource:books');
     });
   });
 });

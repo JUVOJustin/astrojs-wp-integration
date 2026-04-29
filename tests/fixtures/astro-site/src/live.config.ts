@@ -7,6 +7,9 @@
 import { defineLiveCollection } from 'astro:content';
 import { WordPressClient } from 'fluent-wp-client';
 import { resolveWpBaseUrl } from '../../../helpers/wp-env';
+import { trackedWordPressFetch } from './lib/wp-fetch-metrics';
+import { createAcfChoiceLabelMapper } from './lib/acf-choice-label-mapper';
+import { useTestAcfChoiceCatalog } from './lib/test-acf-catalog';
 import {
   wordPressCategoryLoader,
   wordPressContentLoader,
@@ -21,11 +24,24 @@ import {
 } from './generated/wp-schemas';
 
 const baseUrl = resolveWpBaseUrl();
-const wp = new WordPressClient({ baseUrl });
+const wp = new WordPressClient({
+  baseUrl,
+  fetch: process.env.ASTRO_TEST_ROUTE_CACHE === '1' ? trackedWordPressFetch : fetch,
+});
+const cataloguedWp = useTestAcfChoiceCatalog(wp, 'posts');
+const mapAcfChoiceLabels = createAcfChoiceLabelMapper(cataloguedWp);
 
 /** Live post collection loaded at request time with schema validation. */
 const livePosts = defineLiveCollection({
   loader: wordPressPostLoader(wp),
+  schema: postsItemSchema,
+});
+
+/** Live post collection using the same reusable mapper actions can use. */
+const liveMappedPosts = defineLiveCollection({
+  loader: wordPressPostLoader(wp, {
+    mapEntry: mapAcfChoiceLabels,
+  }),
   schema: postsItemSchema,
 });
 
@@ -49,6 +65,7 @@ const liveBooks = defineLiveCollection({
 
 export const collections = {
   livePosts,
+  liveMappedPosts,
   livePages,
   liveCategories,
   liveBooks,

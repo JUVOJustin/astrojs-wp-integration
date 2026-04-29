@@ -19,6 +19,19 @@ export type ActionClientResolver = (
 export type ResolvableActionClient = WordPressClient | ActionClientResolver;
 
 /**
+ * Callback shape for rewriting successful action responses before returning them to Astro.
+ */
+export type ActionResponseMapper<TResponse = unknown, TInput = unknown> = (
+  response: TResponse,
+  context: {
+    client: WordPressClient;
+    input: TInput;
+    operation: 'create' | 'update';
+    resource: string;
+  },
+) => TResponse | Promise<TResponse>;
+
+/**
  * Resolves one reusable WordPress client from either a static instance or one request-aware resolver.
  */
 export async function resolveActionClient(

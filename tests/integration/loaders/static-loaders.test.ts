@@ -12,6 +12,7 @@ import { WordPressClient } from 'fluent-wp-client';
 import { createMockStore } from '../../helpers/mock-store';
 import { createMockLogger } from '../../helpers/mock-logger';
 import { getBaseUrl } from '../../helpers/wp-client';
+import { getAcfChoiceLabels, useAcfChoiceCatalog } from '../../helpers/acf-choice-catalog';
 
 /**
  * Legacy helper method keys from fluent-wp-client v1 content wrappers.
@@ -112,6 +113,56 @@ describe('Static Loaders', () => {
       for (const entry of entries.values()) {
         expectSerializableContentData(entry.data as Record<string, unknown>);
       }
+    });
+
+    it('maps stored entry data with site-specific field labels', async () => {
+      const loader = wordPressPostStaticLoader(createClient(), {
+        mapEntry: (entry, context) => ({
+          ...entry,
+          acf: {
+            ...(typeof entry.acf === 'object' && entry.acf !== null ? entry.acf : {}),
+            acf_subtitle: `${context.resource}:Mapped label`,
+          },
+        }),
+      });
+      const { store, entries } = createMockStore();
+      const logger = createMockLogger();
+
+      await loader.load({ store, logger } as never);
+
+      const mapped = [...entries.values()].find((entry) => {
+        const data = entry.data as { slug?: string };
+        return data.slug === 'test-post-001';
+      }) as { data: { acf?: { acf_subtitle?: string } } } | undefined;
+
+      expect(mapped?.data.acf?.acf_subtitle).toBe('posts:Mapped label');
+    });
+
+    it('supports callback-driven ACF choice labels from discovery metadata', async () => {
+      const client = useAcfChoiceCatalog(createClient());
+      const choiceLabels = await getAcfChoiceLabels(client);
+      const loader = wordPressPostStaticLoader(client, {
+        mapEntry: (entry) => ({
+          ...entry,
+          acf: {
+            ...(typeof entry.acf === 'object' && entry.acf !== null ? entry.acf : {}),
+            acf_project_status: choiceLabels
+              .get('acf_project_status')
+              ?.get(String(entry.acf?.acf_project_status)) ?? entry.acf?.acf_project_status,
+          },
+        }),
+      });
+      const { store, entries } = createMockStore();
+      const logger = createMockLogger();
+
+      await loader.load({ store, logger } as never);
+
+      const mapped = [...entries.values()].find((entry) => {
+        const data = entry.data as { slug?: string };
+        return data.slug === 'test-post-001';
+      }) as { data: { acf?: { acf_project_status?: string } } } | undefined;
+
+      expect(mapped?.data.acf?.acf_project_status).toBe('In progress');
     });
   });
 

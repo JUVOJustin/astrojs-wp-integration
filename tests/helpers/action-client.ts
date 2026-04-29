@@ -1,4 +1,5 @@
 import { parse as devalueParse } from 'devalue';
+import { request } from './http-client';
 
 /**
  * Resolves the Astro dev server base URL from the env set by globalSetup.
@@ -69,13 +70,14 @@ async function parseActionResponse<T>(response: Response): Promise<T> {
 export async function callAction<T = unknown>(
   actionName: string,
   input: unknown,
-  options?: { authHeader?: string },
+  options?: { authHeader?: string; baseUrl?: string },
 ): Promise<T> {
-  const baseUrl = getAstroDevUrl();
+  const baseUrl = options?.baseUrl ?? getAstroDevUrl();
   const url = `${baseUrl}/_actions/${actionName}`;
 
   const headers: Record<string, string> = {
     Accept: 'application/json',
+    Origin: baseUrl,
   };
 
   if (input !== undefined) {
@@ -86,7 +88,7 @@ export async function callAction<T = unknown>(
     headers['X-Test-Auth'] = options.authHeader;
   }
 
-  const response = await fetch(url, {
+  const response = await request(url, {
     method: 'POST',
     headers,
     body: input !== undefined ? JSON.stringify(input) : undefined,

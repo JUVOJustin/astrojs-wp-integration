@@ -221,6 +221,10 @@ const mySchema = createPostInputSchema.extend({
 });
 ```
 
+Use `mapResponse` on create/update post actions when the successful WordPress response needs site-specific normalization before Astro receives it, such as replacing ACF choice values with labels from discovery metadata.
+
+See [Mapping WordPress Values](../mapping.mdx) for a reusable callback pattern that works with both loaders and actions.
+
 ---
 
 ## Error handling

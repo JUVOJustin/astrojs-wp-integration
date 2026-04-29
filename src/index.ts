@@ -31,6 +31,8 @@ export {
 
 export type {
   WordPressEmbedMode,
+  WordPressEntryMappingOptions,
+  WordPressLoaderEntryMapper,
   WordPressLiveContentLoaderOptions,
   WordPressTermLoaderOptions,
   WordPressTermStaticLoaderOptions,
@@ -142,6 +144,8 @@ export {
   updateTermInputSchema,
   createDeleteTermAction,
   deleteTermInputSchema,
+  createWpCacheInvalidateAction,
+  wpCacheInvalidateInputSchema,
   createCreateUserAction,
   createUserInputSchema,
   createUpdateUserAction,
@@ -157,6 +161,7 @@ export {
 } from './actions';
 export type {
   ActionClientResolver,
+  ActionResponseMapper,
   ResolvableActionClient,
   UpdatePostInput,
   UpdatePostActionOptions,
@@ -190,6 +195,7 @@ export type {
   DeleteTermResult,
   ExecuteDeleteTermOptions,
   ExecuteDeleteTermConfig,
+  WpCacheInvalidateInput,
   CreateUserInput,
   CreateUserActionOptions,
   CreateUserActionConfig,

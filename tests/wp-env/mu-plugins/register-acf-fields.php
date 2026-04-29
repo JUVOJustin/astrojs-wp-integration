@@ -60,6 +60,18 @@ add_action( 'acf/init', function () {
 				'type'  => 'url',
 			],
 
+			// ── Project Status (select) ────────────────────────────────────────────
+			[
+				'key'     => 'field_acf_project_status',
+				'name'    => 'acf_project_status',
+				'label'   => 'Project Status',
+				'type'    => 'select',
+				'choices' => [
+					'in_progress' => 'In progress',
+					'done'        => 'Done',
+				],
+			],
+
 			// ── Related Posts (relationship) ─────────────────────────────────────
 			// return_format=object causes ACF to format each related post as a
 			// full post object in the REST response, including a _link property

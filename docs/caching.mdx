@@ -1,0 +1,136 @@
+---
+title: Caching
+description: Use Astro route caching with WordPress live loaders, consume cache hints, and invalidate post, term, or user caches through the packaged action.
+---
+
+## Caching
+
+This package integrates with Astro route caching through live-loader `cacheHint` values and one invalidation action:
+
+- `createWpCacheInvalidateAction()` for posts, terms, and users
+
+Astro owns the cache runtime and configuration. Use the Astro docs as the source of truth for setup and provider behavior:
+
+- [Astro route caching](https://docs.astro.build/en/reference/experimental-flags/route-caching/)
+- [Live loader cache hints](https://docs.astro.build/en/reference/content-loader-reference/#cachehint)
+- [Built-in memory cache provider](https://docs.astro.build/en/reference/experimental-flags/route-caching/#built-in-memory-cache-provider)
+
+## What The Integration Adds
+
+- Live loaders return `cacheHint.lastModified` when the WordPress payload exposes a trustworthy timestamp.
+- Live loaders return tags for entry identity and useful relationships such as authors and terms.
+- The cache invalidation action fetches the latest WordPress entity, derives the entry tag, and calls `context.cache.invalidate()` for you.
+
+```mermaid
+flowchart LR
+  A[App route or API endpoint] --> B[getLiveEntry() or getLiveCollection()]
+  B --> C[wp-astrojs-integration live loader]
+  C --> D[WordPressClient]
+  D --> E[WordPress REST API]
+  C --> F[cacheHint with tags and lastModified]
+  F --> A
+  A --> G[Route applies Astro.cache.set(...) or context.cache.set(...)]
+  H[createWpCacheInvalidateAction] --> I[Read changed WordPress entity]
+  I --> J[Derive narrow entry tag]
+  J --> K[context.cache.invalidate(...)]
+```
+
+The invalidation action is intentionally narrower than the full live-loader tag set:
+
+- post invalidation targets only the changed entry tag
+- term invalidation targets only the changed entry tag
+- user invalidation targets only the changed entry tag
+
+That keeps cached listing strategies effective when only one changed item needs to be refreshed.
+
+## Live Collection Usage
+
+Pass the live-loader cache hint straight into `Astro.cache.set()` and then add your route freshness settings.
+
+```astro title="src/pages/books/[slug].astro"
+---
+import { getLiveEntry } from 'astro:content';
+
+const { entry, error, cacheHint } = await getLiveEntry('books', { slug: Astro.params.slug });
+
+if (error || !entry) {
+  return Astro.redirect('/404');
+}
+
+if (cacheHint) {
+  Astro.cache.set(cacheHint);
+}
+
+Astro.cache.set({ maxAge: 300 });
+---
+
+<h1>{entry.data.title.rendered}</h1>
+```
+
+## Invalidation Actions
+
+Create the action next to your existing WordPress write actions:
+
+```ts title="src/actions/index.ts"
+import {
+  createWpCacheInvalidateAction,
+} from 'wp-astrojs-integration';
+import { wordPressAuthBridge } from '../lib/auth/bridge';
+
+export const server = {
+  wpCacheInvalidate: createWpCacheInvalidateAction(wordPressAuthBridge.getClient),
+};
+```
+
+Call it with `id` and `entity`. Add `post_type` for posts, `taxonomy` for terms, and nothing extra for users:
+
+```ts title="src/actions/cache-inputs.ts"
+import { z } from 'zod';
+
+const baseSchema = z.object({
+  id: z.number(),
+}).passthrough();
+
+export const postSchema = baseSchema.extend({
+  entity: z.literal('post'),
+  post_type: z.string(),
+});
+
+export const taxonomySchema = baseSchema.extend({
+  entity: z.literal('term'),
+  taxonomy: z.string(),
+});
+
+export const userSchema = baseSchema.extend({
+  entity: z.literal('user'),
+});
+```
+
+Examples:
+
+```ts
+await actions.wpCacheInvalidate({
+  id: 42,
+  entity: 'post',
+  post_type: 'book',
+});
+
+await actions.wpCacheInvalidate({
+  id: 8,
+  entity: 'term',
+  taxonomy: 'genre',
+});
+
+await actions.wpCacheInvalidate({
+  id: 3,
+  entity: 'user',
+});
+```
+
+## Personalized Routes
+
+For user-specific pages, opt out per route instead of caching everything globally:
+
+- [Opting out of caching](https://docs.astro.build/en/reference/experimental-flags/route-caching/#opting-out-of-caching)
+
+That is the right default for dashboards, account pages, or any route where request cookies or user identity affect the HTML.
