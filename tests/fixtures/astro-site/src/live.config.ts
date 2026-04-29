@@ -31,8 +31,7 @@ const wp = new WordPressClient({
   fetch:
     process.env.ASTRO_TEST_ROUTE_CACHE === '1' ? trackedWordPressFetch : fetch,
 });
-const cataloguedWp = useTestAcfChoiceCatalog(wp, 'posts');
-const mapAcfChoiceLabels = createAcfChoiceLabelMapper(cataloguedWp);
+const mapAcfChoiceLabels = createAcfChoiceLabelMapper(baseUrl);
 
 /** Live post collection loaded at request time with schema validation. */
 const livePosts = defineLiveCollection({

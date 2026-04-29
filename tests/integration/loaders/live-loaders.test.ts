@@ -10,10 +10,7 @@ import {
   wordPressTermLoader,
   wordPressUserLoader,
 } from '../../../src/loaders/live';
-import {
-  getAcfChoiceLabels,
-  useAcfChoiceCatalog,
-} from '../../helpers/acf-choice-catalog';
+import { getAcfChoiceLabels } from '../../helpers/acf-choice-catalog';
 import { getBaseUrl } from '../../helpers/wp-client';
 
 /**
@@ -162,10 +159,9 @@ describe('Live Loaders', () => {
       expect(result.data.acf?.acf_subtitle).toBe('posts:Mapped label');
     });
 
-    it('supports callback-driven ACF choice labels from discovery metadata', async () => {
-      const client = useAcfChoiceCatalog(createPublicClient());
-      const choiceLabels = await getAcfChoiceLabels(client);
-      const loader = wordPressPostLoader(client, {
+    it('supports callback-driven ACF choice labels from live REST API', async () => {
+      const choiceLabels = await getAcfChoiceLabels(baseUrl);
+      const loader = wordPressPostLoader(createPublicClient(), {
         mapEntry: (entry) => ({
           ...entry,
           acf: {

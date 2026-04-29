@@ -1,0 +1,34 @@
+---
+/**
+ * Build-time page validating ACF choice label mapping through the full Astro
+ * static pipeline. The `mappedPosts` collection is loaded by a static loader
+ * configured with `createAcfChoiceLabelMapper`, so the raw ACF select value
+ * (e.g. "in_progress") is replaced by its human-readable label ("In progress")
+ * before the page is rendered at build time.
+ */
+import { getCollection } from 'astro:content';
+
+const posts = await getCollection('mappedPosts');
+const post = posts.find((p) => p.data.slug === 'test-post-001');
+---
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Static Mapped Posts Build Test</title>
+</head>
+<body>
+  <h1>Static Mapped Posts Build Test</h1>
+
+  {post ? (
+    <article id="mapped-post" data-slug={post.data.slug}>
+      <h2>{post.data.title?.rendered}</h2>
+      <p id="project-status">
+        Project status: {post.data.acf?.acf_project_status ?? 'missing'}
+      </p>
+    </article>
+  ) : (
+    <p id="mapped-post-missing">Mapped post not found</p>
+  )}
+</body>
+</html>
