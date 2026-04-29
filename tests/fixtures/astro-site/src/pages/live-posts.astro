@@ -4,10 +4,7 @@
  */
 import { getLiveCollection } from 'astro:content';
 
-const {
-  entries = [],
-  error,
-} = await getLiveCollection('livePosts');
+const { entries = [], error } = await getLiveCollection('livePosts');
 const liveErrorMessage = error?.message ?? '';
 ---
 

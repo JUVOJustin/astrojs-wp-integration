@@ -1,4 +1,8 @@
-import { defineAction, type ActionAPIContext, type ActionClient } from 'astro:actions';
+import {
+  type ActionAPIContext,
+  type ActionClient,
+  defineAction,
+} from 'astro:actions';
 import { z } from 'astro/zod';
 import type { WordPressClient } from 'fluent-wp-client';
 import {
@@ -8,28 +12,30 @@ import {
   type WordPressStandardSchema,
 } from 'fluent-wp-client';
 import {
+  type ResolvableActionClient,
   resolveRequiredActionClient,
   withActionClient,
-  type ResolvableActionClient,
 } from '../post/client';
 import { validateActionResponse } from '../response-validation';
 
 /**
  * Input schema for updating a WordPress user.
  */
-export const updateUserInputSchema = z.object({
-  id: z.number().int().positive(),
-  username: z.string().min(1).optional(),
-  email: z.string().email().optional(),
-  password: z.string().min(1).optional(),
-  name: z.string().optional(),
-  first_name: z.string().optional(),
-  last_name: z.string().optional(),
-  nickname: z.string().optional(),
-  description: z.string().optional(),
-  roles: z.array(z.string()).optional(),
-  url: z.string().url().optional(),
-}).passthrough();
+export const updateUserInputSchema = z
+  .object({
+    id: z.number().int().positive(),
+    username: z.string().min(1).optional(),
+    email: z.string().email().optional(),
+    password: z.string().min(1).optional(),
+    name: z.string().optional(),
+    first_name: z.string().optional(),
+    last_name: z.string().optional(),
+    nickname: z.string().optional(),
+    description: z.string().optional(),
+    roles: z.array(z.string()).optional(),
+    url: z.string().url().optional(),
+  })
+  .passthrough();
 
 export type UpdateUserInput = z.infer<typeof updateUserInputSchema>;
 
@@ -44,7 +50,8 @@ export interface ExecuteUpdateUserOptions<T = WordPressAuthor> {
 /**
  * @deprecated Use `ExecuteUpdateUserOptions` instead.
  */
-export type ExecuteUpdateUserConfig<T = WordPressAuthor> = ExecuteUpdateUserOptions<T>;
+export type ExecuteUpdateUserConfig<T = WordPressAuthor> =
+  ExecuteUpdateUserOptions<T>;
 
 /**
  * Shared non-auth options accepted by the update-user action factory.
@@ -57,7 +64,8 @@ export interface UpdateUserActionOptions<T = WordPressAuthor> {
 /**
  * @deprecated Use `UpdateUserActionOptions` instead.
  */
-export type UpdateUserActionConfig<T = WordPressAuthor> = UpdateUserActionOptions<T>;
+export type UpdateUserActionConfig<T = WordPressAuthor> =
+  UpdateUserActionOptions<T>;
 
 type UpdateUserActionFactoryOptions<
   TResponse,
@@ -74,10 +82,17 @@ export async function executeUpdateUser<T = WordPressAuthor>(
 ): Promise<T> {
   return withActionClient(client, async (resolvedClient) => {
     const { id, ...fields } = input;
-    const updated = await resolvedClient.users().update(id, fields as UserWriteInput);
-    const responseSchema = (options?.responseSchema ?? authorSchema) as WordPressStandardSchema<T>;
+    const updated = await resolvedClient
+      .users()
+      .update(id, fields as UserWriteInput);
+    const responseSchema = (options?.responseSchema ??
+      authorSchema) as WordPressStandardSchema<T>;
 
-    return validateActionResponse(updated, responseSchema, 'WordPress user update action');
+    return validateActionResponse(
+      updated,
+      responseSchema,
+      'WordPress user update action',
+    );
   });
 }
 

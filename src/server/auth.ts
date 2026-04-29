@@ -1,20 +1,20 @@
 import {
-  ActionError,
-  defineAction,
   type ActionAPIContext,
   type ActionClient,
+  ActionError,
+  defineAction,
 } from 'astro:actions';
 import type { APIContext } from 'astro';
 import { z } from 'astro/zod';
 import {
-  WordPressClient,
   createAuthResolver,
-  resolveWordPressAuth,
   createJwtAuthHeader,
   type JwtAuthTokenResponse,
-  type WordPressAuthor,
-  type WordPressClientConfig,
   type ResolvableWordPressAuth,
+  resolveWordPressAuth,
+  type WordPressAuthor,
+  WordPressClient,
+  type WordPressClientConfig,
 } from 'fluent-wp-client';
 import {
   jwtAuthErrorResponseSchema,
@@ -54,7 +54,9 @@ export type WordPressLoginInput = z.infer<typeof wordPressLoginInputSchema>;
 /**
  * Type-safe login payload expected by callers, inferred from the shared login schema input.
  */
-export type WordPressLoginActionPayload = z.input<typeof wordPressLoginInputSchema>;
+export type WordPressLoginActionPayload = z.input<
+  typeof wordPressLoginInputSchema
+>;
 
 /**
  * Successful login payload returned by the packaged WordPress login action.
@@ -76,15 +78,16 @@ export type WordPressLoginAction = ActionClient<
 
 /**
  * Configuration options for the packaged Astro-to-WordPress authentication bridge.
- * 
+ *
  * Extends WordPressClientConfig patterns to allow unified auth configuration
  * across loaders, actions, and the auth bridge. Supports both static auth
  * and context-aware resolvers.
  */
-export interface WordPressAuthBridgeConfig extends Pick<
-  WordPressClientConfig,
-  'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'
-> {
+export interface WordPressAuthBridgeConfig
+  extends Pick<
+    WordPressClientConfig,
+    'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'
+  > {
   /** Cookie name for storing JWT session (default: 'wp_astro_auth') */
   cookieName?: string;
   /** Cookie path (default: '/') */
@@ -95,13 +98,15 @@ export interface WordPressAuthBridgeConfig extends Pick<
   secureCookies?: boolean;
   /** Session duration in seconds when JWT has no explicit expiry (default: 12 hours) */
   sessionDurationSeconds?: number;
-  /** 
+  /**
    * Context-aware auth resolver for dynamic auth extraction.
    * Allows auth to be resolved per-request from cookies, headers, etc.
    * If not provided, the bridge defaults to JWT cookie / Bearer header auth.
    * Static bridge auth is only used when client helpers opt into fallback.
    */
-  authResolver?: ResolvableWordPressAuth<Pick<ActionAPIContext, 'cookies' | 'request'>>;
+  authResolver?: ResolvableWordPressAuth<
+    Pick<ActionAPIContext, 'cookies' | 'request'>
+  >;
 }
 
 /**
@@ -137,7 +142,8 @@ type AuthBridgeFallbackOptions = {
 type AuthBridgeClientOptions = Omit<
   WordPressClientConfig,
   'baseUrl' | 'auth' | 'authHeader'
-> & AuthBridgeFallbackOptions;
+> &
+  AuthBridgeFallbackOptions;
 
 /**
  * Return value of the packaged auth bridge factory used by Astro actions and middleware.
@@ -149,8 +155,13 @@ export interface WordPressAuthBridge {
   getSession: (sessionId: string | undefined) => WordPressAuthSession | null;
   deleteSession: (sessionId: string | undefined) => void;
   clearCookie: (cookies: APIContext['cookies']) => void;
-  clearAuthentication: (cookies: APIContext['cookies'], sessionId?: string | undefined) => void;
-  resolveUserBySessionId: (sessionId: string | undefined) => Promise<WordPressAuthor | null>;
+  clearAuthentication: (
+    cookies: APIContext['cookies'],
+    sessionId?: string | undefined,
+  ) => void;
+  resolveUserBySessionId: (
+    sessionId: string | undefined,
+  ) => Promise<WordPressAuthor | null>;
   /**
    * Returns a configured WordPressClient instance for one request-authenticated context.
    * This is a convenience method that creates a client from getClientConfig().
@@ -158,13 +169,13 @@ export interface WordPressAuthBridge {
    * single request, consider caching the client manually or using withClient().
    * Returns null if the request is not authenticated.
    * Pass `allowStaticAuthFallback: true` to opt into bridge-level static auth.
-   * 
+   *
    * @example
    * // In middleware - direct client usage
    * const wp = await bridge.getClient(context);
    * if (!wp) return Response.redirect('/login', 302);
    * const user = await wp.users().me();
-   * 
+   *
    * @example
    * // Reuse the authenticated client in one request handler
    * const wp = await bridge.getClient(context);
@@ -179,24 +190,24 @@ export interface WordPressAuthBridge {
   /**
    * Returns a public (unauthenticated) WordPressClient for the configured baseUrl.
    * Useful for read-only operations on public content.
-   * 
+   *
    * @example
    * const wp = bridge.getPublicClient();
    * const posts = await wp.content('posts').list({ status: 'publish' });
    */
   getPublicClient: (
-    options?: Omit<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader'>
+    options?: Omit<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader'>,
   ) => WordPressClient;
   /**
    * Executes a callback with one request-authenticated client, handling null cases automatically.
    * Returns the fallback value or null if the request is not authenticated.
    * Pass `allowStaticAuthFallback: true` to opt into bridge-level static auth.
-   * 
+   *
    * @example
    * const user = await bridge.withClient(context, async (wp) => {
    *   return await wp.users().me();
    * });
-   * 
+   *
    * @example
    * const posts = await bridge.withClient(
    *   context,
@@ -217,17 +228,17 @@ export interface WordPressAuthBridge {
    * This config can be used directly with new WordPressClient() or other custom wrappers.
    * Returns null if the request is not authenticated.
    * Pass `allowStaticAuthFallback: true` to opt into bridge-level static auth.
-   * 
+   *
    * Tries to resolve auth from the authResolver first. Static bridge auth is only
    * considered when fallback is explicitly enabled.
-   * 
+   *
    * @example
    * // Use with fluent-wp-client directly
    * const config = await bridge.getClientConfig(context);
    * if (!config) return new Response('Unauthorized', { status: 401 });
    * const client = new WordPressClient(config);
    * const user = await client.users().me();
-   * 
+   *
    * @example
    * // Use with actions that still need raw config
    * const config = await bridge.getClientConfig(context);
@@ -236,17 +247,24 @@ export interface WordPressAuthBridge {
   getClientConfig: (
     context: Pick<ActionAPIContext, 'cookies' | 'request'>,
     options?: { allowStaticAuthFallback?: boolean },
-  ) => Promise<Pick<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'> | null>;
+  ) => Promise<Pick<
+    WordPressClientConfig,
+    'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'
+  > | null>;
   /**
    * Resolves the current authenticated user from request-derived auth only.
    * Bridge-level static auth is intentionally ignored.
    */
-  resolveUser: (context: Pick<APIContext, 'cookies' | 'request'>) => Promise<WordPressAuthor | null>;
+  resolveUser: (
+    context: Pick<APIContext, 'cookies' | 'request'>,
+  ) => Promise<WordPressAuthor | null>;
   /**
    * Checks whether the incoming request has one authenticated user session.
    * Bridge-level static auth is intentionally ignored.
    */
-  isAuthenticated: (context: Pick<APIContext, 'cookies' | 'request'>) => Promise<boolean>;
+  isAuthenticated: (
+    context: Pick<APIContext, 'cookies' | 'request'>,
+  ) => Promise<boolean>;
 }
 
 /**
@@ -292,7 +310,9 @@ function normalizeBase64UrlValue(value: string): string {
 function decodeBase64UrlUtf8(value: string): string {
   const normalizedValue = normalizeBase64UrlValue(value);
   const binaryValue = atob(normalizedValue);
-  const bytes = Uint8Array.from(binaryValue, (character) => character.charCodeAt(0));
+  const bytes = Uint8Array.from(binaryValue, (character) =>
+    character.charCodeAt(0),
+  );
 
   return new TextDecoder().decode(bytes);
 }
@@ -308,7 +328,11 @@ function isAuthFailureStatus(status: number): boolean {
  * Extracts one readable WordPress error message from a REST response payload.
  */
 function getWordPressErrorMessage(data: unknown, response: Response): string {
-  if (typeof data === 'object' && data !== null && typeof (data as { message?: unknown }).message === 'string') {
+  if (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as { message?: unknown }).message === 'string'
+  ) {
     return (data as { message: string }).message;
   }
 
@@ -325,15 +349,19 @@ function isWordPressAuthor(value: unknown): value is WordPressAuthor {
 
   const candidate = value as Partial<WordPressAuthor>;
 
-  return typeof candidate.id === 'number'
-    && typeof candidate.name === 'string'
-    && typeof candidate.slug === 'string';
+  return (
+    typeof candidate.id === 'number' &&
+    typeof candidate.name === 'string' &&
+    typeof candidate.slug === 'string'
+  );
 }
 
 /**
  * Checks whether the JWT endpoint reported a server-side configuration error.
  */
-function isJwtAuthConfigurationError(error: JwtAuthErrorResponse | null): boolean {
+function isJwtAuthConfigurationError(
+  error: JwtAuthErrorResponse | null,
+): boolean {
   if (!error) {
     return false;
   }
@@ -381,7 +409,10 @@ function getJwtExpiry(token: string): number | null {
 
   const expiresAtSeconds = payload.exp;
 
-  if (typeof expiresAtSeconds !== 'number' || !Number.isFinite(expiresAtSeconds)) {
+  if (
+    typeof expiresAtSeconds !== 'number' ||
+    !Number.isFinite(expiresAtSeconds)
+  ) {
     return null;
   }
 
@@ -511,7 +542,10 @@ function isSessionExpired(session: WordPressAuthSession): boolean {
 /**
  * Calculates the cookie lifetime while respecting both local config and JWT expiry.
  */
-function getCookieMaxAge(defaultSeconds: number, expiresAt: number | null): number {
+function getCookieMaxAge(
+  defaultSeconds: number,
+  expiresAt: number | null,
+): number {
   if (!expiresAt) {
     return defaultSeconds;
   }
@@ -530,7 +564,10 @@ function getCookieMaxAge(defaultSeconds: number, expiresAt: number | null): numb
  * Handles both object-based auth configs and string-based auth headers.
  */
 function createBridgeClient(
-  config: Pick<WordPressAuthBridgeConfig, 'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'>
+  config: Pick<
+    WordPressAuthBridgeConfig,
+    'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'
+  >,
 ): WordPressClient {
   const clientConfig = getStaticClientConfig(config);
 
@@ -569,9 +606,14 @@ function createRequestClientConfig(
  * Builds one client config from the bridge's static auth settings.
  */
 function getStaticClientConfig(
-  config: Pick<WordPressAuthBridgeConfig, 'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'>,
+  config: Pick<
+    WordPressAuthBridgeConfig,
+    'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'
+  >,
 ): ResolvedAuthBridgeClientConfig | null {
-  const authHeader = config.authHeader ?? (typeof config.auth === 'string' ? config.auth : undefined);
+  const authHeader =
+    config.authHeader ??
+    (typeof config.auth === 'string' ? config.auth : undefined);
 
   if (authHeader) {
     return {
@@ -603,7 +645,10 @@ function getStaticClientConfig(
  * Authenticates with the JWT plugin endpoint and returns one signed token.
  */
 async function loginWithWordPressJwt(
-  config: Pick<WordPressAuthBridgeConfig, 'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'>,
+  config: Pick<
+    WordPressAuthBridgeConfig,
+    'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'
+  >,
   usernameOrEmail: string,
   password: string,
 ): Promise<string> {
@@ -617,28 +662,33 @@ async function loginWithWordPressJwt(
       password,
     });
   } catch (error) {
-    if (!(error instanceof Error) || !("status" in error)) {
+    if (!(error instanceof Error) || !('status' in error)) {
       throw error;
     }
 
-    const responseStatus = typeof error.status === 'number' ? error.status : 500;
+    const responseStatus =
+      typeof error.status === 'number' ? error.status : 500;
     const responseBody = 'responseBody' in error ? error.responseBody : null;
 
     if (responseStatus === 404) {
       throw new ActionError({
         code: 'INTERNAL_SERVER_ERROR',
-        message: 'WordPress JWT endpoint is missing. Activate the jwt-authentication-for-wp-rest-api plugin.',
+        message:
+          'WordPress JWT endpoint is missing. Activate the jwt-authentication-for-wp-rest-api plugin.',
       });
     }
 
     const parsedJwtError = jwtAuthErrorResponseSchema.safeParse(responseBody);
     const jwtError = parsedJwtError.success ? parsedJwtError.data : null;
-    const jwtErrorStatus = jwtError?.data?.status ?? jwtError?.statusCode ?? responseStatus;
+    const jwtErrorStatus =
+      jwtError?.data?.status ?? jwtError?.statusCode ?? responseStatus;
 
     if (isJwtAuthConfigurationError(jwtError) || jwtErrorStatus >= 500) {
       throw new ActionError({
         code: 'INTERNAL_SERVER_ERROR',
-        message: jwtError?.message ?? 'WordPress JWT authentication is not configured correctly.',
+        message:
+          jwtError?.message ??
+          'WordPress JWT authentication is not configured correctly.',
       });
     }
 
@@ -664,8 +714,11 @@ async function loginWithWordPressJwt(
  * Resolves the authenticated WordPress user associated with one JWT token.
  */
 async function resolveUserByToken(
-  config: Pick<WordPressAuthBridgeConfig, 'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'>,
-  token: string
+  config: Pick<
+    WordPressAuthBridgeConfig,
+    'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'
+  >,
+  token: string,
 ): Promise<WordPressAuthor | null> {
   const client = new WordPressClient({
     baseUrl: config.baseUrl,
@@ -677,11 +730,12 @@ async function resolveUserByToken(
   try {
     user = await client.users().me();
   } catch (error) {
-    if (!(error instanceof Error) || !("status" in error)) {
+    if (!(error instanceof Error) || !('status' in error)) {
       throw error;
     }
 
-    const responseStatus = typeof error.status === 'number' ? error.status : 500;
+    const responseStatus =
+      typeof error.status === 'number' ? error.status : 500;
     const responseBody = 'responseBody' in error ? error.responseBody : null;
     const wpError = wordPressErrorSchema.safeParse(responseBody);
 
@@ -693,11 +747,7 @@ async function resolveUserByToken(
       return null;
     }
 
-    throw new Error(
-      wpError.success
-        ? wpError.data.message
-        : error.message,
-    );
+    throw new Error(wpError.success ? wpError.data.message : error.message);
   }
 
   if (!isWordPressAuthor(user)) {
@@ -721,8 +771,11 @@ function createInvalidSessionError(): ActionError {
  * Resolves one authenticated WordPress user after a successful JWT login.
  */
 async function resolveLoggedInUser(
-  config: Pick<WordPressAuthBridgeConfig, 'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'>,
-  token: string
+  config: Pick<
+    WordPressAuthBridgeConfig,
+    'baseUrl' | 'auth' | 'authHeader' | 'authHeaders'
+  >,
+  token: string,
 ): Promise<WordPressAuthor> {
   const user = await resolveUserByToken(config, token);
 
@@ -736,34 +789,36 @@ async function resolveLoggedInUser(
 /**
  * Default auth resolver that extracts JWT from the configured cookie.
  */
-function createDefaultCookieAuthResolver(
-  cookieName: string
-) {
-  return createAuthResolver((context: Pick<ActionAPIContext, 'cookies' | 'request'>) => {
-    const jwt = context.cookies.get(cookieName)?.value;
-    
-    if (jwt) {
-      return { token: jwt };
-    }
+function createDefaultCookieAuthResolver(cookieName: string) {
+  return createAuthResolver(
+    (context: Pick<ActionAPIContext, 'cookies' | 'request'>) => {
+      const jwt = context.cookies.get(cookieName)?.value;
 
-    // Also check for Authorization header as fallback
-    const authHeader = context.request.headers.get('authorization');
+      if (jwt) {
+        return { token: jwt };
+      }
 
-    if (authHeader && getBearerToken(authHeader)) {
-      return authHeader;
-    }
+      // Also check for Authorization header as fallback
+      const authHeader = context.request.headers.get('authorization');
 
-    return null;
-  });
+      if (authHeader && getBearerToken(authHeader)) {
+        return authHeader;
+      }
+
+      return null;
+    },
+  );
 }
 
 /**
  * Creates a ready-to-use WordPress authentication bridge with a predefined login server action.
- * 
+ *
  * Supports unified auth configuration via `auth`, `authHeaders`, or `authResolver` options,
  * aligning with WordPressClientConfig patterns used by loaders and actions.
  */
-export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): WordPressAuthBridge {
+export function createWordPressAuthBridge(
+  config: WordPressAuthBridgeConfig,
+): WordPressAuthBridge {
   const normalizedConfig = {
     baseUrl: config.baseUrl,
     auth: config.auth,
@@ -773,16 +828,21 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
     cookieName: config.cookieName || DEFAULT_COOKIE_NAME,
     cookiePath: config.cookiePath || DEFAULT_COOKIE_PATH,
     cookieSameSite: config.cookieSameSite || DEFAULT_COOKIE_SAME_SITE,
-    sessionDurationSeconds: config.sessionDurationSeconds || DEFAULT_SESSION_DURATION_SECONDS,
+    sessionDurationSeconds:
+      config.sessionDurationSeconds || DEFAULT_SESSION_DURATION_SECONDS,
   };
 
   // Create auth resolver: use provided resolver or default cookie-based resolver
-  const authResolver = config.authResolver ?? createDefaultCookieAuthResolver(normalizedConfig.cookieName);
+  const authResolver =
+    config.authResolver ??
+    createDefaultCookieAuthResolver(normalizedConfig.cookieName);
 
   /**
    * Reads one JWT session from cookie value and returns null when missing/invalid.
    */
-  function getSession(sessionId: string | undefined): WordPressAuthSession | null {
+  function getSession(
+    sessionId: string | undefined,
+  ): WordPressAuthSession | null {
     if (!sessionId) {
       return null;
     }
@@ -821,14 +881,19 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
   /**
    * Clears browser cookie state for one authentication context.
    */
-  function clearAuthentication(cookies: APIContext['cookies'], _sessionId?: string | undefined): void {
+  function clearAuthentication(
+    cookies: APIContext['cookies'],
+    _sessionId?: string | undefined,
+  ): void {
     clearCookie(cookies);
   }
 
   /**
    * Resolves one WordPress user from a cookie-provided JWT token.
    */
-  async function resolveUserBySessionId(sessionId: string | undefined): Promise<WordPressAuthor | null> {
+  async function resolveUserBySessionId(
+    sessionId: string | undefined,
+  ): Promise<WordPressAuthor | null> {
     const session = getSession(sessionId);
 
     if (!session) {
@@ -843,7 +908,7 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
    * This config can be used directly with new WordPressClient() or spread into action factories.
    * Returns null if the request is not authenticated.
    * Pass `allowStaticAuthFallback: true` to opt into bridge-level static auth.
-   * 
+   *
    * Tries to resolve auth from the authResolver first. Static bridge auth is only
    * considered when fallback is explicitly enabled.
    */
@@ -875,12 +940,11 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
     context: Pick<ActionAPIContext, 'cookies' | 'request'>,
     options?: AuthBridgeClientOptions,
   ): Promise<WordPressClient | null> {
-    const {
+    const { allowStaticAuthFallback, ...clientOptions } = options ?? {};
+    const clientConfig = await getClientConfig(context, {
       allowStaticAuthFallback,
-      ...clientOptions
-    } = options ?? {};
-    const clientConfig = await getClientConfig(context, { allowStaticAuthFallback });
-    
+    });
+
     if (!clientConfig) {
       return null;
     }
@@ -899,7 +963,7 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
    * Useful for read-only operations on public content.
    */
   function getPublicClient(
-    options?: Omit<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader'>
+    options?: Omit<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader'>,
   ): WordPressClient {
     return new WordPressClient({
       ...options,
@@ -911,13 +975,13 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
    * Executes a callback with one request-authenticated client, handling null cases automatically.
    * If the request is not authenticated, returns the provided fallback value or null.
    * Pass `allowStaticAuthFallback: true` to opt into bridge-level static auth.
-   * 
+   *
    * @example
    * // Get user with the client
    * const user = await bridge.withClient(context, async (wp) => {
    *   return await wp.users().me();
    * });
-   * 
+   *
    * @example
    * // Get posts with fallback
    * const posts = await bridge.withClient(
@@ -933,7 +997,7 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
     options?: AuthBridgeClientOptions,
   ): Promise<T | null> {
     const client = await getClient(context, options);
-    
+
     if (!client) {
       return fallback ?? null;
     }
@@ -949,18 +1013,26 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
    * Resolves the authenticated user directly from middleware context.
    * Ignores bridge-level static auth so the result always reflects request user state.
    */
-  async function resolveUser(context: Pick<APIContext, 'cookies' | 'request'>): Promise<WordPressAuthor | null> {
-    return withClient(context, async (client) => {
-      const user = await client.users().me();
-      return isWordPressAuthor(user) ? user : null;
-    }, null);
+  async function resolveUser(
+    context: Pick<APIContext, 'cookies' | 'request'>,
+  ): Promise<WordPressAuthor | null> {
+    return withClient(
+      context,
+      async (client) => {
+        const user = await client.users().me();
+        return isWordPressAuthor(user) ? user : null;
+      },
+      null,
+    );
   }
 
   /**
    * Checks whether the incoming request has one valid, usable user session.
    * Ignores bridge-level static auth so the result always reflects request user state.
    */
-  async function isAuthenticated(context: Pick<APIContext, 'cookies' | 'request'>): Promise<boolean> {
+  async function isAuthenticated(
+    context: Pick<APIContext, 'cookies' | 'request'>,
+  ): Promise<boolean> {
     const user = await resolveUser(context);
     return user !== null;
   }
@@ -990,8 +1062,12 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
         path: normalizedConfig.cookiePath,
         httpOnly: true,
         sameSite: normalizedConfig.cookieSameSite,
-        secure: normalizedConfig.secureCookies ?? context.url.protocol === 'https:',
-        maxAge: getCookieMaxAge(normalizedConfig.sessionDurationSeconds, session.expiresAt),
+        secure:
+          normalizedConfig.secureCookies ?? context.url.protocol === 'https:',
+        maxAge: getCookieMaxAge(
+          normalizedConfig.sessionDurationSeconds,
+          session.expiresAt,
+        ),
       });
 
       return {

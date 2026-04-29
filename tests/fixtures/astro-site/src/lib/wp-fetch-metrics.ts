@@ -61,14 +61,20 @@ export function resetRouteCacheMetrics(): RouteCacheMetrics {
 /**
  * Wraps fetch so route-cache tests can assert which WordPress resources were reloaded upstream.
  */
-export async function trackedWordPressFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  const requestUrl = typeof input === 'string'
-    ? new URL(input)
-    : input instanceof URL
-      ? input
-      : new URL(input.url);
+export async function trackedWordPressFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const requestUrl =
+    typeof input === 'string'
+      ? new URL(input)
+      : input instanceof URL
+        ? input
+        : new URL(input.url);
 
-  const resourceMatch = requestUrl.pathname.match(/^\/wp-json\/wp\/v2\/([^/]+)(?:\/(\d+))?$/);
+  const resourceMatch = requestUrl.pathname.match(
+    /^\/wp-json\/wp\/v2\/([^/]+)(?:\/(\d+))?$/,
+  );
 
   if (!resourceMatch) {
     return fetch(input, init);
@@ -77,7 +83,10 @@ export async function trackedWordPressFetch(input: RequestInfo | URL, init?: Req
   const [, resource, itemId] = resourceMatch;
 
   if (itemId) {
-    increment(getMetricsState().entries, entryMetricKey(resource, `id:${itemId}`));
+    increment(
+      getMetricsState().entries,
+      entryMetricKey(resource, `id:${itemId}`),
+    );
     return fetch(input, init);
   }
 
@@ -85,7 +94,10 @@ export async function trackedWordPressFetch(input: RequestInfo | URL, init?: Req
   const slug = requestUrl.searchParams.get('slug');
 
   if (slug) {
-    increment(getMetricsState().entries, entryMetricKey(resource, `slug:${slug}`));
+    increment(
+      getMetricsState().entries,
+      entryMetricKey(resource, `slug:${slug}`),
+    );
   } else if (id) {
     increment(getMetricsState().entries, entryMetricKey(resource, `id:${id}`));
   } else {

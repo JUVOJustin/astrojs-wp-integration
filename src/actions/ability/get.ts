@@ -1,25 +1,22 @@
 import type { ActionClient } from 'astro:actions';
 import type { WordPressClient } from 'fluent-wp-client';
 import {
-  getAbilityInputSchema,
   type GetAbilityInput,
+  getAbilityInputSchema,
 } from 'fluent-wp-client/zod';
-import {
-  withActionClient,
-  type ResolvableActionClient,
-} from '../post/client';
+import { type ResolvableActionClient, withActionClient } from '../post/client';
 import { validateActionResponse } from '../response-validation';
 import {
-  createAbilityAction,
   type AbilityActionOptions,
+  createAbilityAction,
   type ExecuteAbilityOptions,
 } from './factory';
 
+export type { GetAbilityInput };
 /**
  * Input schema for executing one read-only WordPress ability via GET.
  */
 export { getAbilityInputSchema };
-export type { GetAbilityInput };
 
 /**
  * Low-level options accepted by `executeGetAbility`.
@@ -53,8 +50,15 @@ export async function executeGetAbility<T = unknown>(
   options?: ExecuteGetAbilityOptions<T>,
 ): Promise<T> {
   return withActionClient(client, async (resolvedClient) => {
-    const result = await resolvedClient.executeGetAbility(input.name, input.input);
-    return validateActionResponse(result, options?.responseSchema, 'WordPress ability GET action');
+    const result = await resolvedClient.executeGetAbility(
+      input.name,
+      input.input,
+    );
+    return validateActionResponse(
+      result,
+      options?.responseSchema,
+      'WordPress ability GET action',
+    );
   });
 }
 
@@ -64,11 +68,15 @@ export async function executeGetAbility<T = unknown>(
 export function createGetAbilityAction<
   TResponse = unknown,
   TSchema extends typeof getAbilityInputSchema = typeof getAbilityInputSchema,
->(client: ResolvableActionClient, options?: GetAbilityActionOptions<TResponse, TSchema>): ActionClient<TResponse, undefined, TSchema> & string {
+>(
+  client: ResolvableActionClient,
+  options?: GetAbilityActionOptions<TResponse, TSchema>,
+): ActionClient<TResponse, undefined, TSchema> & string {
   return createAbilityAction<GetAbilityInput, TResponse, TSchema>({
     ...options,
     client,
     defaultSchema: getAbilityInputSchema as TSchema,
-    execute: (resolvedClient, input, executeOptions) => executeGetAbility<TResponse>(resolvedClient, input, executeOptions),
+    execute: (resolvedClient, input, executeOptions) =>
+      executeGetAbility<TResponse>(resolvedClient, input, executeOptions),
   });
 }

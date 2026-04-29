@@ -1,28 +1,34 @@
-import { defineAction, type ActionAPIContext, type ActionClient } from 'astro:actions';
+import {
+  type ActionAPIContext,
+  type ActionClient,
+  defineAction,
+} from 'astro:actions';
 import { z } from 'astro/zod';
-import type { WordPressClient, TermWriteInput } from 'fluent-wp-client';
+import type { TermWriteInput, WordPressClient } from 'fluent-wp-client';
 import {
   categorySchema,
   type WordPressCategory,
   type WordPressStandardSchema,
 } from 'fluent-wp-client';
 import {
+  type ResolvableActionClient,
   resolveRequiredActionClient,
   withActionClient,
-  type ResolvableActionClient,
 } from '../post/client';
 import { validateActionResponse } from '../response-validation';
 
 /**
  * Shared writable fields for creating taxonomy terms.
  */
-export const createTermInputSchema = z.object({
-  name: z.string().optional(),
-  slug: z.string().optional(),
-  description: z.string().optional(),
-  parent: z.number().int().nonnegative().optional(),
-  meta: z.record(z.string(), z.unknown()).optional(),
-}).passthrough();
+export const createTermInputSchema = z
+  .object({
+    name: z.string().optional(),
+    slug: z.string().optional(),
+    description: z.string().optional(),
+    parent: z.number().int().nonnegative().optional(),
+    meta: z.record(z.string(), z.unknown()).optional(),
+  })
+  .passthrough();
 
 export type CreateTermInput = z.infer<typeof createTermInputSchema>;
 
@@ -39,7 +45,8 @@ export interface ExecuteCreateTermOptions<T = WordPressCategory> {
 /**
  * @deprecated Use `ExecuteCreateTermOptions` instead.
  */
-export type ExecuteCreateTermConfig<T = WordPressCategory> = ExecuteCreateTermOptions<T>;
+export type ExecuteCreateTermConfig<T = WordPressCategory> =
+  ExecuteCreateTermOptions<T>;
 
 /**
  * Shared non-auth options accepted by the create-term action factory.
@@ -54,7 +61,8 @@ export interface CreateTermActionOptions<T = WordPressCategory> {
 /**
  * @deprecated Use `CreateTermActionOptions` instead.
  */
-export type CreateTermActionConfig<T = WordPressCategory> = CreateTermActionOptions<T>;
+export type CreateTermActionConfig<T = WordPressCategory> =
+  CreateTermActionOptions<T>;
 
 type CreateTermActionFactoryOptions<
   TResponse,
@@ -72,10 +80,17 @@ export async function executeCreateTerm<T = WordPressCategory>(
   const resource = options?.resource ?? 'categories';
 
   return withActionClient(client, async (resolvedClient) => {
-    const created = await resolvedClient.terms(resource).create(input as TermWriteInput);
-    const responseSchema = (options?.responseSchema ?? categorySchema) as WordPressStandardSchema<T>;
+    const created = await resolvedClient
+      .terms(resource)
+      .create(input as TermWriteInput);
+    const responseSchema = (options?.responseSchema ??
+      categorySchema) as WordPressStandardSchema<T>;
 
-    return validateActionResponse(created, responseSchema, `WordPress ${resource} create action`);
+    return validateActionResponse(
+      created,
+      responseSchema,
+      `WordPress ${resource} create action`,
+    );
   });
 }
 

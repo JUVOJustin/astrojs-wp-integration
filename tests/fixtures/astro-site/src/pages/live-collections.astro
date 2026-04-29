@@ -5,25 +5,19 @@
  */
 import { getLiveCollection } from 'astro:content';
 
-const {
-  entries: posts = [],
-  error: postsError,
-} = await getLiveCollection('livePosts');
-const {
-  entries: pages = [],
-  error: pagesError,
-} = await getLiveCollection('livePages');
-const {
-  entries: categories = [],
-  error: categoriesError,
-} = await getLiveCollection('liveCategories');
-const {
-  entries: books = [],
-  error: booksError,
-} = await getLiveCollection('liveBooks', {
-  orderby: 'slug',
-  order: 'asc',
-});
+const { entries: posts = [], error: postsError } =
+  await getLiveCollection('livePosts');
+const { entries: pages = [], error: pagesError } =
+  await getLiveCollection('livePages');
+const { entries: categories = [], error: categoriesError } =
+  await getLiveCollection('liveCategories');
+const { entries: books = [], error: booksError } = await getLiveCollection(
+  'liveBooks',
+  {
+    orderby: 'slug',
+    order: 'asc',
+  },
+);
 ---
 
 <html lang="en">

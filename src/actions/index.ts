@@ -5,131 +5,166 @@
  */
 
 export type {
-  ActionResponseMapper,
-  ActionClientResolver,
-  ResolvableActionClient,
-} from './post/client';
-
-// Post actions
-export { createCreatePostAction, createPostInputSchema, executeCreatePost } from './post/create';
+  DeleteAbilityActionConfig,
+  DeleteAbilityInput,
+  ExecuteDeleteAbilityConfig,
+  ExecuteDeleteAbilityOptions,
+} from './ability/delete';
+export {
+  createDeleteAbilityAction,
+  deleteAbilityInputSchema,
+  executeDeleteAbility,
+} from './ability/delete';
 export type {
-  CreatePostInput,
-  CreatePostActionOptions,
-  CreatePostActionConfig,
-  ExecuteCreateOptions,
-  ExecuteCreateConfig,
-} from './post/create';
-
-export { createUpdatePostAction, updatePostInputSchema, executeUpdatePost } from './post/update';
+  ExecuteRunAbilityConfig,
+  ExecuteRunAbilityOptions,
+  RunAbilityActionConfig,
+  RunAbilityInput,
+} from './ability/execute';
+export {
+  createRunAbilityAction,
+  executeRunAbility,
+  runAbilityInputSchema,
+} from './ability/execute';
+// Ability actions
 export type {
-  UpdatePostInput,
-  UpdatePostActionOptions,
-  UpdatePostActionConfig,
-  ExecuteUpdateOptions,
-  ExecuteUpdateConfig,
-} from './post/update';
-
-export { createDeletePostAction, deletePostInputSchema, executeDeletePost } from './post/delete';
+  AbilityActionOptions,
+  ExecuteAbilityOptions,
+} from './ability/factory';
 export type {
-  DeletePostInput,
-  DeletePostActionOptions,
-  DeletePostActionConfig,
-  DeletePostResult,
-  ExecuteDeleteOptions,
-  ExecuteDeleteConfig,
-} from './post/delete';
-
-// Term actions
-export { createCreateTermAction, createTermInputSchema, executeCreateTerm } from './term/create';
-export type {
-  CreateTermInput,
-  CreateTermActionOptions,
-  CreateTermActionConfig,
-  ExecuteCreateTermOptions,
-  ExecuteCreateTermConfig,
-} from './term/create';
-
-export { createUpdateTermAction, updateTermInputSchema, executeUpdateTerm } from './term/update';
-export type {
-  UpdateTermInput,
-  UpdateTermActionOptions,
-  UpdateTermActionConfig,
-  ExecuteUpdateTermOptions,
-  ExecuteUpdateTermConfig,
-} from './term/update';
-
-export { createDeleteTermAction, deleteTermInputSchema, executeDeleteTerm } from './term/delete';
-export type {
-  DeleteTermInput,
-  DeleteTermActionOptions,
-  DeleteTermActionConfig,
-  DeleteTermResult,
-  ExecuteDeleteTermOptions,
-  ExecuteDeleteTermConfig,
-} from './term/delete';
-
+  ExecuteGetAbilityConfig,
+  ExecuteGetAbilityOptions,
+  GetAbilityActionConfig,
+  GetAbilityInput,
+} from './ability/get';
+export {
+  createGetAbilityAction,
+  executeGetAbility,
+  getAbilityInputSchema,
+} from './ability/get';
+export type { WpCacheInvalidateInput } from './cache/invalidate';
 // Cache invalidation actions
 export {
   createWpCacheInvalidateAction,
-  wpCacheInvalidateInputSchema,
   executeWpCacheInvalidate,
+  wpCacheInvalidateInputSchema,
 } from './cache/invalidate';
 export type {
-  WpCacheInvalidateInput,
-} from './cache/invalidate';
-
-// User actions
-export { createCreateUserAction, createUserInputSchema, executeCreateUser } from './user/create';
+  ActionClientResolver,
+  ActionResponseMapper,
+  ResolvableActionClient,
+} from './post/client';
 export type {
-  CreateUserInput,
-  CreateUserActionOptions,
+  CreatePostActionConfig,
+  CreatePostActionOptions,
+  CreatePostInput,
+  ExecuteCreateConfig,
+  ExecuteCreateOptions,
+} from './post/create';
+// Post actions
+export {
+  createCreatePostAction,
+  createPostInputSchema,
+  executeCreatePost,
+} from './post/create';
+export type {
+  DeletePostActionConfig,
+  DeletePostActionOptions,
+  DeletePostInput,
+  DeletePostResult,
+  ExecuteDeleteConfig,
+  ExecuteDeleteOptions,
+} from './post/delete';
+export {
+  createDeletePostAction,
+  deletePostInputSchema,
+  executeDeletePost,
+} from './post/delete';
+export type {
+  ExecuteUpdateConfig,
+  ExecuteUpdateOptions,
+  UpdatePostActionConfig,
+  UpdatePostActionOptions,
+  UpdatePostInput,
+} from './post/update';
+export {
+  createUpdatePostAction,
+  executeUpdatePost,
+  updatePostInputSchema,
+} from './post/update';
+export type {
+  CreateTermActionConfig,
+  CreateTermActionOptions,
+  CreateTermInput,
+  ExecuteCreateTermConfig,
+  ExecuteCreateTermOptions,
+} from './term/create';
+// Term actions
+export {
+  createCreateTermAction,
+  createTermInputSchema,
+  executeCreateTerm,
+} from './term/create';
+export type {
+  DeleteTermActionConfig,
+  DeleteTermActionOptions,
+  DeleteTermInput,
+  DeleteTermResult,
+  ExecuteDeleteTermConfig,
+  ExecuteDeleteTermOptions,
+} from './term/delete';
+export {
+  createDeleteTermAction,
+  deleteTermInputSchema,
+  executeDeleteTerm,
+} from './term/delete';
+export type {
+  ExecuteUpdateTermConfig,
+  ExecuteUpdateTermOptions,
+  UpdateTermActionConfig,
+  UpdateTermActionOptions,
+  UpdateTermInput,
+} from './term/update';
+export {
+  createUpdateTermAction,
+  executeUpdateTerm,
+  updateTermInputSchema,
+} from './term/update';
+export type {
   CreateUserActionConfig,
-  ExecuteCreateUserOptions,
+  CreateUserActionOptions,
+  CreateUserInput,
   ExecuteCreateUserConfig,
+  ExecuteCreateUserOptions,
 } from './user/create';
-
-export { createUpdateUserAction, updateUserInputSchema, executeUpdateUser } from './user/update';
+// User actions
+export {
+  createCreateUserAction,
+  createUserInputSchema,
+  executeCreateUser,
+} from './user/create';
 export type {
-  UpdateUserInput,
-  UpdateUserActionOptions,
-  UpdateUserActionConfig,
-  ExecuteUpdateUserOptions,
-  ExecuteUpdateUserConfig,
-} from './user/update';
-
-export { createDeleteUserAction, deleteUserInputSchema, executeDeleteUser } from './user/delete';
-export type {
-  DeleteUserInput,
-  DeleteUserActionOptions,
   DeleteUserActionConfig,
+  DeleteUserActionOptions,
+  DeleteUserInput,
   DeleteUserResult,
-  ExecuteDeleteUserOptions,
   ExecuteDeleteUserConfig,
+  ExecuteDeleteUserOptions,
 } from './user/delete';
-
-// Ability actions
-export type { AbilityActionOptions, ExecuteAbilityOptions } from './ability/factory';
-
-export { createGetAbilityAction, getAbilityInputSchema, executeGetAbility } from './ability/get';
+export {
+  createDeleteUserAction,
+  deleteUserInputSchema,
+  executeDeleteUser,
+} from './user/delete';
 export type {
-  GetAbilityInput,
-  GetAbilityActionConfig,
-  ExecuteGetAbilityOptions,
-  ExecuteGetAbilityConfig,
-} from './ability/get';
-
-export { createRunAbilityAction, runAbilityInputSchema, executeRunAbility } from './ability/execute';
-export type {
-  RunAbilityInput,
-  RunAbilityActionConfig,
-  ExecuteRunAbilityOptions,
-  ExecuteRunAbilityConfig,
-} from './ability/execute';
-
-export { createDeleteAbilityAction, deleteAbilityInputSchema, executeDeleteAbility } from './ability/delete';
-export type {
-  DeleteAbilityInput,
-  DeleteAbilityActionConfig,
-  ExecuteDeleteAbilityOptions,
-  ExecuteDeleteAbilityConfig,
-} from './ability/delete';
+  ExecuteUpdateUserConfig,
+  ExecuteUpdateUserOptions,
+  UpdateUserActionConfig,
+  UpdateUserActionOptions,
+  UpdateUserInput,
+} from './user/update';
+export {
+  createUpdateUserAction,
+  executeUpdateUser,
+  updateUserInputSchema,
+} from './user/update';

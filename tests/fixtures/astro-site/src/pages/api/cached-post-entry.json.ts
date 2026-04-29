@@ -1,5 +1,5 @@
-import type { APIRoute } from 'astro';
 import { getLiveEntry } from 'astro:content';
+import type { APIRoute } from 'astro';
 
 /**
  * Cached per-entry endpoint used to verify that invalidation only refreshes changed posts.
@@ -20,7 +20,10 @@ export const GET: APIRoute = async (context) => {
   const { entry, error, cacheHint } = await getLiveEntry('livePosts', { id });
 
   if (error || !entry) {
-    return Response.json({ error: error?.message ?? 'Entry not found.' }, { status: 404 });
+    return Response.json(
+      { error: error?.message ?? 'Entry not found.' },
+      { status: 404 },
+    );
   }
 
   if (cacheHint) {

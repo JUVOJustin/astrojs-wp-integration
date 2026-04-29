@@ -1,12 +1,14 @@
-import { build } from 'astro';
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import { cp, mkdtemp, rm } from 'node:fs/promises';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { build } from 'astro';
 import { request } from './http-client';
 
-const fixtureRoot = fileURLToPath(new URL('../fixtures/astro-site', import.meta.url));
+const fixtureRoot = fileURLToPath(
+  new URL('../fixtures/astro-site', import.meta.url),
+);
 
 type AstroPreviewSession = {
   baseUrl: string;
@@ -16,12 +18,17 @@ type AstroPreviewSession = {
 /**
  * Waits until the preview server is reachable before test traffic starts.
  */
-async function waitForServer(baseUrl: string, serverProcess: ChildProcessWithoutNullStreams): Promise<void> {
+async function waitForServer(
+  baseUrl: string,
+  serverProcess: ChildProcessWithoutNullStreams,
+): Promise<void> {
   let lastError: unknown;
 
   for (let attempt = 0; attempt < 50; attempt += 1) {
     if (serverProcess.exitCode !== null) {
-      throw new Error(`Astro standalone server exited early with code ${serverProcess.exitCode}.`);
+      throw new Error(
+        `Astro standalone server exited early with code ${serverProcess.exitCode}.`,
+      );
     }
 
     try {
@@ -54,7 +61,9 @@ async function getAvailablePort(): Promise<number> {
       const address = server.address();
 
       if (!address || typeof address === 'string') {
-        server.close(() => reject(new Error('Failed to allocate an Astro preview port.')));
+        server.close(() =>
+          reject(new Error('Failed to allocate an Astro preview port.')),
+        );
         return;
       }
 
@@ -74,7 +83,9 @@ async function getAvailablePort(): Promise<number> {
  * Starts a production-style Astro preview server for route-caching integration tests.
  */
 export async function startAstroPreviewServer(): Promise<AstroPreviewSession> {
-  const previewRoot = await mkdtemp(path.join(path.dirname(fixtureRoot), '.tmp-preview-fixture-'));
+  const previewRoot = await mkdtemp(
+    path.join(path.dirname(fixtureRoot), '.tmp-preview-fixture-'),
+  );
   const previousMode = process.env.ASTRO_TEST_MODE;
   const previousRouteCacheFlag = process.env.ASTRO_TEST_ROUTE_CACHE;
 
