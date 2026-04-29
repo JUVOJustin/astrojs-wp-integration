@@ -6,26 +6,27 @@
  */
 import { defineLiveCollection } from 'astro:content';
 import { WordPressClient } from 'fluent-wp-client';
-import { resolveWpBaseUrl } from '../../../helpers/wp-env';
-import { trackedWordPressFetch } from './lib/wp-fetch-metrics';
-import { createAcfChoiceLabelMapper } from './lib/acf-choice-label-mapper';
 import {
   wordPressCategoryLoader,
   wordPressContentLoader,
   wordPressPageLoader,
   wordPressPostLoader,
 } from '../../../../src/loaders/live';
+import { resolveWpBaseUrl } from '../../../helpers/wp-env';
 import {
   booksItemSchema,
   categoriesItemSchema,
   pagesItemSchema,
   postsItemSchema,
 } from './generated/wp-schemas';
+import { createAcfChoiceLabelMapper } from './lib/acf-choice-label-mapper';
+import { trackedWordPressFetch } from './lib/wp-fetch-metrics';
 
 const baseUrl = resolveWpBaseUrl();
 const wp = new WordPressClient({
   baseUrl,
-  fetch: process.env.ASTRO_TEST_ROUTE_CACHE === '1' ? trackedWordPressFetch : fetch,
+  fetch:
+    process.env.ASTRO_TEST_ROUTE_CACHE === '1' ? trackedWordPressFetch : fetch,
 });
 const mapAcfChoiceLabels = createAcfChoiceLabelMapper(baseUrl);
 

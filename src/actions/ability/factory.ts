@@ -1,9 +1,16 @@
-import { defineAction, type ActionAPIContext, type ActionClient } from 'astro:actions';
-import { z } from 'astro/zod';
-import type { WordPressClient, WordPressStandardSchema } from 'fluent-wp-client';
 import {
-  resolveRequiredActionClient,
+  type ActionAPIContext,
+  type ActionClient,
+  defineAction,
+} from 'astro:actions';
+import { z } from 'astro/zod';
+import type {
+  WordPressClient,
+  WordPressStandardSchema,
+} from 'fluent-wp-client';
+import {
   type ResolvableActionClient,
+  resolveRequiredActionClient,
 } from '../post/client';
 
 /**
@@ -33,7 +40,11 @@ export type ExecuteAbilityConfig<T = unknown> = ExecuteAbilityOptions<T>;
 /**
  * Internal parameter object for creating one typed ability action.
  */
-type CreateAbilityActionParams<TInput, TResponse, TSchema extends z.ZodType> = AbilityActionOptions<TResponse> & {
+type CreateAbilityActionParams<
+  TInput,
+  TResponse,
+  TSchema extends z.ZodType,
+> = AbilityActionOptions<TResponse> & {
   client: ResolvableActionClient;
   schema?: TSchema;
   defaultSchema: TSchema;
@@ -51,7 +62,9 @@ export function createAbilityAction<
   TInput,
   TResponse,
   TSchema extends z.ZodType,
->(params: CreateAbilityActionParams<TInput, TResponse, TSchema>): ActionClient<TResponse, undefined, TSchema> & string {
+>(
+  params: CreateAbilityActionParams<TInput, TResponse, TSchema>,
+): ActionClient<TResponse, undefined, TSchema> & string {
   const inputSchema = (params.schema ?? params.defaultSchema) as TSchema;
   const responseSchema = params.responseSchema;
 

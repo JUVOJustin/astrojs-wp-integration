@@ -8,21 +8,29 @@
  *
  * Requires `wp-env` to be running (`npm run wp:start`).
  */
-import { describe, it, expect } from 'vitest';
-import { build } from 'astro';
-import { cp, mkdtemp, readFile, rm } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
 
-const fixtureRoot = fileURLToPath(new URL('../../fixtures/astro-site', import.meta.url));
+import { cp, mkdtemp, readFile, rm } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { build } from 'astro';
+import { describe, expect, it } from 'vitest';
+
+const fixtureRoot = fileURLToPath(
+  new URL('../../fixtures/astro-site', import.meta.url),
+);
 
 describe('Static Loaders: Astro build integration', () => {
   it('builds a minimal site with WordPress static loaders', async () => {
-    const buildRoot = await mkdtemp(path.join(path.dirname(fixtureRoot), '.tmp-build-fixture-'));
+    const buildRoot = await mkdtemp(
+      path.join(path.dirname(fixtureRoot), '.tmp-build-fixture-'),
+    );
     try {
       // Copy the shared fixture and strip action routes for static build validation.
       await cp(fixtureRoot, buildRoot, { recursive: true });
-      await rm(path.join(buildRoot, 'src', 'actions'), { recursive: true, force: true });
+      await rm(path.join(buildRoot, 'src', 'actions'), {
+        recursive: true,
+        force: true,
+      });
 
       // Run the programmatic Astro build against the shared fixture project.
       process.env.ASTRO_TEST_MODE = 'build';

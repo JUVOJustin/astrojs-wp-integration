@@ -1,10 +1,14 @@
-import { defineAction, type ActionAPIContext, type ActionClient } from 'astro:actions';
+import {
+  type ActionAPIContext,
+  type ActionClient,
+  defineAction,
+} from 'astro:actions';
 import { z } from 'astro/zod';
 import type { WordPressClient } from 'fluent-wp-client';
 import {
+  type ResolvableActionClient,
   resolveRequiredActionClient,
   withActionClient,
-  type ResolvableActionClient,
 } from '../post/client';
 
 /**
@@ -59,7 +63,9 @@ export async function executeDeleteTerm(
   const resource = options?.resource ?? 'categories';
 
   return withActionClient(client, async (resolvedClient) => {
-    const result = await resolvedClient.terms(resource).delete(input.id, { force: input.force });
+    const result = await resolvedClient
+      .terms(resource)
+      .delete(input.id, { force: input.force });
     return { id: result.id, deleted: result.deleted };
   });
 }
@@ -70,7 +76,8 @@ export async function executeDeleteTerm(
 export function createDeleteTermAction(
   client: ResolvableActionClient,
   options?: DeleteTermActionOptions,
-): ActionClient<DeleteTermResult, undefined, typeof deleteTermInputSchema> & string {
+): ActionClient<DeleteTermResult, undefined, typeof deleteTermInputSchema> &
+  string {
   const resource = options?.resource;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -80,5 +87,10 @@ export function createDeleteTermAction(
       const resolvedClient = await resolveRequiredActionClient(client, context);
       return executeDeleteTerm(resolvedClient, input, { resource });
     },
-  } as any) as ActionClient<DeleteTermResult, undefined, typeof deleteTermInputSchema> & string;
+  } as any) as ActionClient<
+    DeleteTermResult,
+    undefined,
+    typeof deleteTermInputSchema
+  > &
+    string;
 }

@@ -4,12 +4,12 @@
 
 import type {
   CategoriesFilter,
+  MediaFilter as ClientMediaFilter,
   PagesFilter,
   PostsFilter,
   QueryParams,
-  UsersFilter,
-  MediaFilter as ClientMediaFilter,
   TagsFilter,
+  UsersFilter,
 } from 'fluent-wp-client';
 
 /**
@@ -42,8 +42,10 @@ export interface WordPressEntryMappingOptions<TEntry, TFilter = unknown> {
 /**
  * Options shared by live loaders that read post-like content resources.
  */
-export interface WordPressLiveContentLoaderOptions<TEntry = unknown, TFilter = unknown>
-  extends WordPressEntryMappingOptions<TEntry, TFilter> {
+export interface WordPressLiveContentLoaderOptions<
+  TEntry = unknown,
+  TFilter = unknown,
+> extends WordPressEntryMappingOptions<TEntry, TFilter> {
   /**
    * Requests embedded relations for collection and entry reads.
    * Leave unset for the lean default payload.
@@ -95,33 +97,38 @@ export type MediaFilter = ClientMediaFilter & LoaderEntryLookup;
  * Filter options for categories/taxonomies (live loader).
  * @deprecated Use 'hideEmpty' instead of 'hide_empty' (kept for backward compatibility)
  */
-export type CategoryFilter = CategoriesFilter & LoaderEntryLookup & {
-  /** Legacy field kept for backward compatibility. */
-  hide_empty?: boolean;
-};
+export type CategoryFilter = CategoriesFilter &
+  LoaderEntryLookup & {
+    /** Legacy field kept for backward compatibility. */
+    hide_empty?: boolean;
+  };
 
 /**
  * Filter options for tags (live loader).
  * @deprecated Use 'hideEmpty' instead of 'hide_empty' (kept for backward compatibility)
  */
-export type TagFilter = TagsFilter & LoaderEntryLookup & {
-  /** Legacy field kept for backward compatibility. */
-  hide_empty?: boolean;
-};
+export type TagFilter = TagsFilter &
+  LoaderEntryLookup & {
+    /** Legacy field kept for backward compatibility. */
+    hide_empty?: boolean;
+  };
 
 /**
  * Filter options for generic term resources (custom taxonomies).
  */
-export type TermFilter = QueryParams & LoaderEntryLookup & {
-  hideEmpty?: boolean;
-  hide_empty?: boolean;
-};
+export type TermFilter = QueryParams &
+  LoaderEntryLookup & {
+    hideEmpty?: boolean;
+    hide_empty?: boolean;
+  };
 
 /**
  * Options for generic content loaders targeting one REST post resource.
  */
-export interface WordPressContentLoaderOptions<TEntry = unknown, TFilter = unknown>
-  extends WordPressEntryMappingOptions<TEntry, TFilter> {
+export interface WordPressContentLoaderOptions<
+  TEntry = unknown,
+  TFilter = unknown,
+> extends WordPressEntryMappingOptions<TEntry, TFilter> {
   /** REST resource path (examples: 'posts', 'pages', 'products', 'books') */
   resource: string;
   /** Optional embedded relation loading for live reads. */

@@ -1,23 +1,28 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { WordPressClient } from 'fluent-wp-client';
+import { beforeAll, describe, expect, it } from 'vitest';
 import {
-  wordPressPostStaticLoader,
-  wordPressPageStaticLoader,
   wordPressCategoryStaticLoader,
+  wordPressContentStaticLoader,
+  wordPressPageStaticLoader,
+  wordPressPostStaticLoader,
   wordPressTagStaticLoader,
   wordPressTermStaticLoader,
   wordPressUserStaticLoader,
-  wordPressContentStaticLoader,
 } from '../../../src/loaders/static';
-import { WordPressClient } from 'fluent-wp-client';
-import { createMockStore } from '../../helpers/mock-store';
-import { createMockLogger } from '../../helpers/mock-logger';
-import { getBaseUrl } from '../../helpers/wp-client';
 import { getAcfChoiceLabels } from '../../helpers/acf-choice-catalog';
+import { createMockLogger } from '../../helpers/mock-logger';
+import { createMockStore } from '../../helpers/mock-store';
+import { getBaseUrl } from '../../helpers/wp-client';
 
 /**
  * Legacy helper method keys from fluent-wp-client v1 content wrappers.
  */
-const LEGACY_CONTENT_METHOD_KEYS = ['get', 'getContent', 'getBlocks', 'then'] as const;
+const LEGACY_CONTENT_METHOD_KEYS = [
+  'get',
+  'getContent',
+  'getBlocks',
+  'then',
+] as const;
 
 /**
  * Asserts one loader record data object is plain and serialization-safe.
@@ -120,7 +125,9 @@ describe('Static Loaders', () => {
         mapEntry: (entry, context) => ({
           ...entry,
           acf: {
-            ...(typeof entry.acf === 'object' && entry.acf !== null ? entry.acf : {}),
+            ...(typeof entry.acf === 'object' && entry.acf !== null
+              ? entry.acf
+              : {}),
             acf_subtitle: `${context.resource}:Mapped label`,
           },
         }),
@@ -144,10 +151,14 @@ describe('Static Loaders', () => {
         mapEntry: (entry) => ({
           ...entry,
           acf: {
-            ...(typeof entry.acf === 'object' && entry.acf !== null ? entry.acf : {}),
-            acf_project_status: choiceLabels
-              .get('acf_project_status')
-              ?.get(String(entry.acf?.acf_project_status)) ?? entry.acf?.acf_project_status,
+            ...(typeof entry.acf === 'object' && entry.acf !== null
+              ? entry.acf
+              : {}),
+            acf_project_status:
+              choiceLabels
+                .get('acf_project_status')
+                ?.get(String(entry.acf?.acf_project_status)) ??
+              entry.acf?.acf_project_status,
           },
         }),
       });
@@ -205,7 +216,9 @@ describe('Static Loaders', () => {
       await loader.load({ store, logger } as never);
 
       expect(entries.size).toBeGreaterThan(0);
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Loaded'));
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('Loaded'),
+      );
     });
 
     it('loads custom taxonomy static entries by resource', async () => {
@@ -304,8 +317,12 @@ describe('Static Loaders', () => {
       await loader.load({ store, logger } as never);
 
       expect(entries.size).toBeGreaterThan(0);
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('Loaded'));
-      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining('books'));
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('Loaded'),
+      );
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('books'),
+      );
     });
   });
 });

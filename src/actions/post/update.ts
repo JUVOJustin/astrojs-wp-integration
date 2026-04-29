@@ -1,19 +1,23 @@
-import { defineAction, type ActionAPIContext, type ActionClient } from 'astro:actions';
+import {
+  type ActionAPIContext,
+  type ActionClient,
+  defineAction,
+} from 'astro:actions';
 import { z } from 'astro/zod';
 import type { WordPressClient } from 'fluent-wp-client';
 import {
   type WordPressPost,
   type WordPressStandardSchema,
 } from 'fluent-wp-client/zod';
+import { validateActionResponse } from '../response-validation';
 import {
-  resolveRequiredActionClient,
-  withActionClient,
   type ActionResponseMapper,
   type ResolvableActionClient,
+  resolveRequiredActionClient,
+  withActionClient,
 } from './client';
-import { validateActionResponse } from '../response-validation';
-import { getDefaultContentResponseSchema } from './response-schema';
 import { createPostInputSchema } from './create';
+import { getDefaultContentResponseSchema } from './response-schema';
 
 /**
  * Full input schema for updating an existing WordPress post (or page / CPT).
@@ -45,7 +49,10 @@ export interface ExecuteUpdateOptions<T = WordPressPost> {
   /** Standard Schema-compatible parser used for the response (default: postSchema) */
   responseSchema?: WordPressStandardSchema<T>;
   /** Optional mapper for successful WordPress responses before validation/return */
-  mapResponse?: ActionResponseMapper<T, UpdatePostInput & Record<string, unknown>>;
+  mapResponse?: ActionResponseMapper<
+    T,
+    UpdatePostInput & Record<string, unknown>
+  >;
 }
 
 /**
@@ -62,14 +69,18 @@ export interface UpdatePostActionOptions<T = WordPressPost> {
   /** Optional parser override for the action response */
   responseSchema?: WordPressStandardSchema<T>;
   /** Optional mapper for successful WordPress responses before validation/return */
-  mapResponse?: ActionResponseMapper<T, UpdatePostInput & Record<string, unknown>>;
+  mapResponse?: ActionResponseMapper<
+    T,
+    UpdatePostInput & Record<string, unknown>
+  >;
 }
 
 /**
  * Shared non-auth options accepted by the update-post action factory.
  * At least one auth strategy is required because editing posts needs write access.
  */
-export type UpdatePostActionConfig<T = WordPressPost> = UpdatePostActionOptions<T>;
+export type UpdatePostActionConfig<T = WordPressPost> =
+  UpdatePostActionOptions<T>;
 
 type UpdatePostActionFactoryOptions<
   TResponse,
@@ -95,18 +106,25 @@ export async function executeUpdatePost<T = WordPressPost>(
 
   return withActionClient(client, async (resolvedClient) => {
     const { id, ...fields } = input;
-    const updated = await resolvedClient.content(resource).update(id, fields) as T;
+    const updated = (await resolvedClient
+      .content(resource)
+      .update(id, fields)) as T;
     const mapped = options?.mapResponse
       ? await options.mapResponse(updated, {
-        client: resolvedClient,
-        input,
-        operation: 'update',
-        resource,
-      })
+          client: resolvedClient,
+          input,
+          operation: 'update',
+          resource,
+        })
       : updated;
-    const responseSchema = (options?.responseSchema ?? getDefaultContentResponseSchema(resource)) as WordPressStandardSchema<T>;
+    const responseSchema = (options?.responseSchema ??
+      getDefaultContentResponseSchema(resource)) as WordPressStandardSchema<T>;
 
-    return validateActionResponse(mapped, responseSchema, `WordPress ${resource} update action`);
+    return validateActionResponse(
+      mapped,
+      responseSchema,
+      `WordPress ${resource} update action`,
+    );
   });
 }
 
@@ -130,11 +148,14 @@ export async function executeUpdatePost<T = WordPressPost>(
  */
 export function createUpdatePostAction<
   TResponse = WordPressPost,
-  TSchema extends typeof updatePostInputSchema = typeof updatePostInputSchema
->(client: ResolvableActionClient, options?: UpdatePostActionFactoryOptions<TResponse, TSchema>): ActionClient<TResponse, undefined, TSchema> & string;
+  TSchema extends typeof updatePostInputSchema = typeof updatePostInputSchema,
+>(
+  client: ResolvableActionClient,
+  options?: UpdatePostActionFactoryOptions<TResponse, TSchema>,
+): ActionClient<TResponse, undefined, TSchema> & string;
 export function createUpdatePostAction<
   TResponse = WordPressPost,
-  TSchema extends typeof updatePostInputSchema = typeof updatePostInputSchema
+  TSchema extends typeof updatePostInputSchema = typeof updatePostInputSchema,
 >(
   client: ResolvableActionClient,
   options?: UpdatePostActionFactoryOptions<TResponse, TSchema>,

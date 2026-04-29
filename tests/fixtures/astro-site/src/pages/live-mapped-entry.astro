@@ -2,10 +2,9 @@
 /** Runtime page validating mapper callbacks through a real Astro live collection. */
 import { getLiveEntry } from 'astro:content';
 
-const {
-  entry: post,
-  error,
-} = await getLiveEntry('liveMappedPosts', { slug: 'test-post-001' });
+const { entry: post, error } = await getLiveEntry('liveMappedPosts', {
+  slug: 'test-post-001',
+});
 ---
 
 <html lang="en">

@@ -5,13 +5,13 @@
  */
 import { defineCollection } from 'astro:content';
 import { WordPressClient } from 'fluent-wp-client';
-import { resolveWpBaseUrl } from '../../../helpers/wp-env';
 import {
-  wordPressPostStaticLoader,
-  wordPressPageStaticLoader,
   wordPressCategoryStaticLoader,
   wordPressContentStaticLoader,
+  wordPressPageStaticLoader,
+  wordPressPostStaticLoader,
 } from '../../../../src/loaders/static';
+import { resolveWpBaseUrl } from '../../../helpers/wp-env';
 import {
   booksItemSchema,
   categoriesItemSchema,

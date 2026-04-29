@@ -1,4 +1,4 @@
-import { ActionError, type ActionAPIContext } from 'astro:actions';
+import { type ActionAPIContext, ActionError } from 'astro:actions';
 import { z } from 'astro/zod';
 import type { WordPressClient } from 'fluent-wp-client';
 import { withActionClient } from '../post/client';
@@ -6,9 +6,11 @@ import { withActionClient } from '../post/client';
 /**
  * Shared input fields for cache invalidation actions.
  */
-export const invalidateCacheBaseSchema = z.object({
-  id: z.number().int().positive(),
-}).passthrough();
+export const invalidateCacheBaseSchema = z
+  .object({
+    id: z.number().int().positive(),
+  })
+  .passthrough();
 
 /**
  * Shared success payload returned by cache invalidation actions.
@@ -40,7 +42,10 @@ export function assertCacheEnabled(context: ActionAPIContext): void {
 /**
  * Resolves one WordPress post type to the REST resource slug used by the client.
  */
-export async function resolveContentResource(client: WordPressClient, postType: string): Promise<string> {
+export async function resolveContentResource(
+  client: WordPressClient,
+  postType: string,
+): Promise<string> {
   return withActionClient(client, async (resolvedClient) => {
     const response = await resolvedClient.request<RestResourceDefinition>({
       endpoint: `/wp-json/wp/v2/types/${postType}`,
@@ -62,7 +67,10 @@ export async function resolveContentResource(client: WordPressClient, postType: 
 /**
  * Resolves one WordPress taxonomy slug to the REST resource slug used by the client.
  */
-export async function resolveTermResource(client: WordPressClient, taxonomy: string): Promise<string> {
+export async function resolveTermResource(
+  client: WordPressClient,
+  taxonomy: string,
+): Promise<string> {
   return withActionClient(client, async (resolvedClient) => {
     const response = await resolvedClient.request<RestResourceDefinition>({
       endpoint: `/wp-json/wp/v2/taxonomies/${taxonomy}`,

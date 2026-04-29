@@ -1,10 +1,14 @@
-import { defineAction, type ActionAPIContext, type ActionClient } from 'astro:actions';
+import {
+  type ActionAPIContext,
+  type ActionClient,
+  defineAction,
+} from 'astro:actions';
 import { z } from 'astro/zod';
 import type { WordPressClient } from 'fluent-wp-client';
 import {
+  type ResolvableActionClient,
   resolveRequiredActionClient,
   withActionClient,
-  type ResolvableActionClient,
 } from './client';
 
 /**
@@ -64,7 +68,9 @@ export async function executeDeletePost(
   const resource = options?.resource ?? 'posts';
 
   return withActionClient(client, async (resolvedClient) => {
-    const result = await resolvedClient.content(resource).delete(input.id, { force: input.force });
+    const result = await resolvedClient
+      .content(resource)
+      .delete(input.id, { force: input.force });
     return { id: result.id, deleted: result.deleted };
   });
 }
@@ -77,7 +83,8 @@ export async function executeDeletePost(
 export function createDeletePostAction(
   client: ResolvableActionClient,
   options?: DeletePostActionOptions,
-): ActionClient<DeletePostResult, undefined, typeof deletePostInputSchema> & string {
+): ActionClient<DeletePostResult, undefined, typeof deletePostInputSchema> &
+  string {
   const resource = options?.resource;
 
   return defineAction({
@@ -87,5 +94,10 @@ export function createDeletePostAction(
       return executeDeletePost(resolvedClient, input, { resource });
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any) as ActionClient<DeletePostResult, undefined, typeof deletePostInputSchema> & string;
+  } as any) as ActionClient<
+    DeletePostResult,
+    undefined,
+    typeof deletePostInputSchema
+  > &
+    string;
 }
