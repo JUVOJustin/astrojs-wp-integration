@@ -1,8 +1,5 @@
-import { ActionError, type ActionAPIContext } from 'astro:actions';
-import {
-  WordPressHttpError,
-  WordPressClient,
-} from 'fluent-wp-client';
+import { type ActionAPIContext, ActionError } from 'astro:actions';
+import { WordPressClient, WordPressHttpError } from 'fluent-wp-client';
 
 type MaybePromise<T> = T | Promise<T>;
 

@@ -1,4 +1,8 @@
-import { defineAction, type ActionAPIContext, type ActionClient } from 'astro:actions';
+import {
+  type ActionAPIContext,
+  type ActionClient,
+  defineAction,
+} from 'astro:actions';
 import { z } from 'astro/zod';
 import type { WordPressClient } from 'fluent-wp-client';
 import {
@@ -7,9 +11,9 @@ import {
   type WordPressStandardSchema,
 } from 'fluent-wp-client';
 import {
+  type ResolvableActionClient,
   resolveRequiredActionClient,
   withActionClient,
-  type ResolvableActionClient,
 } from '../post/client';
 import { validateActionResponse } from '../response-validation';
 import { createTermInputSchema } from './create';
@@ -36,7 +40,8 @@ export interface ExecuteUpdateTermOptions<T = WordPressCategory> {
 /**
  * @deprecated Use `ExecuteUpdateTermOptions` instead.
  */
-export type ExecuteUpdateTermConfig<T = WordPressCategory> = ExecuteUpdateTermOptions<T>;
+export type ExecuteUpdateTermConfig<T = WordPressCategory> =
+  ExecuteUpdateTermOptions<T>;
 
 /**
  * Shared non-auth options accepted by the update-term action factory.
@@ -51,7 +56,8 @@ export interface UpdateTermActionOptions<T = WordPressCategory> {
 /**
  * @deprecated Use `UpdateTermActionOptions` instead.
  */
-export type UpdateTermActionConfig<T = WordPressCategory> = UpdateTermActionOptions<T>;
+export type UpdateTermActionConfig<T = WordPressCategory> =
+  UpdateTermActionOptions<T>;
 
 type UpdateTermActionFactoryOptions<
   TResponse,
@@ -71,9 +77,14 @@ export async function executeUpdateTerm<T = WordPressCategory>(
   return withActionClient(client, async (resolvedClient) => {
     const { id, ...fields } = input;
     const updated = await resolvedClient.terms(resource).update(id, fields);
-    const responseSchema = (options?.responseSchema ?? categorySchema) as WordPressStandardSchema<T>;
+    const responseSchema = (options?.responseSchema ??
+      categorySchema) as WordPressStandardSchema<T>;
 
-    return validateActionResponse(updated, responseSchema, `WordPress ${resource} update action`);
+    return validateActionResponse(
+      updated,
+      responseSchema,
+      `WordPress ${resource} update action`,
+    );
   });
 }
 

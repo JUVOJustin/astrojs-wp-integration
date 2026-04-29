@@ -1,19 +1,23 @@
-import { defineAction, type ActionAPIContext, type ActionClient } from 'astro:actions';
+import {
+  type ActionAPIContext,
+  type ActionClient,
+  defineAction,
+} from 'astro:actions';
 import { z } from 'astro/zod';
 import type { WordPressClient } from 'fluent-wp-client';
 import {
   postWriteBaseSchema,
   type WordPressPost,
-  type WordPressStandardSchema,
   type WordPressPostWriteBase,
+  type WordPressStandardSchema,
 } from 'fluent-wp-client/zod';
+import { validateActionResponse } from '../response-validation';
 import {
-  resolveRequiredActionClient,
-  withActionClient,
   type ActionResponseMapper,
   type ResolvableActionClient,
+  resolveRequiredActionClient,
+  withActionClient,
 } from './client';
-import { validateActionResponse } from '../response-validation';
 import { getDefaultContentResponseSchema } from './response-schema';
 
 /**
@@ -45,7 +49,10 @@ export interface ExecuteCreateOptions<T = WordPressPost> {
   /** Standard Schema-compatible parser used for the response (default: postSchema) */
   responseSchema?: WordPressStandardSchema<T>;
   /** Optional mapper for successful WordPress responses before validation/return */
-  mapResponse?: ActionResponseMapper<T, CreatePostInput & Record<string, unknown>>;
+  mapResponse?: ActionResponseMapper<
+    T,
+    CreatePostInput & Record<string, unknown>
+  >;
 }
 
 /**
@@ -62,13 +69,17 @@ export interface CreatePostActionOptions<T = WordPressPost> {
   /** Optional parser override for the action response */
   responseSchema?: WordPressStandardSchema<T>;
   /** Optional mapper for successful WordPress responses before validation/return */
-  mapResponse?: ActionResponseMapper<T, CreatePostInput & Record<string, unknown>>;
+  mapResponse?: ActionResponseMapper<
+    T,
+    CreatePostInput & Record<string, unknown>
+  >;
 }
 
 /**
  * @deprecated Use `CreatePostActionOptions` instead.
  */
-export type CreatePostActionConfig<T = WordPressPost> = CreatePostActionOptions<T>;
+export type CreatePostActionConfig<T = WordPressPost> =
+  CreatePostActionOptions<T>;
 
 type CreatePostActionFactoryOptions<
   TResponse,
@@ -93,18 +104,25 @@ export async function executeCreatePost<T = WordPressPost>(
   const resource = options?.resource ?? 'posts';
 
   return withActionClient(client, async (resolvedClient) => {
-    const created = await resolvedClient.content(resource).create(input as WordPressPostWriteBase) as T;
+    const created = (await resolvedClient
+      .content(resource)
+      .create(input as WordPressPostWriteBase)) as T;
     const mapped = options?.mapResponse
       ? await options.mapResponse(created, {
-        client: resolvedClient,
-        input,
-        operation: 'create',
-        resource,
-      })
+          client: resolvedClient,
+          input,
+          operation: 'create',
+          resource,
+        })
       : created;
-    const responseSchema = (options?.responseSchema ?? getDefaultContentResponseSchema(resource)) as WordPressStandardSchema<T>;
+    const responseSchema = (options?.responseSchema ??
+      getDefaultContentResponseSchema(resource)) as WordPressStandardSchema<T>;
 
-    return validateActionResponse(mapped, responseSchema, `WordPress ${resource} create action`);
+    return validateActionResponse(
+      mapped,
+      responseSchema,
+      `WordPress ${resource} create action`,
+    );
   });
 }
 
@@ -127,11 +145,14 @@ export async function executeCreatePost<T = WordPressPost>(
  */
 export function createCreatePostAction<
   TResponse = WordPressPost,
-  TSchema extends typeof createPostInputSchema = typeof createPostInputSchema
->(client: ResolvableActionClient, options?: CreatePostActionFactoryOptions<TResponse, TSchema>): ActionClient<TResponse, undefined, TSchema> & string;
+  TSchema extends typeof createPostInputSchema = typeof createPostInputSchema,
+>(
+  client: ResolvableActionClient,
+  options?: CreatePostActionFactoryOptions<TResponse, TSchema>,
+): ActionClient<TResponse, undefined, TSchema> & string;
 export function createCreatePostAction<
   TResponse = WordPressPost,
-  TSchema extends typeof createPostInputSchema = typeof createPostInputSchema
+  TSchema extends typeof createPostInputSchema = typeof createPostInputSchema,
 >(
   client: ResolvableActionClient,
   options?: CreatePostActionFactoryOptions<TResponse, TSchema>,

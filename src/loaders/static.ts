@@ -10,8 +10,8 @@ import type {
 } from 'fluent-wp-client';
 import { WordPressClient } from 'fluent-wp-client';
 import type {
-  WordPressEntryMappingOptions,
   WordPressContentStaticLoaderOptions,
+  WordPressEntryMappingOptions,
   WordPressTermStaticLoaderOptions,
 } from './types';
 
@@ -242,7 +242,9 @@ export function wordPressUserStaticLoader(
  * Creates a static loader for custom WordPress content resources (CPTs).
  * Aligns with fluent-wp-client's content(resource) naming.
  */
-export function wordPressContentStaticLoader<TEntry extends WordPressPostLike = WordPressPost>(
+export function wordPressContentStaticLoader<
+  TEntry extends WordPressPostLike = WordPressPost,
+>(
   client: WordPressClient,
   options: WordPressContentStaticLoaderOptions<TEntry>,
 ): Loader {

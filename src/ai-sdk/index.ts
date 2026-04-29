@@ -1,31 +1,6 @@
 /**
  * Astro-specific AI SDK helpers plus pass-through exports from fluent-wp-client.
  */
-export {
-  createAbilityTools,
-  deleteContentTool,
-  deleteResourceTool,
-  deleteTermTool,
-  describeResourceTool,
-  executeDeleteAbilityTool,
-  executeGetAbilityTool,
-  executeRunAbilityTool,
-  getAbilitiesTool,
-  getAbilityTool,
-  getBlocksTool,
-  getContentCollectionTool,
-  getContentTool,
-  getResourceCollectionTool,
-  getResourceTool,
-  getSettingsTool,
-  getTermCollectionTool,
-  getTermTool,
-  saveContentTool,
-  saveResourceTool,
-  saveTermTool,
-  setBlocksTool,
-  updateSettingsTool,
-} from 'fluent-wp-client/ai-sdk';
 
 export type {
   AbilityToolFactoryOptions,
@@ -57,13 +32,36 @@ export type {
   ToolFactoryOptions,
   WordPressAIToolErrorResult,
 } from 'fluent-wp-client/ai-sdk';
-
 export {
-  getLiveContentCollectionTool,
-  getLiveContentTool,
-} from './live-content';
-
+  createAbilityTools,
+  deleteContentTool,
+  deleteResourceTool,
+  deleteTermTool,
+  describeResourceTool,
+  executeDeleteAbilityTool,
+  executeGetAbilityTool,
+  executeRunAbilityTool,
+  getAbilitiesTool,
+  getAbilityTool,
+  getBlocksTool,
+  getContentCollectionTool,
+  getContentTool,
+  getResourceCollectionTool,
+  getResourceTool,
+  getSettingsTool,
+  getTermCollectionTool,
+  getTermTool,
+  saveContentTool,
+  saveResourceTool,
+  saveTermTool,
+  setBlocksTool,
+  updateSettingsTool,
+} from 'fluent-wp-client/ai-sdk';
 export type {
   AstroLiveContentCollectionToolOptions,
   AstroLiveContentToolOptions,
+} from './live-content';
+export {
+  getLiveContentCollectionTool,
+  getLiveContentTool,
 } from './live-content';

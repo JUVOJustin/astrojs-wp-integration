@@ -6,22 +6,19 @@
  */
 import { getLiveEntry } from 'astro:content';
 
-const {
-  entry: post,
-  error: postError,
-} = await getLiveEntry('livePosts', { slug: 'test-post-001' });
-const {
-  entry: page,
-  error: pageError,
-} = await getLiveEntry('livePages', { slug: 'about' });
-const {
-  entry: category,
-  error: categoryError,
-} = await getLiveEntry('liveCategories', { slug: 'technology' });
-const {
-  entry: book,
-  error: bookError,
-} = await getLiveEntry('liveBooks', { slug: 'test-book-001' });
+const { entry: post, error: postError } = await getLiveEntry('livePosts', {
+  slug: 'test-post-001',
+});
+const { entry: page, error: pageError } = await getLiveEntry('livePages', {
+  slug: 'about',
+});
+const { entry: category, error: categoryError } = await getLiveEntry(
+  'liveCategories',
+  { slug: 'technology' },
+);
+const { entry: book, error: bookError } = await getLiveEntry('liveBooks', {
+  slug: 'test-book-001',
+});
 ---
 
 <html lang="en">

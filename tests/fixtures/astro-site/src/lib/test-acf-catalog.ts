@@ -3,7 +3,10 @@ import type { WordPressClient } from 'fluent-wp-client';
 /**
  * Seeds fixture discovery metadata so mapper tests exercise the catalog path.
  */
-export function useTestAcfChoiceCatalog(client: WordPressClient, resource: string): WordPressClient {
+export function useTestAcfChoiceCatalog(
+  client: WordPressClient,
+  resource: string,
+): WordPressClient {
   return client.useCatalog({
     abilities: {},
     resources: {},

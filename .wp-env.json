@@ -1,18 +1,18 @@
 {
-	"core": null,
-	"phpVersion": "8.2",
-	"autoPort": true,
-	"plugins": [],
-	"config": {
-		"WP_ENVIRONMENT_TYPE": "development",
-		"JWT_AUTH_SECRET_KEY": "wp-astrojs-integration-jwt-test-secret",
-		"JWT_AUTH_CORS_ENABLE": true
-	},
-	"mappings": {
-		"wp-content/mu-plugins": "./tests/wp-env/mu-plugins",
-		"wp-content/seed-content.php": "./tests/wp-env/seed-content.php"
-	},
-	"lifecycleScripts": {
-		"afterStart": "npx wp-env run cli -- wp rewrite structure '/%postname%/' --hard && (npx wp-env run cli -- wp plugin is-installed advanced-custom-fields && npx wp-env run cli -- wp plugin activate advanced-custom-fields || npx wp-env run cli -- wp plugin install --activate advanced-custom-fields) && (npx wp-env run cli -- wp plugin is-installed jwt-authentication-for-wp-rest-api && npx wp-env run cli -- wp plugin activate jwt-authentication-for-wp-rest-api || npx wp-env run cli -- wp plugin install --activate jwt-authentication-for-wp-rest-api) && npx wp-env run cli -- wp eval-file wp-content/seed-content.php"
-	}
+  "core": null,
+  "phpVersion": "8.2",
+  "autoPort": true,
+  "plugins": [],
+  "config": {
+    "WP_ENVIRONMENT_TYPE": "development",
+    "JWT_AUTH_SECRET_KEY": "wp-astrojs-integration-jwt-test-secret",
+    "JWT_AUTH_CORS_ENABLE": true
+  },
+  "mappings": {
+    "wp-content/mu-plugins": "./tests/wp-env/mu-plugins",
+    "wp-content/seed-content.php": "./tests/wp-env/seed-content.php"
+  },
+  "lifecycleScripts": {
+    "afterStart": "npx wp-env run cli -- wp rewrite structure '/%postname%/' --hard && (npx wp-env run cli -- wp plugin is-installed advanced-custom-fields && npx wp-env run cli -- wp plugin activate advanced-custom-fields || npx wp-env run cli -- wp plugin install --activate advanced-custom-fields) && (npx wp-env run cli -- wp plugin is-installed jwt-authentication-for-wp-rest-api && npx wp-env run cli -- wp plugin activate jwt-authentication-for-wp-rest-api || npx wp-env run cli -- wp plugin install --activate jwt-authentication-for-wp-rest-api) && npx wp-env run cli -- wp eval-file wp-content/seed-content.php"
+  }
 }

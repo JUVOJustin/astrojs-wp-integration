@@ -5,43 +5,37 @@
  * can inject credentials at runtime. The dev server resolves these through
  * `import.meta.env` which Vite populates from process.env.
  */
-import { defineAction, type ActionAPIContext } from 'astro:actions';
-import {
-  createCreatePostAction,
-  createUpdatePostAction,
-  createDeletePostAction,
-  createPostInputSchema,
-  updatePostInputSchema,
-  createCreateTermAction,
-  createUpdateTermAction,
-  createDeleteTermAction,
-  createWpCacheInvalidateAction,
-  createTermInputSchema,
-  updateTermInputSchema,
-  createCreateUserAction,
-  createUpdateUserAction,
-  createDeleteUserAction,
-  createUserInputSchema,
-  updateUserInputSchema,
-  createGetAbilityAction,
-  createRunAbilityAction,
-  createDeleteAbilityAction,
-} from '../../../../../src/actions';
-import { createWordPressAuthBridge } from '../../../../../src/server/auth';
-import {
-  WordPressClient,
-  createAuthResolver,
-  pageSchema,
-  contentWordPressSchema,
-  categorySchema,
-} from 'fluent-wp-client';
+import { type ActionAPIContext, defineAction } from 'astro:actions';
 import { z } from 'astro/zod';
 import {
-  getRouteCacheMetrics,
-  resetRouteCacheMetrics,
-} from '../lib/wp-fetch-metrics';
-import { createAcfChoiceLabelMapper } from '../lib/acf-choice-label-mapper';
-import { useTestAcfChoiceCatalog } from '../lib/test-acf-catalog';
+  categorySchema,
+  contentWordPressSchema,
+  createAuthResolver,
+  pageSchema,
+  WordPressClient,
+} from 'fluent-wp-client';
+import {
+  createCreatePostAction,
+  createCreateTermAction,
+  createCreateUserAction,
+  createDeleteAbilityAction,
+  createDeletePostAction,
+  createDeleteTermAction,
+  createDeleteUserAction,
+  createGetAbilityAction,
+  createPostInputSchema,
+  createRunAbilityAction,
+  createTermInputSchema,
+  createUpdatePostAction,
+  createUpdateTermAction,
+  createUpdateUserAction,
+  createUserInputSchema,
+  createWpCacheInvalidateAction,
+  updatePostInputSchema,
+  updateTermInputSchema,
+  updateUserInputSchema,
+} from '../../../../../src/actions';
+import { createWordPressAuthBridge } from '../../../../../src/server/auth';
 import {
   booksCreateSchema,
   booksItemSchema,
@@ -53,6 +47,12 @@ import {
   postsItemSchema,
   postsUpdateSchema,
 } from '../generated/wp-schemas';
+import { createAcfChoiceLabelMapper } from '../lib/acf-choice-label-mapper';
+import { useTestAcfChoiceCatalog } from '../lib/test-acf-catalog';
+import {
+  getRouteCacheMetrics,
+  resetRouteCacheMetrics,
+} from '../lib/wp-fetch-metrics';
 
 const baseUrl = import.meta.env.WP_BASE_URL ?? 'http://localhost:8888';
 const bridge = createWordPressAuthBridge({ baseUrl });
@@ -101,14 +101,19 @@ function createCookieReader(cookieName: string, token?: string): CookieReader {
 }
 
 const requestClient = requestHeaderBridge.getClient;
-const mappingClient = useTestAcfChoiceCatalog(new WordPressClient({ baseUrl }), 'posts');
+const mappingClient = useTestAcfChoiceCatalog(
+  new WordPressClient({ baseUrl }),
+  'posts',
+);
 const mapAcfChoiceLabels = createAcfChoiceLabelMapper(mappingClient);
 
 /* ── Post actions ────────────────────────────────────── */
 
 const createPost = createCreatePostAction(requestClient);
 
-const createPostWithBridgeClient = createCreatePostAction(requestHeaderBridge.getClient);
+const createPostWithBridgeClient = createCreatePostAction(
+  requestHeaderBridge.getClient,
+);
 
 const createPostCustomSchema = createCreatePostAction(requestClient, {
   schema: postsCreateSchema.extend({
@@ -118,19 +123,23 @@ const createPostCustomSchema = createCreatePostAction(requestClient, {
 
 const createPostAcf = createCreatePostAction(requestClient, {
   schema: createPostInputSchema.extend({
-    acf: z.object({
-      acf_subtitle: z.string().optional(),
-      acf_priority_score: z.number().int().min(0).max(100).optional(),
-      acf_project_status: z.string().optional(),
-    }).optional(),
+    acf: z
+      .object({
+        acf_subtitle: z.string().optional(),
+        acf_priority_score: z.number().int().min(0).max(100).optional(),
+        acf_project_status: z.string().optional(),
+      })
+      .optional(),
   }),
 });
 
 const createPostAcfMapped = createCreatePostAction(requestClient, {
   schema: createPostInputSchema.extend({
-    acf: z.object({
-      acf_project_status: z.string().optional(),
-    }).optional(),
+    acf: z
+      .object({
+        acf_project_status: z.string().optional(),
+      })
+      .optional(),
   }),
   mapResponse: mapAcfChoiceLabels,
 });
@@ -153,19 +162,23 @@ const updatePostCustomSchema = createUpdatePostAction(requestClient, {
 
 const updatePostAcf = createUpdatePostAction(requestClient, {
   schema: updatePostInputSchema.extend({
-    acf: z.object({
-      acf_subtitle: z.string().optional(),
-      acf_priority_score: z.number().int().min(0).max(100).optional(),
-      acf_project_status: z.string().optional(),
-    }).optional(),
+    acf: z
+      .object({
+        acf_subtitle: z.string().optional(),
+        acf_priority_score: z.number().int().min(0).max(100).optional(),
+        acf_project_status: z.string().optional(),
+      })
+      .optional(),
   }),
 });
 
 const updatePostAcfMapped = createUpdatePostAction(requestClient, {
   schema: updatePostInputSchema.extend({
-    acf: z.object({
-      acf_project_status: z.string().optional(),
-    }).optional(),
+    acf: z
+      .object({
+        acf_project_status: z.string().optional(),
+      })
+      .optional(),
   }),
   mapResponse: mapAcfChoiceLabels,
 });
@@ -252,7 +265,9 @@ const updateCategory = createUpdateTermAction(requestClient, {
   }),
 });
 
-const deleteCategory = createDeleteTermAction(requestClient, { resource: 'categories' });
+const deleteCategory = createDeleteTermAction(requestClient, {
+  resource: 'categories',
+});
 
 const createTag = createCreateTermAction(requestClient, {
   resource: 'tags',
@@ -270,7 +285,9 @@ const createGenre = createCreateTermAction(requestClient, {
   }),
 });
 
-const deleteGenre = createDeleteTermAction(requestClient, { resource: 'genres' });
+const deleteGenre = createDeleteTermAction(requestClient, {
+  resource: 'genres',
+});
 
 const wpCacheInvalidate = createWpCacheInvalidateAction(requestClient);
 
@@ -307,9 +324,12 @@ const getAbility = createGetAbilityAction(requestClient, {
   responseSchema: z.object({ title: z.string().min(1) }),
 });
 
-const getAbilityWithBridgeClient = createGetAbilityAction(requestHeaderBridge.getClient, {
-  responseSchema: z.object({ title: z.string().min(1) }),
-});
+const getAbilityWithBridgeClient = createGetAbilityAction(
+  requestHeaderBridge.getClient,
+  {
+    responseSchema: z.object({ title: z.string().min(1) }),
+  },
+);
 
 const runAbility = createRunAbilityAction(requestClient, {
   responseSchema: z.object({ current: z.string().min(1) }),
@@ -377,7 +397,9 @@ const authBridgeResolveUserBySessionId = defineAction({
 const authBridgeResolveUserBySessionIdUnreachable = defineAction({
   input: tokenInputSchema,
   handler: async ({ token }) => {
-    const unreachableBridge = createWordPressAuthBridge({ baseUrl: 'http://127.0.0.1:9' });
+    const unreachableBridge = createWordPressAuthBridge({
+      baseUrl: 'http://127.0.0.1:9',
+    });
     return unreachableBridge.resolveUserBySessionId(token);
   },
 });
@@ -386,7 +408,10 @@ const authBridgeResolveUser = defineAction({
   input: tokenInputSchema,
   handler: async ({ token }) => {
     const user = await bridge.resolveUser({
-      cookies: createCookieReader(bridge.cookieName, token) as ActionAPIContext['cookies'],
+      cookies: createCookieReader(
+        bridge.cookieName,
+        token,
+      ) as ActionAPIContext['cookies'],
       request: new Request('http://localhost'),
     });
 
@@ -404,7 +429,10 @@ const authBridgeResolveUserIgnoringStaticFallback = defineAction({
   input: z.object({ token: z.string().optional() }),
   handler: async ({ token }) => {
     const user = await staticBridge.resolveUser({
-      cookies: createCookieReader(staticBridge.cookieName, token) as ActionAPIContext['cookies'],
+      cookies: createCookieReader(
+        staticBridge.cookieName,
+        token,
+      ) as ActionAPIContext['cookies'],
       request: new Request('http://localhost'),
     });
 
@@ -421,12 +449,18 @@ const authBridgeResolveUserIgnoringStaticFallback = defineAction({
 const authBridgeResolveUserWithOptInStaticFallback = defineAction({
   input: z.object({ token: z.string().optional() }),
   handler: async ({ token }) => {
-    const client = await staticBridge.getClient({
-      cookies: createCookieReader(staticBridge.cookieName, token) as ActionAPIContext['cookies'],
-      request: new Request('http://localhost'),
-    }, {
-      allowStaticAuthFallback: true,
-    });
+    const client = await staticBridge.getClient(
+      {
+        cookies: createCookieReader(
+          staticBridge.cookieName,
+          token,
+        ) as ActionAPIContext['cookies'],
+        request: new Request('http://localhost'),
+      },
+      {
+        allowStaticAuthFallback: true,
+      },
+    );
 
     if (!client) {
       return null;
@@ -442,15 +476,20 @@ const authBridgeResolveUserWithOptInStaticFallback = defineAction({
 
 const authBridgeRespectsPerCallAuthHeaders = defineAction({
   handler: async () => {
-    const client = await staticInvalidAuthHeadersBridge.getClient({
-      cookies: createCookieReader(staticInvalidAuthHeadersBridge.cookieName) as ActionAPIContext['cookies'],
-      request: new Request('http://localhost'),
-    }, {
-      allowStaticAuthFallback: true,
-      authHeaders: () => ({
-        Authorization: `Basic ${btoa(`admin:${import.meta.env.WP_APP_PASSWORD ?? ''}`)}`,
-      }),
-    });
+    const client = await staticInvalidAuthHeadersBridge.getClient(
+      {
+        cookies: createCookieReader(
+          staticInvalidAuthHeadersBridge.cookieName,
+        ) as ActionAPIContext['cookies'],
+        request: new Request('http://localhost'),
+      },
+      {
+        allowStaticAuthFallback: true,
+        authHeaders: () => ({
+          Authorization: `Basic ${btoa(`admin:${import.meta.env.WP_APP_PASSWORD ?? ''}`)}`,
+        }),
+      },
+    );
 
     if (!client) {
       return null;
@@ -466,10 +505,14 @@ const authBridgeRespectsPerCallAuthHeaders = defineAction({
 
 const authBridgeIsAuthenticated = defineAction({
   input: z.object({ token: z.string().optional() }),
-  handler: async ({ token }) => bridge.isAuthenticated({
-    cookies: createCookieReader(bridge.cookieName, token) as ActionAPIContext['cookies'],
-    request: new Request('http://localhost'),
-  }),
+  handler: async ({ token }) =>
+    bridge.isAuthenticated({
+      cookies: createCookieReader(
+        bridge.cookieName,
+        token,
+      ) as ActionAPIContext['cookies'],
+      request: new Request('http://localhost'),
+    }),
 });
 
 const getCurrentUserProfile = defineAction({

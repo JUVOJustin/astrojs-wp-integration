@@ -1,8 +1,9 @@
 import { execSync } from 'child_process';
-import { writeFileSync, unlinkSync } from 'fs';
-import { fileURLToPath } from 'url';
+import { unlinkSync, writeFileSync } from 'fs';
 import { dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
 import { resolveWpBaseUrl } from '../helpers/wp-env';
+
 /** DevServer type imported at runtime to avoid TS resolution issues in globalSetup context. */
 interface AstroDevServer {
   address: { port: number };
@@ -10,10 +11,16 @@ interface AstroDevServer {
 }
 
 /** Temp file used to pass env vars from globalSetup to test workers */
-const ENV_FILE = resolve(dirname(fileURLToPath(import.meta.url)), '../../.test-env.json');
+const ENV_FILE = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../.test-env.json',
+);
 
 /** Astro fixture project root for action integration tests */
-const ASTRO_FIXTURE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../fixtures/astro-site');
+const ASTRO_FIXTURE_ROOT = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../fixtures/astro-site',
+);
 
 /** Port hint for the Astro dev server. `0` asks the OS for one free port. */
 const ASTRO_DEV_PORT = 0;
@@ -41,14 +48,16 @@ function wpCli(command: string): string {
  * only the actual command stdout
  */
 function stripWpEnvOutput(raw: string): string {
-  const lines = raw.split('\n').filter(
-    (line) =>
-      line.trim() !== '' &&
-      !line.startsWith('ℹ') &&
-      !line.startsWith('✔') &&
-      !line.startsWith('\u2139') &&
-      !line.startsWith('\u2714')
-  );
+  const lines = raw
+    .split('\n')
+    .filter(
+      (line) =>
+        line.trim() !== '' &&
+        !line.startsWith('ℹ') &&
+        !line.startsWith('✔') &&
+        !line.startsWith('\u2139') &&
+        !line.startsWith('\u2714'),
+    );
 
   return lines.join('\n').trim();
 }
@@ -57,7 +66,9 @@ function stripWpEnvOutput(raw: string): string {
  * Generates an application password for the admin user
  */
 function createAppPassword(): string {
-  const raw = wpCli(`user application-password create ${DEFAULT_ADMIN_USERNAME} vitest --porcelain`);
+  const raw = wpCli(
+    `user application-password create ${DEFAULT_ADMIN_USERNAME} vitest --porcelain`,
+  );
   // Output format: "<password> <id>" — we need just the password (first token)
   return raw.split(/\s+/)[0];
 }
@@ -66,7 +77,9 @@ function createAppPassword(): string {
  * Keeps the local admin password deterministic so JWT auth setup stays stable.
  */
 function resetAdminPassword(): void {
-  wpCli(`user update ${DEFAULT_ADMIN_USERNAME} --user_pass=${DEFAULT_ADMIN_PASSWORD}`);
+  wpCli(
+    `user update ${DEFAULT_ADMIN_USERNAME} --user_pass=${DEFAULT_ADMIN_PASSWORD}`,
+  );
 }
 
 /**
@@ -129,7 +142,9 @@ function getSetCookieHeaders(response: Response): string[] {
 /**
  * Creates one logged-in cookie + REST nonce pair through a real wp-admin login flow.
  */
-async function createCookieAuthSession(baseUrl: string): Promise<{ cookieHeader: string; restNonce: string }> {
+async function createCookieAuthSession(
+  baseUrl: string,
+): Promise<{ cookieHeader: string; restNonce: string }> {
   const preflightResponse = await fetch(`${baseUrl}/wp-login.php`, {
     redirect: 'manual',
   });
@@ -162,7 +177,9 @@ async function createCookieAuthSession(baseUrl: string): Promise<{ cookieHeader:
   ];
 
   if (setCookies.length === 0) {
-    throw new Error('Failed to create cookie auth session during global setup (missing Set-Cookie headers).');
+    throw new Error(
+      'Failed to create cookie auth session during global setup (missing Set-Cookie headers).',
+    );
   }
 
   const cookieHeader = setCookies
@@ -171,7 +188,9 @@ async function createCookieAuthSession(baseUrl: string): Promise<{ cookieHeader:
     .join('; ');
 
   if (!cookieHeader) {
-    throw new Error('Failed to create cookie auth session during global setup (empty cookie header).');
+    throw new Error(
+      'Failed to create cookie auth session during global setup (empty cookie header).',
+    );
   }
 
   const adminResponse = await fetch(`${baseUrl}/wp-admin/`, {
@@ -185,7 +204,9 @@ async function createCookieAuthSession(baseUrl: string): Promise<{ cookieHeader:
   const restNonce = nonceMatch?.[1];
 
   if (!restNonce) {
-    throw new Error('Failed to extract wpApiSettings nonce during global setup.');
+    throw new Error(
+      'Failed to extract wpApiSettings nonce during global setup.',
+    );
   }
 
   return {
@@ -238,11 +259,11 @@ export async function setup(): Promise<void> {
 
   console.log('[global-setup] Starting Astro dev server...');
   const { dev } = await import('astro');
-  astroDevServer = await dev({
+  astroDevServer = (await dev({
     root: ASTRO_FIXTURE_ROOT,
     server: { port: ASTRO_DEV_PORT },
     logLevel: 'silent',
-  }) as AstroDevServer;
+  })) as AstroDevServer;
 
   const astroDevUrl = `http://localhost:${astroDevServer.address.port}`;
   envData.ASTRO_DEV_URL = astroDevUrl;

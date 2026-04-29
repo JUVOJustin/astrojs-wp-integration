@@ -7,17 +7,17 @@
  */
 import { z } from 'astro/zod';
 import {
+  createPostInputSchema,
+  createTermInputSchema,
+  updatePostInputSchema,
+  updateTermInputSchema,
+} from '../../../../../src/actions';
+import {
   categorySchema,
   contentWordPressSchema,
   pageSchema,
   postSchema,
 } from '../../../../../src/index';
-import {
-  createPostInputSchema,
-  updatePostInputSchema,
-  createTermInputSchema,
-  updateTermInputSchema,
-} from '../../../../../src/actions';
 
 export const postsItemSchema = postSchema;
 export const postsCreateSchema = createPostInputSchema;
@@ -36,34 +36,40 @@ export const categoriesUpdateSchema = updateTermInputSchema;
  * fields such as `sticky` and `format`.
  */
 export const booksItemSchema = contentWordPressSchema.extend({
-  acf: z.object({
-    acf_subtitle: z.string().nullable().optional(),
-    acf_summary: z.string().nullable().optional(),
-    acf_priority_score: z.preprocess(
-      (value) => value === '' ? null : value,
-      z.number().nullable().optional(),
-    ),
-    acf_external_url: z.preprocess(
-      (value) => value === '' ? null : value,
-      z.string().url().nullable().optional(),
-    ),
-    acf_related_posts: z.array(z.any()).nullable().optional(),
-    acf_featured_post: z.any().nullable().optional(),
-  }).optional(),
+  acf: z
+    .object({
+      acf_subtitle: z.string().nullable().optional(),
+      acf_summary: z.string().nullable().optional(),
+      acf_priority_score: z.preprocess(
+        (value) => (value === '' ? null : value),
+        z.number().nullable().optional(),
+      ),
+      acf_external_url: z.preprocess(
+        (value) => (value === '' ? null : value),
+        z.string().url().nullable().optional(),
+      ),
+      acf_related_posts: z.array(z.any()).nullable().optional(),
+      acf_featured_post: z.any().nullable().optional(),
+    })
+    .optional(),
 });
 
 export const booksCreateSchema = createPostInputSchema.extend({
-  acf: z.object({
-    acf_subtitle: z.string().optional(),
-    acf_priority_score: z.number().int().min(0).max(100).optional(),
-  }).optional(),
+  acf: z
+    .object({
+      acf_subtitle: z.string().optional(),
+      acf_priority_score: z.number().int().min(0).max(100).optional(),
+    })
+    .optional(),
   custom_note: z.string().min(3).optional(),
 });
 
 export const booksUpdateSchema = updatePostInputSchema.extend({
-  acf: z.object({
-    acf_subtitle: z.string().optional(),
-    acf_priority_score: z.number().int().min(0).max(100).optional(),
-  }).optional(),
+  acf: z
+    .object({
+      acf_subtitle: z.string().optional(),
+      acf_priority_score: z.number().int().min(0).max(100).optional(),
+    })
+    .optional(),
   custom_note: z.string().optional(),
 });

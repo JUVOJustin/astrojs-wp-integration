@@ -28,7 +28,8 @@ import {
 const baseUrl = resolveWpBaseUrl();
 const wp = new WordPressClient({
   baseUrl,
-  fetch: process.env.ASTRO_TEST_ROUTE_CACHE === '1' ? trackedWordPressFetch : fetch,
+  fetch:
+    process.env.ASTRO_TEST_ROUTE_CACHE === '1' ? trackedWordPressFetch : fetch,
 });
 const cataloguedWp = useTestAcfChoiceCatalog(wp, 'posts');
 const mapAcfChoiceLabels = createAcfChoiceLabelMapper(cataloguedWp);
