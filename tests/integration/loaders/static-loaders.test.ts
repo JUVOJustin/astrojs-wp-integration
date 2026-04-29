@@ -241,6 +241,21 @@ describe('Static Loaders', () => {
         expect(entry.rendered).toBeUndefined();
       }
     });
+
+    it('does not expose private user fields (e.g. email) through public client static loading', async () => {
+      const loader = wordPressUserStaticLoader(createClient());
+      const { store, entries } = createMockStore();
+      const logger = createMockLogger();
+
+      await loader.load({ store, logger } as never);
+
+      expect(entries.size).toBeGreaterThan(0);
+      for (const entry of entries.values()) {
+        const data = entry.data as Record<string, unknown>;
+        // WordPress REST API hides email from unauthenticated requests
+        expect(data.email).toBeUndefined();
+      }
+    });
   });
 
   describe('wordPressContentStaticLoader', () => {

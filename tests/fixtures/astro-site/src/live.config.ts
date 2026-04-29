@@ -6,6 +6,7 @@
  */
 import { defineLiveCollection } from 'astro:content';
 import { WordPressClient } from 'fluent-wp-client';
+import { z } from 'astro/zod';
 import { resolveWpBaseUrl } from '../../../helpers/wp-env';
 import { trackedWordPressFetch } from './lib/wp-fetch-metrics';
 import { createAcfChoiceLabelMapper } from './lib/acf-choice-label-mapper';
@@ -15,6 +16,7 @@ import {
   wordPressContentLoader,
   wordPressPageLoader,
   wordPressPostLoader,
+  wordPressUserLoader,
 } from '../../../../src/loaders/live';
 import {
   booksItemSchema,
@@ -63,10 +65,21 @@ const liveBooks = defineLiveCollection({
   schema: booksItemSchema,
 });
 
+/** Live user collection loaded at request time. */
+const liveUsers = defineLiveCollection({
+  loader: wordPressUserLoader(wp),
+  schema: z.object({
+    id: z.union([z.number(), z.string()]),
+    name: z.string().optional(),
+    slug: z.string().optional(),
+  }).passthrough(),
+});
+
 export const collections = {
   livePosts,
   liveMappedPosts,
   livePages,
   liveCategories,
   liveBooks,
+  liveUsers,
 };

@@ -472,6 +472,20 @@ const authBridgeIsAuthenticated = defineAction({
   }),
 });
 
+const getCurrentUserProfile = defineAction({
+  handler: async (_input, context) => {
+    const client = await requestClient(context);
+    const user = await client.users().me();
+
+    return {
+      id: user.id,
+      slug: user.slug,
+      email: user.email,
+      name: user.name,
+    };
+  },
+});
+
 const emptyObjectSchema = z.object({});
 
 const routeCacheMetricsGet = defineAction({
@@ -539,6 +553,7 @@ export const server = {
   authBridgeResolveUserWithOptInStaticFallback,
   authBridgeRespectsPerCallAuthHeaders,
   authBridgeIsAuthenticated,
+  getCurrentUserProfile,
   routeCacheMetricsGet,
   routeCacheMetricsReset,
 };
