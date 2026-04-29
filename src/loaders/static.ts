@@ -1,6 +1,16 @@
 import type { Loader } from 'astro/loaders';
+import type {
+  WordPressAuthor,
+  WordPressCategory,
+  WordPressMedia,
+  WordPressPage,
+  WordPressPost,
+  WordPressPostLike,
+  WordPressTag,
+} from 'fluent-wp-client';
 import { WordPressClient } from 'fluent-wp-client';
 import type {
+  WordPressEntryMappingOptions,
   WordPressContentStaticLoaderOptions,
   WordPressTermStaticLoaderOptions,
 } from './types';
@@ -16,7 +26,7 @@ type IdentifiableEntry = {
  * Shared shape for content entries that expose rendered HTML.
  */
 type RenderableEntry = IdentifiableEntry & {
-  content: {
+  content?: {
     rendered: string;
   };
 };
@@ -27,7 +37,9 @@ type RenderableEntry = IdentifiableEntry & {
 interface StaticLoaderDefinition<TEntry extends IdentifiableEntry> {
   name: string;
   logLabel: string;
+  resource: string;
   loadEntries: (client: WordPressClient) => Promise<TEntry[]>;
+  mapEntry?: WordPressEntryMappingOptions<TEntry>['mapEntry'];
   renderHtml?: (entry: TEntry) => string | undefined;
 }
 
@@ -59,6 +71,18 @@ function createStaticStoreEntry<TEntry extends IdentifiableEntry>(
 }
 
 /**
+ * Applies the optional site-specific mapper before storing entries in Astro's content store.
+ */
+async function mapStaticEntry<TEntry extends IdentifiableEntry>(
+  entry: TEntry,
+  definition: StaticLoaderDefinition<TEntry>,
+): Promise<TEntry> {
+  return definition.mapEntry
+    ? definition.mapEntry(entry, { resource: definition.resource })
+    : entry;
+}
+
+/**
  * Creates one reusable static loader backed by `WordPressClient` methods.
  */
 function createStaticWordPressLoader<TEntry extends IdentifiableEntry>(
@@ -72,10 +96,13 @@ function createStaticWordPressLoader<TEntry extends IdentifiableEntry>(
 
       try {
         const entries = await definition.loadEntries(client);
+        const mappedEntries = await Promise.all(
+          entries.map((entry) => mapStaticEntry(entry, definition)),
+        );
 
         store.clear();
 
-        for (const entry of entries) {
+        for (const entry of mappedEntries) {
           store.set(createStaticStoreEntry(entry, definition.renderHtml));
         }
 
@@ -91,18 +118,23 @@ function createStaticWordPressLoader<TEntry extends IdentifiableEntry>(
 /**
  * Reads rendered HTML from one content entry.
  */
-function renderContentHtml(entry: RenderableEntry): string {
-  return entry.content.rendered;
+function renderContentHtml(entry: RenderableEntry): string | undefined {
+  return entry.content?.rendered;
 }
 
 /**
  * Creates a static loader for WordPress posts.
  */
-export function wordPressPostStaticLoader(client: WordPressClient): Loader {
-  return createStaticWordPressLoader(client, {
+export function wordPressPostStaticLoader(
+  client: WordPressClient,
+  options?: WordPressEntryMappingOptions<WordPressPost>,
+): Loader {
+  return createStaticWordPressLoader<WordPressPost>(client, {
     name: 'wordpress-post-static-loader',
     logLabel: 'posts',
-    loadEntries: (client) => client.getAllPosts(),
+    resource: 'posts',
+    loadEntries: (client) => client.content('posts').listAll(),
+    mapEntry: options?.mapEntry,
     renderHtml: renderContentHtml,
   });
 }
@@ -110,11 +142,16 @@ export function wordPressPostStaticLoader(client: WordPressClient): Loader {
 /**
  * Creates a static loader for WordPress pages.
  */
-export function wordPressPageStaticLoader(client: WordPressClient): Loader {
-  return createStaticWordPressLoader(client, {
+export function wordPressPageStaticLoader(
+  client: WordPressClient,
+  options?: WordPressEntryMappingOptions<WordPressPage>,
+): Loader {
+  return createStaticWordPressLoader<WordPressPage>(client, {
     name: 'wordpress-page-static-loader',
     logLabel: 'pages',
-    loadEntries: (client) => client.getAllPages(),
+    resource: 'pages',
+    loadEntries: (client) => client.content('pages').listAll(),
+    mapEntry: options?.mapEntry,
     renderHtml: renderContentHtml,
   });
 }
@@ -122,33 +159,48 @@ export function wordPressPageStaticLoader(client: WordPressClient): Loader {
 /**
  * Creates a static loader for WordPress media.
  */
-export function wordPressMediaStaticLoader(client: WordPressClient): Loader {
-  return createStaticWordPressLoader(client, {
+export function wordPressMediaStaticLoader(
+  client: WordPressClient,
+  options?: WordPressEntryMappingOptions<WordPressMedia>,
+): Loader {
+  return createStaticWordPressLoader<WordPressMedia>(client, {
     name: 'wordpress-media-static-loader',
     logLabel: 'media items',
-    loadEntries: (client) => client.getAllMedia(),
+    resource: 'media',
+    loadEntries: (client) => client.media().listAll(),
+    mapEntry: options?.mapEntry,
   });
 }
 
 /**
  * Creates a static loader for WordPress categories.
  */
-export function wordPressCategoryStaticLoader(client: WordPressClient): Loader {
-  return createStaticWordPressLoader(client, {
+export function wordPressCategoryStaticLoader(
+  client: WordPressClient,
+  options?: WordPressEntryMappingOptions<WordPressCategory>,
+): Loader {
+  return createStaticWordPressLoader<WordPressCategory>(client, {
     name: 'wordpress-category-static-loader',
     logLabel: 'categories',
-    loadEntries: (client) => client.getAllCategories(),
+    resource: 'categories',
+    loadEntries: (client) => client.terms('categories').listAll(),
+    mapEntry: options?.mapEntry,
   });
 }
 
 /**
  * Creates a static loader for WordPress tags.
  */
-export function wordPressTagStaticLoader(client: WordPressClient): Loader {
-  return createStaticWordPressLoader(client, {
+export function wordPressTagStaticLoader(
+  client: WordPressClient,
+  options?: WordPressEntryMappingOptions<WordPressTag>,
+): Loader {
+  return createStaticWordPressLoader<WordPressTag>(client, {
     name: 'wordpress-tag-static-loader',
     logLabel: 'tags',
-    loadEntries: (client) => client.getAllTags(),
+    resource: 'tags',
+    loadEntries: (client) => client.terms('tags').listAll(),
+    mapEntry: options?.mapEntry,
   });
 }
 
@@ -157,25 +209,32 @@ export function wordPressTagStaticLoader(client: WordPressClient): Loader {
  */
 export function wordPressTermStaticLoader(
   client: WordPressClient,
-  options: WordPressTermStaticLoaderOptions,
+  options: WordPressTermStaticLoaderOptions<WordPressCategory>,
 ): Loader {
   const { resource } = options;
 
-  return createStaticWordPressLoader(client, {
+  return createStaticWordPressLoader<WordPressCategory>(client, {
     name: 'wordpress-term-static-loader',
     logLabel: resource,
-    loadEntries: (client) => client.getAllTermCollection(resource),
+    resource,
+    loadEntries: (client) => client.terms(resource).listAll(),
+    mapEntry: options.mapEntry,
   });
 }
 
 /**
  * Creates a static loader for WordPress users.
  */
-export function wordPressUserStaticLoader(client: WordPressClient): Loader {
-  return createStaticWordPressLoader(client, {
+export function wordPressUserStaticLoader(
+  client: WordPressClient,
+  options?: WordPressEntryMappingOptions<WordPressAuthor>,
+): Loader {
+  return createStaticWordPressLoader<WordPressAuthor>(client, {
     name: 'wordpress-user-static-loader',
     logLabel: 'users',
-    loadEntries: (client) => client.getAllUsers(),
+    resource: 'users',
+    loadEntries: (client) => client.users().listAll(),
+    mapEntry: options?.mapEntry,
   });
 }
 
@@ -183,16 +242,18 @@ export function wordPressUserStaticLoader(client: WordPressClient): Loader {
  * Creates a static loader for custom WordPress content resources (CPTs).
  * Aligns with fluent-wp-client's content(resource) naming.
  */
-export function wordPressContentStaticLoader(
+export function wordPressContentStaticLoader<TEntry extends WordPressPostLike = WordPressPost>(
   client: WordPressClient,
-  options: WordPressContentStaticLoaderOptions,
+  options: WordPressContentStaticLoaderOptions<TEntry>,
 ): Loader {
   const { resource } = options;
 
-  return createStaticWordPressLoader(client, {
+  return createStaticWordPressLoader<TEntry>(client, {
     name: 'wordpress-content-static-loader',
     logLabel: resource,
-    loadEntries: (client) => client.getAllContentCollection(resource),
+    resource,
+    loadEntries: (client) => client.content<TEntry>(resource).listAll(),
+    mapEntry: options.mapEntry,
     renderHtml: renderContentHtml,
   });
 }

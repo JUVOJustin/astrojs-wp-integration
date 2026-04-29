@@ -4,13 +4,13 @@
 
 This repository ships one npm package:
 
-- **`wp-astrojs-integration`** (`src/`) — Astro loaders, Astro actions, auth bridge, and components built on top of the published `fluent-wp-client` package
+- **`wp-astrojs-integration`** (`src/`) — Astro loaders, Astro actions, Astro-aware AI SDK helpers, auth bridge, and components built on top of the published `fluent-wp-client` package
 
 ## Architecture Priorities
 
 - Treat `WordPressClient` from `fluent-wp-client` as the core integration layer. Add or harden client-backed behavior before introducing higher-level loaders, bridges, or actions that depend on it.
 - Build loaders, actions, and helpers on top of proven published client primitives.
-- The package is aligned to `fluent-wp-client` `^2.1.0`; loader payloads for post/page resources must remain plain serializable objects (no legacy helper methods on `entry.data`).
+- The package is aligned to `fluent-wp-client` `^3.0.0`; loader payloads for post/page resources must remain plain serializable objects (no legacy helper methods on `entry.data`).
 - Keep the package aligned with WordPress' extensibility model. Default to generic resource-oriented patterns that work for core entities, custom post types, custom taxonomies, plugin endpoints, and custom auth flows.
 - Prefer Standard Schema-compatible validators for client response validation interfaces so consumers can use Zod or any other compliant schema library.
 - Validate and require only the minimum data needed for a feature to work.
@@ -36,12 +36,13 @@ This repository ships one npm package:
 |---|---|
 | `@wordpress/env` | Spawns a local WordPress Docker container |
 | `Vitest` | Root test runner with projects (`integration`, `static-build`) in `vitest.config.ts` |
-| `.wp-env.json` | wp-env config — PHP version, mu-plugin mappings, lifecycle scripts |
+| `.wp-env.json` | wp-env config — PHP version, automatic port selection, mu-plugin mappings, lifecycle scripts |
 | `tests/wp-env/mu-plugins/` | Must-use plugins mounted into the WP container |
 | `tests/wp-env/seed-content.php` | Idempotent PHP script that generates all test content on startup |
 | `tests/setup/global-setup.ts` | Waits for WP API, creates app password + JWT token, seeds cookie+nonce auth env vars, and boots the shared Astro dev server fixture |
 | `tests/setup/env-loader.ts` | Loads `.test-env.json` into Vitest workers |
 | `tests/fixtures/astro-site/` | Shared Astro server fixture that exposes real `/_actions/*` RPC endpoints for integration tests |
+| `tests/helpers/astro-preview.ts` | Builds the shared fixture with `@astrojs/node` and runs the standalone server for route-caching coverage |
 | `tests/helpers/` | Shared test utilities |
 
 ### Seed data
@@ -75,9 +76,9 @@ ACF fields are registered by `tests/wp-env/mu-plugins/register-acf-fields.php` w
 
 | Entity | ACF fields set |
 |---|---|
-| Posts 001–003 | `acf_subtitle`, `acf_summary`, `acf_priority_score`, `acf_external_url`, `acf_related_posts`, `acf_featured_post` |
-| Pages: about, contact | `acf_subtitle`, `acf_summary`, `acf_priority_score`, `acf_external_url`, `acf_related_posts` |
-| Books 001–002 | `acf_subtitle`, `acf_summary`, `acf_priority_score`, `acf_featured_post` |
+| Posts 001–003 | `acf_subtitle`, `acf_summary`, `acf_priority_score`, `acf_external_url`, `acf_project_status`, `acf_related_posts`, `acf_featured_post` |
+| Pages: about, contact | `acf_subtitle`, `acf_summary`, `acf_priority_score`, `acf_external_url`, `acf_project_status`, `acf_related_posts` |
+| Books 001–002 | `acf_subtitle`, `acf_summary`, `acf_priority_score`, `acf_project_status`, `acf_featured_post` |
 
 ### Plugin requirements
 
@@ -121,6 +122,7 @@ because it only needs the public WordPress REST API.
 6. Cover success paths and error paths.
 7. Route action integration tests through the shared Astro dev server fixture (`tests/fixtures/astro-site/`) and real `/_actions/*` RPC endpoints.
    Do not execute package action helpers directly inside test workers.
+8. Route-caching coverage should build the shared fixture and run the standalone Node adapter entry so Astro cache behavior is exercised in production mode.
 
 Reference suites:
 
@@ -128,6 +130,7 @@ Reference suites:
 - `tests/integration/loaders/static-loaders.test.ts`
 - `tests/integration/loaders/live-loaders.test.ts`
 - `tests/integration/loaders/live-loader-runtime.test.ts`
+- `tests/integration/loaders/route-caching-runtime.test.ts`
 - `tests/integration/actions/posts.test.ts`
 - `tests/integration/actions/pages.test.ts`
 - `tests/integration/actions/users.test.ts`
@@ -145,12 +148,16 @@ Reference suites:
 - WordPress application passwords require HTTPS by default; `tests/wp-env/mu-plugins/enable-app-passwords.php` overrides this for HTTP localhost.
 - JWT auth relies on `tests/wp-env/mu-plugins/enable-jwt-auth-header.php` so `Authorization` headers survive local wp-env rewrites.
 - The WP REST API caps `per_page` at 100.
+- Astro route caching is disabled in `astro dev`; cache behavior must be validated against the standalone server build used by `tests/helpers/astro-preview.ts`.
 
 ## Code Style
 
 - Astro loaders are split into `src/loaders/static.ts` and `src/loaders/live.ts`.
 - Shared runtime helpers for Astro middleware, actions, and auth flows should prefer web-standard APIs so they work on Node and non-Node adapters.
 - All public API is re-exported from `src/index.ts`.
+- Astro-specific AI SDK helpers live under `src/ai-sdk/` and should stay request-scoped so they can safely use `getLiveEntry()` / `getLiveCollection()` plus `context.cache`.
+- New discovery features (CLI, runtime schema conversion, embed extraction helpers) are re-exported from `fluent-wp-client` and `fluent-wp-client/zod` subpackages.
+- Actions and loaders use the v3 client API: `client.content('posts').list()` instead of `client.getPosts()`, `client.users().me()` instead of `client.getCurrentUser()`.
 
 ## npm Package
 

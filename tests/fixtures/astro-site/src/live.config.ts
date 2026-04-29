@@ -6,6 +6,10 @@
  */
 import { defineLiveCollection } from 'astro:content';
 import { WordPressClient } from 'fluent-wp-client';
+import { resolveWpBaseUrl } from '../../../helpers/wp-env';
+import { trackedWordPressFetch } from './lib/wp-fetch-metrics';
+import { createAcfChoiceLabelMapper } from './lib/acf-choice-label-mapper';
+import { useTestAcfChoiceCatalog } from './lib/test-acf-catalog';
 import {
   wordPressCategoryLoader,
   wordPressContentLoader,
@@ -13,41 +17,55 @@ import {
   wordPressPostLoader,
 } from '../../../../src/loaders/live';
 import {
-  bookSchema,
-  categorySchema,
-  pageSchema,
-  postSchema,
-} from './collection-schemas';
+  booksItemSchema,
+  categoriesItemSchema,
+  pagesItemSchema,
+  postsItemSchema,
+} from './generated/wp-schemas';
 
-const baseUrl = process.env.WP_BASE_URL ?? 'http://localhost:8888';
-const wp = new WordPressClient({ baseUrl });
+const baseUrl = resolveWpBaseUrl();
+const wp = new WordPressClient({
+  baseUrl,
+  fetch: process.env.ASTRO_TEST_ROUTE_CACHE === '1' ? trackedWordPressFetch : fetch,
+});
+const cataloguedWp = useTestAcfChoiceCatalog(wp, 'posts');
+const mapAcfChoiceLabels = createAcfChoiceLabelMapper(cataloguedWp);
 
 /** Live post collection loaded at request time with schema validation. */
 const livePosts = defineLiveCollection({
   loader: wordPressPostLoader(wp),
-  schema: postSchema,
+  schema: postsItemSchema,
+});
+
+/** Live post collection using the same reusable mapper actions can use. */
+const liveMappedPosts = defineLiveCollection({
+  loader: wordPressPostLoader(wp, {
+    mapEntry: mapAcfChoiceLabels,
+  }),
+  schema: postsItemSchema,
 });
 
 /** Live page collection loaded at request time with schema validation. */
 const livePages = defineLiveCollection({
   loader: wordPressPageLoader(wp),
-  schema: pageSchema,
+  schema: pagesItemSchema,
 });
 
 /** Live category collection loaded at request time with schema validation. */
 const liveCategories = defineLiveCollection({
   loader: wordPressCategoryLoader(wp),
-  schema: categorySchema,
+  schema: categoriesItemSchema,
 });
 
 /** Live books collection loaded at request time with extended CPT validation. */
 const liveBooks = defineLiveCollection({
   loader: wordPressContentLoader(wp, { resource: 'books' }),
-  schema: bookSchema,
+  schema: booksItemSchema,
 });
 
 export const collections = {
   livePosts,
+  liveMappedPosts,
   livePages,
   liveCategories,
   liveBooks,

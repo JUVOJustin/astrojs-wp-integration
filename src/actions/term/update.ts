@@ -11,6 +11,7 @@ import {
   withActionClient,
   type ResolvableActionClient,
 } from '../post/client';
+import { validateActionResponse } from '../response-validation';
 import { createTermInputSchema } from './create';
 
 /**
@@ -68,15 +69,11 @@ export async function executeUpdateTerm<T = WordPressCategory>(
   const resource = options?.resource ?? 'categories';
 
   return withActionClient(client, async (resolvedClient) => {
-    const responseSchema = (options?.responseSchema ?? categorySchema) as WordPressStandardSchema<T>;
     const { id, ...fields } = input;
+    const updated = await resolvedClient.terms(resource).update(id, fields);
+    const responseSchema = (options?.responseSchema ?? categorySchema) as WordPressStandardSchema<T>;
 
-    return resolvedClient.updateTerm<T, Record<string, unknown>>(
-      resource,
-      id,
-      fields,
-      responseSchema,
-    );
+    return validateActionResponse(updated, responseSchema, `WordPress ${resource} update action`);
   });
 }
 

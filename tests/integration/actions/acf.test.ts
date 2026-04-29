@@ -55,6 +55,28 @@ describe('Actions: ACF behavior', () => {
     expect(getAcf(updated).acf_priority_score).toBe(10);
   });
 
+  it('supports callback-driven ACF choice labels on successful action responses', async () => {
+    const created = await callAction<{ id: number; acf?: Record<string, unknown> }>('createPostAcfMapped', {
+      title: 'ACF behavior: mapped create response',
+      status: 'draft',
+      acf: {
+        acf_project_status: 'in_progress',
+      },
+    }, { authHeader: jwtAuth });
+
+    createdIds.push(created.id);
+    expect(getAcf(created).acf_project_status).toBe('In progress');
+
+    const updated = await callAction<{ acf?: Record<string, unknown> }>('updatePostAcfMapped', {
+      id: created.id,
+      acf: {
+        acf_project_status: 'done',
+      },
+    }, { authHeader: jwtAuth });
+
+    expect(getAcf(updated).acf_project_status).toBe('Done');
+  });
+
   it('maps unauthenticated custom-field writes to ActionError', async () => {
     await expect(
       callAction('createPostAcf', {

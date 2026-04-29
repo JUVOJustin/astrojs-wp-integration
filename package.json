@@ -1,6 +1,6 @@
 {
   "name": "wp-astrojs-integration",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "Fast and better WordPress integration for Astro.js with live loaders, client API, and Gutenberg block support",
   "type": "module",
   "main": "./dist/index.js",
@@ -17,6 +17,10 @@
     "./server": {
       "types": "./dist/server/index.d.ts",
       "import": "./dist/server/index.js"
+    },
+    "./ai-sdk": {
+      "types": "./dist/ai-sdk/index.d.ts",
+      "import": "./dist/ai-sdk/index.js"
     },
     "./components": {
       "import": "./src/components/index.ts"
@@ -65,14 +69,22 @@
   "homepage": "https://github.com/JUVOJustin/astrojs-wp-integration#readme",
   "license": "MIT",
   "dependencies": {
-    "fluent-wp-client": "^2.2.0"
+    "fluent-wp-client": "^3.0.0-rc.3"
   },
   "peerDependencies": {
+    "ai": ">=5.0.0",
     "astro": "^6.0.0"
   },
+  "peerDependenciesMeta": {
+    "ai": {
+      "optional": true
+    }
+  },
   "devDependencies": {
-    "@wordpress/env": "^11.0.0",
-    "astro": "^6.0.4",
+    "@astrojs/node": "^10.0.5",
+    "@wordpress/env": "^11.4.0",
+    "ai": "^5.0.179",
+    "astro": "^6.1.8",
     "devalue": "^5.6.4",
     "typescript": "^5.7.2",
     "vitest": "^4.0.18"

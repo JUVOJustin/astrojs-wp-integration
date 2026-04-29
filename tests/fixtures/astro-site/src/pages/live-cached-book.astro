@@ -1,0 +1,44 @@
+---
+/**
+ * Cached runtime page used to validate live-entry cache hints with Astro route caching.
+ */
+import { getLiveEntry } from 'astro:content';
+
+const {
+  entry: book,
+  error,
+  cacheHint,
+} = await getLiveEntry('liveBooks', { slug: 'test-book-001' });
+const renderToken = `${Date.now()}-${Math.random()}`;
+
+if (cacheHint) {
+  Astro.cache.set(cacheHint);
+}
+
+Astro.cache.set({
+  maxAge: 300,
+});
+---
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Live Cached Book</title>
+</head>
+<body>
+  <h1>Live Cached Book</h1>
+  {error && <p id="live-cached-book-error">{error.message}</p>}
+  {book && (
+    <article
+      data-book-id={book.data.id}
+      data-book-slug={book.data.slug}
+      data-book-title={book.data.title?.rendered ?? ''}
+      data-book-subtitle={book.data.acf?.acf_subtitle ?? ''}
+      data-render-token={renderToken}
+    >
+      <h2>{book.data.title?.rendered}</h2>
+      <p>{book.data.acf?.acf_subtitle ?? 'missing'}</p>
+    </article>
+  )}
+</body>
+</html>

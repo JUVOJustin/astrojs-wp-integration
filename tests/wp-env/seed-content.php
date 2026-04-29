@@ -385,6 +385,7 @@ if ( ! function_exists( 'update_field' ) ) {
 		update_field( 'acf_summary',        "Summary content for test post $padded. Deterministic seed data.",  $post->ID );
 		update_field( 'acf_priority_score', $i * 10,                                                            $post->ID );
 		update_field( 'acf_external_url',   "https://example.com/test-post-$padded",                           $post->ID );
+		update_field( 'acf_project_status', $i === 1 ? 'in_progress' : 'done',                                  $post->ID );
 
 		if ( ! empty( $rel_ids ) ) {
 			update_field( 'acf_related_posts', $rel_ids, $post->ID );
@@ -419,6 +420,7 @@ if ( ! function_exists( 'update_field' ) ) {
 		update_field( 'acf_summary',        "Summary for the $slug page. Deterministic seed data.",       $page->ID );
 		update_field( 'acf_priority_score', $fields['priority'],                                          $page->ID );
 		update_field( 'acf_external_url',   $fields['url'],                                               $page->ID );
+		update_field( 'acf_project_status', 'done',                                                       $page->ID );
 
 		if ( ! empty( $page_rels ) ) {
 			update_field( 'acf_related_posts', $page_rels, $page->ID );
@@ -439,6 +441,7 @@ if ( ! function_exists( 'update_field' ) ) {
 		update_field( 'acf_subtitle',       "Subtitle for test book $padded",                                  $book->ID );
 		update_field( 'acf_summary',        "Summary for test book $padded. Deterministic seed data.",         $book->ID );
 		update_field( 'acf_priority_score', $i * 15,                                                           $book->ID );
+		update_field( 'acf_project_status', $i === 1 ? 'in_progress' : 'done',                                  $book->ID );
 
 		if ( $featured ) {
 			update_field( 'acf_featured_post', $featured->ID, $book->ID );

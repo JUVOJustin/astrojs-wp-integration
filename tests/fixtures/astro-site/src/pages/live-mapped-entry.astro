@@ -1,0 +1,28 @@
+---
+/** Runtime page validating mapper callbacks through a real Astro live collection. */
+import { getLiveEntry } from 'astro:content';
+
+const {
+  entry: post,
+  error,
+} = await getLiveEntry('liveMappedPosts', { slug: 'test-post-001' });
+---
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Live Mapped Entry Test</title>
+</head>
+<body>
+  <h1>Live Mapped Entry Test</h1>
+  {error && <p id="live-mapped-entry-error">{error.message}</p>}
+  {post ? (
+    <article data-id={post.id} data-status={post.data.acf?.acf_project_status ?? ''}>
+      <h2>{post.data.title?.rendered}</h2>
+      <p>Project status: {post.data.acf?.acf_project_status ?? 'missing'}</p>
+    </article>
+  ) : (
+    <p data-found="false">Post not found</p>
+  )}
+</body>
+</html>

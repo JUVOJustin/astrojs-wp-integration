@@ -5,12 +5,15 @@ import {
   postWriteBaseSchema,
   type WordPressPost,
   type WordPressStandardSchema,
+  type WordPressPostWriteBase,
 } from 'fluent-wp-client/zod';
 import {
   resolveRequiredActionClient,
   withActionClient,
+  type ActionResponseMapper,
   type ResolvableActionClient,
 } from './client';
+import { validateActionResponse } from '../response-validation';
 import { getDefaultContentResponseSchema } from './response-schema';
 
 /**
@@ -41,6 +44,8 @@ export interface ExecuteCreateOptions<T = WordPressPost> {
   resource?: string;
   /** Standard Schema-compatible parser used for the response (default: postSchema) */
   responseSchema?: WordPressStandardSchema<T>;
+  /** Optional mapper for successful WordPress responses before validation/return */
+  mapResponse?: ActionResponseMapper<T, CreatePostInput & Record<string, unknown>>;
 }
 
 /**
@@ -56,6 +61,8 @@ export interface CreatePostActionOptions<T = WordPressPost> {
   resource?: string;
   /** Optional parser override for the action response */
   responseSchema?: WordPressStandardSchema<T>;
+  /** Optional mapper for successful WordPress responses before validation/return */
+  mapResponse?: ActionResponseMapper<T, CreatePostInput & Record<string, unknown>>;
 }
 
 /**
@@ -86,13 +93,18 @@ export async function executeCreatePost<T = WordPressPost>(
   const resource = options?.resource ?? 'posts';
 
   return withActionClient(client, async (resolvedClient) => {
+    const created = await resolvedClient.content(resource).create(input as WordPressPostWriteBase) as T;
+    const mapped = options?.mapResponse
+      ? await options.mapResponse(created, {
+        client: resolvedClient,
+        input,
+        operation: 'create',
+        resource,
+      })
+      : created;
     const responseSchema = (options?.responseSchema ?? getDefaultContentResponseSchema(resource)) as WordPressStandardSchema<T>;
 
-    return resolvedClient.createContent<T, CreatePostInput & Record<string, unknown>>(
-      resource,
-      input,
-      responseSchema,
-    );
+    return validateActionResponse(mapped, responseSchema, `WordPress ${resource} create action`);
   });
 }
 
@@ -127,6 +139,7 @@ export function createCreatePostAction<
   const inputSchema = (options?.schema ?? createPostInputSchema) as TSchema;
   const resource = options?.resource;
   const responseSchema = options?.responseSchema;
+  const mapResponse = options?.mapResponse;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return defineAction({
@@ -137,7 +150,7 @@ export function createCreatePostAction<
       return executeCreatePost<TResponse>(
         resolvedClient,
         input as CreatePostInput & Record<string, unknown>,
-        { resource, responseSchema },
+        { resource, responseSchema, mapResponse },
       );
     },
   } as any) as ActionClient<TResponse, undefined, TSchema> & string;

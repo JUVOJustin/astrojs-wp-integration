@@ -67,3 +67,30 @@ declare module 'astro:actions' {
   export function isActionError(error: unknown): error is ActionError;
   export function isInputError(error: unknown): error is ActionInputError;
 }
+
+declare module 'astro:content' {
+  export type LiveDataEntry<TData = unknown> = {
+    id: string;
+    data: TData;
+    cacheHint?: unknown;
+    rendered?: { html: string };
+  };
+
+  export function getLiveEntry(
+    collection: string,
+    filter: unknown,
+  ): Promise<{
+    entry?: LiveDataEntry;
+    error?: Error;
+    cacheHint?: unknown;
+  }>;
+
+  export function getLiveCollection(
+    collection: string,
+    filter?: unknown,
+  ): Promise<{
+    entries: LiveDataEntry[];
+    error?: Error;
+    cacheHint?: unknown;
+  }>;
+}

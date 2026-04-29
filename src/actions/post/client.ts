@@ -1,6 +1,6 @@
 import { ActionError, type ActionAPIContext } from 'astro:actions';
 import {
-  WordPressApiError,
+  WordPressHttpError,
   WordPressClient,
 } from 'fluent-wp-client';
 
@@ -17,6 +17,19 @@ export type ActionClientResolver = (
  * Client source accepted by action factories.
  */
 export type ResolvableActionClient = WordPressClient | ActionClientResolver;
+
+/**
+ * Callback shape for rewriting successful action responses before returning them to Astro.
+ */
+export type ActionResponseMapper<TResponse = unknown, TInput = unknown> = (
+  response: TResponse,
+  context: {
+    client: WordPressClient;
+    input: TInput;
+    operation: 'create' | 'update';
+    resource: string;
+  },
+) => TResponse | Promise<TResponse>;
 
 /**
  * Resolves one reusable WordPress client from either a static instance or one request-aware resolver.
@@ -73,7 +86,7 @@ export function toActionError(error: unknown): ActionError {
     return error;
   }
 
-  if (error instanceof WordPressApiError) {
+  if (error instanceof WordPressHttpError) {
     return new ActionError({
       code: ActionError.statusToCode(error.status),
       message: error.message,

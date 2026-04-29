@@ -1,0 +1,184 @@
+---
+title: Mapping WordPress Values
+description: Reuse one mapper callback to normalize WordPress loader entries and action responses in Astro.
+---
+
+## Mapping WordPress Values
+
+WordPress often stores technical values that are not ideal for UI output. ACF choice fields are a common example: the REST response may contain `in_progress`, while the UI should show `In progress`.
+
+Use one reusable callback for both read and write paths:
+
+- `mapEntry` normalizes loader entries before Astro receives content data.
+- `mapResponse` normalizes successful create/update action responses before Astro receives action data.
+
+Both callbacks receive the WordPress object first and a context object with at least `resource`, so the same function can support loaders and actions.
+
+The important discovery API is `getSchemaValue()` from `fluent-wp-client` rc3. It reads a path from `WordPressResourceDescription.schemas.item`; if you seed a catalog with `wp.useCatalog(catalog)`, the same call reads from that cached catalog instead of requiring another discovery request.
+
+```ts title="Read ACF choice metadata from the resource schema"
+type AcfChoice = {
+  label: string;
+  value: string;
+};
+
+type AcfSchemaField = {
+  choices?: AcfChoice[];
+};
+
+// Equivalent to:
+// WordPressResourceDescription.schemas.item.properties.acf.properties
+const acfFields = await wp.content('posts').getSchemaValue<
+  Record<string, AcfSchemaField>
+>('properties.acf.properties');
+```
+
+Use that schema lookup inside a reusable mapper:
+
+```ts title="src/lib/acf-choice-label-mapper.ts"
+import type { WordPressClient } from 'wp-astrojs-integration';
+
+type AcfChoice = {
+  label: string;
+  value: string;
+};
+
+type AcfSchemaField = {
+  choices?: AcfChoice[];
+};
+
+type EntryWithAcf = {
+  acf?: Record<string, unknown> | null;
+};
+
+export function createAcfChoiceLabelMapper(client: WordPressClient) {
+  const lookups = new Map<string, Promise<Map<string, Map<string, string>>>>();
+
+  return async function mapAcfChoiceLabels<TEntry extends EntryWithAcf>(
+    entry: TEntry,
+    context: { resource: string },
+  ): Promise<TEntry> {
+    if (!entry.acf) return entry;
+
+    const choiceLabels = await getChoiceLabels(client, context.resource, lookups);
+
+    return {
+      ...entry,
+      acf: Object.fromEntries(
+        Object.entries(entry.acf).map(([fieldName, value]) => [
+          fieldName,
+          choiceLabels.get(fieldName)?.get(String(value)) ?? value,
+        ]),
+      ),
+    };
+  };
+}
+
+async function getChoiceLabels(
+  client: WordPressClient,
+  resource: string,
+  lookups: Map<string, Promise<Map<string, Map<string, string>>>>,
+) {
+  if (!lookups.has(resource)) {
+    lookups.set(resource, loadChoiceLabels(client, resource));
+  }
+
+  return lookups.get(resource)!;
+}
+
+async function loadChoiceLabels(client: WordPressClient, resource: string) {
+  // rc3 discovery/catalog lookup:
+  // WordPressResourceDescription.schemas.item.properties.acf.properties
+  const acfFields = await client.content(resource).getSchemaValue<
+    Record<string, AcfSchemaField>
+  >('properties.acf.properties');
+  const choiceLabels = new Map<string, Map<string, string>>();
+
+  for (const [fieldName, fieldSchema] of Object.entries(acfFields ?? {})) {
+    if (!Array.isArray(fieldSchema.choices)) continue;
+
+    choiceLabels.set(
+      fieldName,
+      new Map(fieldSchema.choices.map((choice) => [choice.value, choice.label])),
+    );
+  }
+
+  return choiceLabels;
+}
+```
+
+If your app explores WordPress once and stores the discovery catalog, seed it before creating the mapper:
+
+```ts title="Seed a stored discovery catalog"
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+});
+
+const storedCatalog = await loadCatalogFromStorage();
+
+if (storedCatalog) {
+  wp.useCatalog(storedCatalog);
+}
+
+const mapAcfChoiceLabels = createAcfChoiceLabelMapper(wp);
+```
+
+Use the mapper in live or static loaders:
+
+```ts title="src/live.config.ts"
+import { defineLiveCollection } from 'astro:content';
+import {
+  WordPressClient,
+  postSchema,
+  wordPressPostLoader,
+} from 'wp-astrojs-integration';
+import { createAcfChoiceLabelMapper } from './lib/acf-choice-label-mapper';
+
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+});
+const mapAcfChoiceLabels = createAcfChoiceLabelMapper(wp);
+
+const posts = defineLiveCollection({
+  loader: wordPressPostLoader(wp, {
+    mapEntry: mapAcfChoiceLabels,
+  }),
+  schema: postSchema,
+});
+
+export const collections = { posts };
+```
+
+Use the same mapper in create/update actions:
+
+```ts title="src/actions/index.ts"
+import {
+  WordPressClient,
+  createUpdatePostAction,
+  updatePostInputSchema,
+} from 'wp-astrojs-integration';
+import { z } from 'astro/zod';
+import { createAcfChoiceLabelMapper } from '../lib/acf-choice-label-mapper';
+
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.WP_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
+});
+const mapAcfChoiceLabels = createAcfChoiceLabelMapper(wp);
+
+export const server = {
+  updatePost: createUpdatePostAction(wp, {
+    schema: updatePostInputSchema.extend({
+      acf: z.object({
+        acf_project_status: z.string().optional(),
+      }).optional(),
+    }),
+    mapResponse: mapAcfChoiceLabels,
+  }),
+};
+```
+
+This keeps package behavior generic. Your app owns the mapping rules, and the same mapper can handle ACF choices, plugin fields, custom meta, or any other normalized value your UI needs.

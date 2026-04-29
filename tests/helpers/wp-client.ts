@@ -1,10 +1,11 @@
 import { WordPressClient } from 'fluent-wp-client';
+import { resolveWpBaseUrl } from './wp-env';
 
 /**
  * Resolves the WP base URL from the environment (set by global setup)
  */
 export function getBaseUrl(): string {
-  return process.env.WP_BASE_URL || 'http://localhost:8888';
+  return resolveWpBaseUrl();
 }
 
 /**

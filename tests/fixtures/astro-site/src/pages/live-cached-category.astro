@@ -1,0 +1,44 @@
+---
+/**
+ * Cached runtime page used to validate taxonomy cache invalidation through Astro route caching.
+ */
+import { getLiveEntry } from 'astro:content';
+
+const {
+  entry: category,
+  error,
+  cacheHint,
+} = await getLiveEntry('liveCategories', { slug: 'technology' });
+const renderToken = `${Date.now()}-${Math.random()}`;
+
+if (cacheHint) {
+  Astro.cache.set(cacheHint);
+}
+
+Astro.cache.set({
+  maxAge: 300,
+});
+---
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Live Cached Category</title>
+</head>
+<body>
+  <h1>Live Cached Category</h1>
+  {error && <p id="live-cached-category-error">{error.message}</p>}
+  {category && (
+    <article
+      data-category-id={category.data.id}
+      data-category-slug={category.data.slug}
+      data-category-name={category.data.name}
+      data-category-taxonomy={category.data.taxonomy}
+      data-render-token={renderToken}
+    >
+      <h2>{category.data.name}</h2>
+      <p>{category.data.taxonomy}</p>
+    </article>
+  )}
+</body>
+</html>

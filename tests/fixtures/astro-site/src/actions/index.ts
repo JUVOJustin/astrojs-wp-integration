@@ -15,6 +15,7 @@ import {
   createCreateTermAction,
   createUpdateTermAction,
   createDeleteTermAction,
+  createWpCacheInvalidateAction,
   createTermInputSchema,
   updateTermInputSchema,
   createCreateUserAction,
@@ -35,6 +36,23 @@ import {
   categorySchema,
 } from 'fluent-wp-client';
 import { z } from 'astro/zod';
+import {
+  getRouteCacheMetrics,
+  resetRouteCacheMetrics,
+} from '../lib/wp-fetch-metrics';
+import { createAcfChoiceLabelMapper } from '../lib/acf-choice-label-mapper';
+import { useTestAcfChoiceCatalog } from '../lib/test-acf-catalog';
+import {
+  booksCreateSchema,
+  booksItemSchema,
+  booksUpdateSchema,
+  categoriesCreateSchema,
+  categoriesItemSchema,
+  pagesItemSchema,
+  postsCreateSchema,
+  postsItemSchema,
+  postsUpdateSchema,
+} from '../generated/wp-schemas';
 
 const baseUrl = import.meta.env.WP_BASE_URL ?? 'http://localhost:8888';
 const bridge = createWordPressAuthBridge({ baseUrl });
@@ -83,6 +101,8 @@ function createCookieReader(cookieName: string, token?: string): CookieReader {
 }
 
 const requestClient = requestHeaderBridge.getClient;
+const mappingClient = useTestAcfChoiceCatalog(new WordPressClient({ baseUrl }), 'posts');
+const mapAcfChoiceLabels = createAcfChoiceLabelMapper(mappingClient);
 
 /* ── Post actions ────────────────────────────────────── */
 
@@ -91,7 +111,7 @@ const createPost = createCreatePostAction(requestClient);
 const createPostWithBridgeClient = createCreatePostAction(requestHeaderBridge.getClient);
 
 const createPostCustomSchema = createCreatePostAction(requestClient, {
-  schema: createPostInputSchema.extend({
+  schema: postsCreateSchema.extend({
     acf: z.object({ acf_subtitle: z.string().optional() }).optional(),
   }),
 });
@@ -101,21 +121,32 @@ const createPostAcf = createCreatePostAction(requestClient, {
     acf: z.object({
       acf_subtitle: z.string().optional(),
       acf_priority_score: z.number().int().min(0).max(100).optional(),
+      acf_project_status: z.string().optional(),
     }).optional(),
   }),
 });
 
+const createPostAcfMapped = createCreatePostAction(requestClient, {
+  schema: createPostInputSchema.extend({
+    acf: z.object({
+      acf_project_status: z.string().optional(),
+    }).optional(),
+  }),
+  mapResponse: mapAcfChoiceLabels,
+});
+
 const createPostResponseOverride = createCreatePostAction(requestClient, {
-  responseSchema: z.object({
-    id: z.number().int().positive(),
-    status: z.string(),
+  schema: postsCreateSchema,
+  responseSchema: postsItemSchema.pick({
+    id: true,
+    status: true,
   }),
 });
 
 const updatePost = createUpdatePostAction(requestClient);
 
 const updatePostCustomSchema = createUpdatePostAction(requestClient, {
-  schema: updatePostInputSchema.extend({
+  schema: postsUpdateSchema.extend({
     acf: z.object({ acf_subtitle: z.string().optional() }).optional(),
   }),
 });
@@ -125,8 +156,18 @@ const updatePostAcf = createUpdatePostAction(requestClient, {
     acf: z.object({
       acf_subtitle: z.string().optional(),
       acf_priority_score: z.number().int().min(0).max(100).optional(),
+      acf_project_status: z.string().optional(),
     }).optional(),
   }),
+});
+
+const updatePostAcfMapped = createUpdatePostAction(requestClient, {
+  schema: updatePostInputSchema.extend({
+    acf: z.object({
+      acf_project_status: z.string().optional(),
+    }).optional(),
+  }),
+  mapResponse: mapAcfChoiceLabels,
 });
 
 const deletePost = createDeletePostAction(requestClient);
@@ -135,17 +176,17 @@ const deletePost = createDeletePostAction(requestClient);
 
 const createPage = createCreatePostAction(requestClient, {
   resource: 'pages',
-  responseSchema: pageSchema,
+  responseSchema: pagesItemSchema,
 });
 
 const createPageWithStaticClient = createCreatePostAction(staticJwtClient, {
   resource: 'pages',
-  responseSchema: pageSchema,
+  responseSchema: pagesItemSchema,
 });
 
 const updatePage = createUpdatePostAction(requestClient, {
   resource: 'pages',
-  responseSchema: pageSchema,
+  responseSchema: pagesItemSchema,
   schema: updatePostInputSchema.extend({
     acf: z.object({ acf_subtitle: z.string().optional() }).optional(),
   }),
@@ -166,15 +207,14 @@ const deletePage = createDeletePostAction(requestClient, { resource: 'pages' });
 
 const createBook = createCreatePostAction(requestClient, {
   resource: 'books',
-  responseSchema: contentWordPressSchema,
+  schema: booksCreateSchema,
+  responseSchema: booksItemSchema,
 });
 
 const createBookCustomSchema = createCreatePostAction(requestClient, {
   resource: 'books',
-  responseSchema: contentWordPressSchema,
-  schema: createPostInputSchema.extend({
-    custom_note: z.string().min(3).optional(),
-  }),
+  responseSchema: booksItemSchema,
+  schema: booksCreateSchema,
 });
 
 const createBookResponseOverride = createCreatePostAction(requestClient, {
@@ -188,10 +228,8 @@ const createBookResponseOverride = createCreatePostAction(requestClient, {
 
 const updateBook = createUpdatePostAction(requestClient, {
   resource: 'books',
-  responseSchema: contentWordPressSchema,
-  schema: updatePostInputSchema.extend({
-    custom_note: z.string().optional(),
-  }),
+  responseSchema: booksItemSchema,
+  schema: booksUpdateSchema,
 });
 
 const deleteBook = createDeletePostAction(requestClient, { resource: 'books' });
@@ -200,8 +238,8 @@ const deleteBook = createDeletePostAction(requestClient, { resource: 'books' });
 
 const createCategory = createCreateTermAction(requestClient, {
   resource: 'categories',
-  responseSchema: categorySchema,
-  schema: createTermInputSchema.extend({
+  responseSchema: categoriesItemSchema,
+  schema: categoriesCreateSchema.extend({
     custom_note: z.string().optional(),
   }),
 });
@@ -233,6 +271,8 @@ const createGenre = createCreateTermAction(requestClient, {
 });
 
 const deleteGenre = createDeleteTermAction(requestClient, { resource: 'genres' });
+
+const wpCacheInvalidate = createWpCacheInvalidateAction(requestClient);
 
 /* ── User actions ────────────────────────────────────── */
 
@@ -392,7 +432,7 @@ const authBridgeResolveUserWithOptInStaticFallback = defineAction({
       return null;
     }
 
-    const user = await client.getCurrentUser();
+    const user = await client.users().me();
 
     return {
       slug: user.slug,
@@ -416,7 +456,7 @@ const authBridgeRespectsPerCallAuthHeaders = defineAction({
       return null;
     }
 
-    const user = await client.getCurrentUser();
+    const user = await client.users().me();
 
     return {
       slug: user.slug,
@@ -432,15 +472,29 @@ const authBridgeIsAuthenticated = defineAction({
   }),
 });
 
+const emptyObjectSchema = z.object({});
+
+const routeCacheMetricsGet = defineAction({
+  input: emptyObjectSchema,
+  handler: () => getRouteCacheMetrics(),
+});
+
+const routeCacheMetricsReset = defineAction({
+  input: emptyObjectSchema,
+  handler: () => resetRouteCacheMetrics(),
+});
+
 export const server = {
   createPost,
   createPostWithBridgeClient,
   createPostCustomSchema,
   createPostAcf,
+  createPostAcfMapped,
   createPostResponseOverride,
   updatePost,
   updatePostCustomSchema,
   updatePostAcf,
+  updatePostAcfMapped,
   deletePost,
 
   createPage,
@@ -462,6 +516,7 @@ export const server = {
   deleteTag,
   createGenre,
   deleteGenre,
+  wpCacheInvalidate,
 
   createUser,
   createUserCustomSchema,
@@ -484,4 +539,6 @@ export const server = {
   authBridgeResolveUserWithOptInStaticFallback,
   authBridgeRespectsPerCallAuthHeaders,
   authBridgeIsAuthenticated,
+  routeCacheMetricsGet,
+  routeCacheMetricsReset,
 };

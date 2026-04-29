@@ -324,3 +324,59 @@ if (data) {
   console.log(data.id); // WordPress-assigned post ID
 }
 ```
+
+### Map successful action responses
+
+Create and update actions return the WordPress object from the successful REST response. Use `mapResponse` when that object needs the same site-specific normalization as loader data, for example mapping ACF choice values to labels after submit.
+
+```ts title="Map ACF choice values in action responses"
+type AcfChoice = {
+  label: string;
+  value: string;
+};
+
+type AcfSchemaField = {
+  choices?: AcfChoice[];
+};
+
+async function getChoiceLabels(client: WordPressClient, resource: string) {
+  const acfFields = await client.content(resource).getSchemaValue<
+    Record<string, AcfSchemaField>
+  >('properties.acf.properties');
+
+  const choiceLabels = new Map<string, Map<string, string>>();
+
+  for (const [fieldName, fieldSchema] of Object.entries(acfFields ?? {})) {
+    if (!Array.isArray(fieldSchema.choices)) continue;
+
+    choiceLabels.set(
+      fieldName,
+      new Map(fieldSchema.choices.map((choice) => [choice.value, choice.label])),
+    );
+  }
+
+  return choiceLabels;
+}
+
+export const server = {
+  updateProduct: createUpdatePostAction(wp, {
+    resource: 'products',
+    schema: productUpdateSchema,
+    mapResponse: async (product, { client, resource }) => {
+      const choiceLabels = await getChoiceLabels(client, resource);
+
+      return {
+        ...product,
+        acf: Object.fromEntries(
+          Object.entries(product.acf ?? {}).map(([fieldName, value]) => [
+            fieldName,
+            choiceLabels.get(fieldName)?.get(String(value)) ?? value,
+          ]),
+        ),
+      };
+    },
+  }),
+};
+```
+
+`mapResponse` runs before the response schema is validated and before the action returns data to Astro. The callback receives the resolved request-scoped `WordPressClient`, the `resource`, the submitted `input`, and the `operation` (`create` or `update`).

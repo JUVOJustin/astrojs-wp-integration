@@ -12,6 +12,7 @@ import {
   withActionClient,
   type ResolvableActionClient,
 } from '../post/client';
+import { validateActionResponse } from '../response-validation';
 
 /**
  * Input schema for updating a WordPress user.
@@ -72,9 +73,11 @@ export async function executeUpdateUser<T = WordPressAuthor>(
   options?: ExecuteUpdateUserOptions<T>,
 ): Promise<T> {
   return withActionClient(client, async (resolvedClient) => {
-    const responseSchema = (options?.responseSchema ?? authorSchema) as WordPressStandardSchema<T>;
     const { id, ...fields } = input;
-    return resolvedClient.updateUser<T>(id, fields as UserWriteInput, responseSchema);
+    const updated = await resolvedClient.users().update(id, fields as UserWriteInput);
+    const responseSchema = (options?.responseSchema ?? authorSchema) as WordPressStandardSchema<T>;
+
+    return validateActionResponse(updated, responseSchema, 'WordPress user update action');
   });
 }
 

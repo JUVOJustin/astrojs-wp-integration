@@ -12,6 +12,7 @@ import {
   withActionClient,
   type ResolvableActionClient,
 } from '../post/client';
+import { validateActionResponse } from '../response-validation';
 
 /**
  * Input schema for creating a WordPress user.
@@ -71,8 +72,10 @@ export async function executeCreateUser<T = WordPressAuthor>(
   options?: ExecuteCreateUserOptions<T>,
 ): Promise<T> {
   return withActionClient(client, async (resolvedClient) => {
+    const created = await resolvedClient.users().create(input as UserWriteInput);
     const responseSchema = (options?.responseSchema ?? authorSchema) as WordPressStandardSchema<T>;
-    return resolvedClient.createUser<T>(input as UserWriteInput, responseSchema);
+
+    return validateActionResponse(created, responseSchema, 'WordPress user create action');
   });
 }
 

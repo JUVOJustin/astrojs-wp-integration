@@ -1,6 +1,7 @@
 {
 	"core": null,
 	"phpVersion": "8.2",
+	"autoPort": true,
 	"plugins": [],
 	"config": {
 		"WP_ENVIRONMENT_TYPE": "development",

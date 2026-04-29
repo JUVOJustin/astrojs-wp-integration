@@ -2,7 +2,7 @@
 
 Astro-first integration for WordPress with content loaders, server actions, auth bridge helpers, and rendering components.
 
-This package is built against `fluent-wp-client` `^2.1.0`.
+This package is built against `fluent-wp-client` `^3.0.0`.
 It supports Astro `^6.0.0`.
 
 ## Install
@@ -11,14 +11,23 @@ It supports Astro `^6.0.0`.
 npm install wp-astrojs-integration
 ```
 
+If you want the `./ai-sdk` subpath, install `ai` as well:
+
+```bash
+npm install wp-astrojs-integration ai
+```
+
 ## Feature overview
 
 | Feature | What you get in Astro | Main API |
 |---|---|---|
 | Live content collections | Request-time WordPress data for SSR routes | `defineLiveCollection` + `wordPress*Loader` |
+| Route caching | Astro `cacheHint` metadata plus a targeted invalidation action for live routes | `Astro.cache.set()`, `createWpCacheInvalidateAction` |
+| AI SDK live reads | Astro-aware AI SDK read tools backed by live collections and route caching | `wp-astrojs-integration/ai-sdk` |
 | Static content collections | Build-time WordPress snapshots for SSG | `defineCollection` + `wordPress*StaticLoader` |
 | Server actions | Typed create/update/delete actions for posts, pages, users, and abilities | `create*Action` factories |
 | Auth bridge | Login/session helpers for Astro server actions and middleware | `createWordPressAuthBridge` |
+| Discovery + typesafety | Re-exported discovery types, embed helpers, and Zod conversion utilities from `fluent-wp-client` v3 | `zodFromJsonSchema`, `zodSchemasFromDescription`, `getEmbedded*` |
 | Rendering components | Gutenberg-friendly HTML and media rendering in Astro | `WPContent`, `WPImage` |
 
 ## Available entities
@@ -55,6 +64,22 @@ const posts = defineLiveCollection({
 export const collections = { posts };
 ```
 
+If you need request instrumentation, a cache layer, or a proxy, pass a custom `fetch` to `WordPressClient` and then reuse that client with the live loader:
+
+```ts
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  fetch: async (input, init) => {
+    return fetch(input, init);
+  },
+});
+
+const posts = defineLiveCollection({
+  loader: wordPressPostLoader(wp),
+  schema: postSchema,
+});
+```
+
 ### 2) Static collection (SSG)
 
 ```ts
@@ -80,19 +105,106 @@ export const collections = { posts };
 ---
 import { getLiveEntry } from 'astro:content';
 import WPContent from 'wp-astrojs-integration/components/WPContent.astro';
-import WPImage from 'wp-astrojs-integration/components/WPImage.astro';
 
 const { slug } = Astro.params;
 const { entry: post } = await getLiveEntry('posts', { slug });
-const featuredMedia = post.data._embedded?.['wp:featuredmedia']?.[0];
 ---
 
 <article>
-  {featuredMedia && <WPImage media={featuredMedia} loading="eager" />}
   <h1 set:html={post.data.title.rendered} />
   <WPContent content={post.data.content.rendered} baseUrl={import.meta.env.PUBLIC_WORDPRESS_BASE_URL} />
 </article>
 ```
+
+Live loaders return the base resource payload by default. If you need embedded relations like featured media, enable `embed` on the loader options. If you need a custom request pipeline, set `fetch` on `WordPressClient`; the live loaders reuse that client as-is.
+
+Use `mapEntry` when a site needs to normalize fields before Astro receives loader data. For example, build an ACF choice-label lookup from WordPress discovery metadata and plug that lookup into the mapper:
+
+```ts
+const acfFields = await wp.content('posts').getSchemaValue<
+  Record<string, { choices?: Array<{ value: string; label: string }> }>
+>('properties.acf.properties');
+
+const choiceLabels = new Map(
+  Object.entries(acfFields ?? {})
+    .filter(([, field]) => Array.isArray(field.choices))
+    .map(([fieldName, field]) => [
+      fieldName,
+      new Map(field.choices!.map((choice) => [choice.value, choice.label])),
+    ]),
+);
+
+const posts = defineLiveCollection({
+  loader: wordPressPostLoader(wp, {
+    mapEntry: (post) => ({
+      ...post,
+      acf: Object.fromEntries(
+        Object.entries(post.acf ?? {}).map(([fieldName, value]) => [
+          fieldName,
+          choiceLabels.get(fieldName)?.get(String(value)) ?? value,
+        ]),
+      ),
+    }),
+  }),
+  schema: postSchema,
+});
+```
+
+`mapEntry` is available on live and static loaders. The callback receives `{ resource, filter }` for live loaders so mappings can vary by resource or request filter. Use `mapResponse` on create/update actions when successful write responses need the same normalization. See `docs/mapping.mdx` for a reusable mapper pattern.
+
+## Route caching
+
+Live loaders return Astro-compatible `cacheHint` values, and `createWpCacheInvalidateAction()` invalidates changed post, term, or user routes. See `docs/caching.mdx` for setup details, examples, and Astro reference links.
+
+## AI SDK Tools
+
+The `wp-astrojs-integration/ai-sdk` subpath re-exports the base `fluent-wp-client` AI SDK tools and adds Astro-aware read helpers that fetch through live collections.
+
+Create these tools per request so they can use `context.cache` or `Astro.cache`:
+
+```ts
+import type { APIRoute } from 'astro';
+import { WordPressClient } from 'wp-astrojs-integration';
+import { getLiveContentTool } from 'wp-astrojs-integration/ai-sdk';
+
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.WP_URL,
+});
+
+export const GET: APIRoute = async (context) => {
+  const tool = getLiveContentTool(wp, context.cache, {
+    collection: 'posts',
+    contentType: 'posts',
+  });
+
+  const result = await tool.execute?.({ slug: 'hello-world' }, {
+    toolCallId: 'read-post',
+    messages: [],
+  });
+
+  context.cache.set({ maxAge: 300, swr: 60 });
+
+  return Response.json(result);
+};
+```
+
+For collection reads, use `getLiveContentCollectionTool()`.
+
+Personalized reads should opt out of route caching. Pass `personalized` when request cookies, session state, or user-specific auth can change the result:
+
+```ts
+const tool = getLiveContentTool(wp, context.cache, {
+  collection: 'posts',
+  contentType: 'posts',
+  personalized: () => Boolean(context.request.headers.get('cookie')),
+});
+```
+
+When `personalized` resolves to `true`, the helper calls `cache.set(false)` and skips route caching for that request.
+
+The wrapper forwards the live collection entry or collection hint only. Set `maxAge` and `swr` in the route itself when you want response caching.
+
+These Astro-aware helpers are read-only and intentionally limited to live-collection reads. Writes should keep using the base `fluent-wp-client/ai-sdk` mutation tools.
 
 ## Astro actions
 
@@ -125,7 +237,9 @@ export const server = {
 };
 ```
 
-Action factories accept an optional `responseSchema` that follows the Standard Schema spec (for example Zod schemas).
+Action factories accept an optional `responseSchema` for resource and ability actions when you want Astro-side response validation with a Standard Schema-compatible validator (for example Zod).
+
+For a schema-generation and discovery-based workflow, see `docs/typesafe-integration.mdx`.
 
 ## Auth bridge
 
@@ -155,7 +269,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return Response.redirect(new URL('/login', context.url), 302);
   }
 
-  const user = await wp.getCurrentUser();
+  const user = await wp.users().me();
   context.locals.user = user;
 
   return next();
@@ -261,11 +375,14 @@ const posts = defineLiveCollection({
 
 ```bash
 npm run wp:start
+npm run wp:status
 npm test                    # Run all test projects
 npm run test:integration    # Integration project (actions/loaders/auth)
 npm run test:build          # Static build project
 npm run wp:stop
 ```
+
+`wp-env` uses automatic port selection in this repository. If `8888` is unavailable, run `npm run wp:status` to see the active local WordPress URL and ports.
 
 Other useful commands:
 

@@ -1,6 +1,6 @@
 import { defineAction, type ActionAPIContext, type ActionClient } from 'astro:actions';
 import { z } from 'astro/zod';
-import type { WordPressClient } from 'fluent-wp-client';
+import type { WordPressClient, TermWriteInput } from 'fluent-wp-client';
 import {
   categorySchema,
   type WordPressCategory,
@@ -11,6 +11,7 @@ import {
   withActionClient,
   type ResolvableActionClient,
 } from '../post/client';
+import { validateActionResponse } from '../response-validation';
 
 /**
  * Shared writable fields for creating taxonomy terms.
@@ -71,13 +72,10 @@ export async function executeCreateTerm<T = WordPressCategory>(
   const resource = options?.resource ?? 'categories';
 
   return withActionClient(client, async (resolvedClient) => {
+    const created = await resolvedClient.terms(resource).create(input as TermWriteInput);
     const responseSchema = (options?.responseSchema ?? categorySchema) as WordPressStandardSchema<T>;
 
-    return resolvedClient.createTerm<T, CreateTermInput & Record<string, unknown>>(
-      resource,
-      input,
-      responseSchema,
-    );
+    return validateActionResponse(created, responseSchema, `WordPress ${resource} create action`);
   });
 }
 

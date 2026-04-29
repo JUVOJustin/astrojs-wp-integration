@@ -163,12 +163,12 @@ export interface WordPressAuthBridge {
    * // In middleware - direct client usage
    * const wp = await bridge.getClient(context);
    * if (!wp) return Response.redirect('/login', 302);
-   * const user = await wp.getCurrentUser();
+   * const user = await wp.users().me();
    * 
    * @example
    * // Reuse the authenticated client in one request handler
    * const wp = await bridge.getClient(context);
-   * const posts = await wp.getPosts();
+   * const posts = await wp.content('posts').list();
    */
   getClient: (
     context: Pick<ActionAPIContext, 'cookies' | 'request'>,
@@ -182,7 +182,7 @@ export interface WordPressAuthBridge {
    * 
    * @example
    * const wp = bridge.getPublicClient();
-   * const posts = await wp.getPosts({ status: 'publish' });
+   * const posts = await wp.content('posts').list({ status: 'publish' });
    */
   getPublicClient: (
     options?: Omit<WordPressClientConfig, 'baseUrl' | 'auth' | 'authHeader'>
@@ -194,13 +194,13 @@ export interface WordPressAuthBridge {
    * 
    * @example
    * const user = await bridge.withClient(context, async (wp) => {
-   *   return await wp.getCurrentUser();
+   *   return await wp.users().me();
    * });
    * 
    * @example
    * const posts = await bridge.withClient(
    *   context,
-   *   async (wp) => await wp.getPosts(),
+   *   async (wp) => await wp.content('posts').list(),
    *   [] // fallback if not authenticated
    * );
    */
@@ -226,7 +226,7 @@ export interface WordPressAuthBridge {
    * const config = await bridge.getClientConfig(context);
    * if (!config) return new Response('Unauthorized', { status: 401 });
    * const client = new WordPressClient(config);
-   * const user = await client.getCurrentUser();
+   * const user = await client.users().me();
    * 
    * @example
    * // Use with actions that still need raw config
@@ -675,7 +675,7 @@ async function resolveUserByToken(
   let user: unknown;
 
   try {
-    user = await client.getCurrentUser();
+    user = await client.users().me();
   } catch (error) {
     if (!(error instanceof Error) || !("status" in error)) {
       throw error;
@@ -915,14 +915,14 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
    * @example
    * // Get user with the client
    * const user = await bridge.withClient(context, async (wp) => {
-   *   return await wp.getCurrentUser();
+   *   return await wp.users().me();
    * });
    * 
    * @example
    * // Get posts with fallback
    * const posts = await bridge.withClient(
    *   context,
-   *   async (wp) => await wp.getPosts(),
+   *   async (wp) => await wp.content('posts').list(),
    *   [] // fallback if not authenticated
    * );
    */
@@ -951,7 +951,7 @@ export function createWordPressAuthBridge(config: WordPressAuthBridgeConfig): Wo
    */
   async function resolveUser(context: Pick<APIContext, 'cookies' | 'request'>): Promise<WordPressAuthor | null> {
     return withClient(context, async (client) => {
-      const user = await client.getCurrentUser();
+      const user = await client.users().me();
       return isWordPressAuthor(user) ? user : null;
     }, null);
   }

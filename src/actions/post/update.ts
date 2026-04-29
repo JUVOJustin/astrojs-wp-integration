@@ -8,8 +8,10 @@ import {
 import {
   resolveRequiredActionClient,
   withActionClient,
+  type ActionResponseMapper,
   type ResolvableActionClient,
 } from './client';
+import { validateActionResponse } from '../response-validation';
 import { getDefaultContentResponseSchema } from './response-schema';
 import { createPostInputSchema } from './create';
 
@@ -42,6 +44,8 @@ export interface ExecuteUpdateOptions<T = WordPressPost> {
   resource?: string;
   /** Standard Schema-compatible parser used for the response (default: postSchema) */
   responseSchema?: WordPressStandardSchema<T>;
+  /** Optional mapper for successful WordPress responses before validation/return */
+  mapResponse?: ActionResponseMapper<T, UpdatePostInput & Record<string, unknown>>;
 }
 
 /**
@@ -57,6 +61,8 @@ export interface UpdatePostActionOptions<T = WordPressPost> {
   resource?: string;
   /** Optional parser override for the action response */
   responseSchema?: WordPressStandardSchema<T>;
+  /** Optional mapper for successful WordPress responses before validation/return */
+  mapResponse?: ActionResponseMapper<T, UpdatePostInput & Record<string, unknown>>;
 }
 
 /**
@@ -88,15 +94,19 @@ export async function executeUpdatePost<T = WordPressPost>(
   const resource = options?.resource ?? 'posts';
 
   return withActionClient(client, async (resolvedClient) => {
-    const responseSchema = (options?.responseSchema ?? getDefaultContentResponseSchema(resource)) as WordPressStandardSchema<T>;
     const { id, ...fields } = input;
+    const updated = await resolvedClient.content(resource).update(id, fields) as T;
+    const mapped = options?.mapResponse
+      ? await options.mapResponse(updated, {
+        client: resolvedClient,
+        input,
+        operation: 'update',
+        resource,
+      })
+      : updated;
+    const responseSchema = (options?.responseSchema ?? getDefaultContentResponseSchema(resource)) as WordPressStandardSchema<T>;
 
-    return resolvedClient.updateContent<T, Record<string, unknown>>(
-      resource,
-      id,
-      fields,
-      responseSchema,
-    );
+    return validateActionResponse(mapped, responseSchema, `WordPress ${resource} update action`);
   });
 }
 
@@ -132,6 +142,7 @@ export function createUpdatePostAction<
   const inputSchema = (options?.schema ?? updatePostInputSchema) as TSchema;
   const resource = options?.resource;
   const responseSchema = options?.responseSchema;
+  const mapResponse = options?.mapResponse;
 
   // TypeScript defers evaluation of ActionHandler<TSchema, …> when TSchema is a
   // generic parameter — `as any` is scoped to this call site only and does not
@@ -145,7 +156,7 @@ export function createUpdatePostAction<
       return executeUpdatePost<TResponse>(
         resolvedClient,
         input as UpdatePostInput & Record<string, unknown>,
-        { resource, responseSchema },
+        { resource, responseSchema, mapResponse },
       );
     },
   } as any) as ActionClient<TResponse, undefined, TSchema> & string;

@@ -5,6 +5,7 @@
  */
 
 export type {
+  ActionResponseMapper,
   ActionClientResolver,
   ResolvableActionClient,
 } from './post/client';
@@ -66,6 +67,16 @@ export type {
   ExecuteDeleteTermOptions,
   ExecuteDeleteTermConfig,
 } from './term/delete';
+
+// Cache invalidation actions
+export {
+  createWpCacheInvalidateAction,
+  wpCacheInvalidateInputSchema,
+  executeWpCacheInvalidate,
+} from './cache/invalidate';
+export type {
+  WpCacheInvalidateInput,
+} from './cache/invalidate';
 
 // User actions
 export { createCreateUserAction, createUserInputSchema, executeCreateUser } from './user/create';

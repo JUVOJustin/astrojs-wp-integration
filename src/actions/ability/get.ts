@@ -8,6 +8,7 @@ import {
   withActionClient,
   type ResolvableActionClient,
 } from '../post/client';
+import { validateActionResponse } from '../response-validation';
 import {
   createAbilityAction,
   type AbilityActionOptions,
@@ -51,7 +52,10 @@ export async function executeGetAbility<T = unknown>(
   input: GetAbilityInput,
   options?: ExecuteGetAbilityOptions<T>,
 ): Promise<T> {
-  return withActionClient(client, (resolvedClient) => resolvedClient.executeGetAbility(input.name, input.input, options?.responseSchema));
+  return withActionClient(client, async (resolvedClient) => {
+    const result = await resolvedClient.executeGetAbility(input.name, input.input);
+    return validateActionResponse(result, options?.responseSchema, 'WordPress ability GET action');
+  });
 }
 
 /**

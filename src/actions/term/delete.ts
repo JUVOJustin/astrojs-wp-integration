@@ -59,7 +59,7 @@ export async function executeDeleteTerm(
   const resource = options?.resource ?? 'categories';
 
   return withActionClient(client, async (resolvedClient) => {
-    const result = await resolvedClient.deleteTerm(resource, input.id, { force: input.force });
+    const result = await resolvedClient.terms(resource).delete(input.id, { force: input.force });
     return { id: result.id, deleted: result.deleted };
   });
 }

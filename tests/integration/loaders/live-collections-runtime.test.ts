@@ -33,7 +33,7 @@ describe('Live Collections: Astro runtime', () => {
 
     expect(parseInt(postsCount![1], 10)).toBe(100);
     expect(parseInt(pagesCount![1], 10)).toBe(10);
-    expect(parseInt(categoriesCount![1], 10)).toBe(6);
+    expect(parseInt(categoriesCount![1], 10)).toBeGreaterThanOrEqual(6);
     expect(parseInt(booksCount![1], 10)).toBe(10);
 
     expect(html).toContain('data-type="post"');

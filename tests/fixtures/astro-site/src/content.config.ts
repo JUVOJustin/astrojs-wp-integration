@@ -5,6 +5,7 @@
  */
 import { defineCollection } from 'astro:content';
 import { WordPressClient } from 'fluent-wp-client';
+import { resolveWpBaseUrl } from '../../../helpers/wp-env';
 import {
   wordPressPostStaticLoader,
   wordPressPageStaticLoader,
@@ -12,37 +13,37 @@ import {
   wordPressContentStaticLoader,
 } from '../../../../src/loaders/static';
 import {
-  bookSchema,
-  categorySchema,
-  pageSchema,
-  postSchema,
-} from './collection-schemas';
+  booksItemSchema,
+  categoriesItemSchema,
+  pagesItemSchema,
+  postsItemSchema,
+} from './generated/wp-schemas';
 
-const baseUrl = process.env.WP_BASE_URL ?? 'http://localhost:8888';
+const baseUrl = resolveWpBaseUrl();
 const wp = new WordPressClient({ baseUrl });
 
 /** Static post collection loaded at build time with schema validation. */
 const posts = defineCollection({
   loader: wordPressPostStaticLoader(wp),
-  schema: postSchema,
+  schema: postsItemSchema,
 });
 
 /** Static page collection loaded at build time with schema validation. */
 const pages = defineCollection({
   loader: wordPressPageStaticLoader(wp),
-  schema: pageSchema,
+  schema: pagesItemSchema,
 });
 
 /** Static category collection loaded at build time with schema validation. */
 const categories = defineCollection({
   loader: wordPressCategoryStaticLoader(wp),
-  schema: categorySchema,
+  schema: categoriesItemSchema,
 });
 
 /** Static CPT (books) collection loaded at build time with extended schema validation. */
 const books = defineCollection({
   loader: wordPressContentStaticLoader(wp, { resource: 'books' }),
-  schema: bookSchema,
+  schema: booksItemSchema,
 });
 
 export const collections = { posts, pages, categories, books };

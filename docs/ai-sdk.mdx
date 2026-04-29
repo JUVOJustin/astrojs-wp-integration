@@ -1,0 +1,150 @@
+---
+title: AI SDK Integration
+description: Use Astro-aware AI SDK read tools backed by live collections, route caching, and cache invalidation.
+---
+
+## AI SDK Integration
+
+`wp-astrojs-integration/ai-sdk` re-exports the base `fluent-wp-client` AI SDK tools and adds Astro-aware read helpers for live collections.
+
+Use these helpers when you want:
+
+- AI read tools to fetch through `getLiveEntry()` or `getLiveCollection()`
+- Astro route caching on the tool endpoint itself
+- cache tags and invalidation to stay aligned with your live collection entries
+
+These helpers are for read-only content tools.
+
+## Install
+
+```bash title="Install the package and AI SDK"
+npm install wp-astrojs-integration ai
+```
+
+## Available helpers
+
+- `getLiveContentTool()` for single content entry reads by `id` or `slug`
+- `getLiveContentCollectionTool()` for content collection reads
+- pass-through exports from `fluent-wp-client/ai-sdk` for the base tool factories
+
+## Library flow
+
+```mermaid
+flowchart LR
+  A[App route creates tool per request] --> B[wp-astrojs-integration/ai-sdk helper]
+  B --> C[getLiveEntry() or getLiveCollection()]
+  C --> D[App live collection using wp-astrojs-integration live loader]
+  D --> E[WordPressClient]
+  E --> F[WordPress REST API]
+  D --> G[Live entry or collection cache hint]
+  G --> B
+  B --> H{personalized?}
+  H -- yes --> I[cache.set(false)]
+  H -- no --> J[forward live hint to route cache]
+  J --> K[Route returns tool result]
+  I --> K
+```
+
+## Cached read endpoint
+
+Create the tool inside the Astro request so it can access `context.cache`.
+
+```ts title="src/pages/api/ai/post.json.ts"
+import type { APIRoute } from 'astro';
+import { WordPressClient } from 'wp-astrojs-integration';
+import { getLiveContentTool } from 'wp-astrojs-integration/ai-sdk';
+
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.WP_URL,
+});
+
+export const GET: APIRoute = async (context) => {
+  const slug = context.url.searchParams.get('slug') ?? 'hello-world';
+
+  const tool = getLiveContentTool(wp, context.cache, {
+    collection: 'posts',
+    contentType: 'posts',
+  });
+
+  const result = await tool.execute?.({ slug }, {
+    toolCallId: 'read-post',
+    messages: [],
+  });
+
+  context.cache.set({ maxAge: 300, swr: 60 });
+
+  return Response.json(result);
+};
+```
+
+This helper will:
+
+- resolve the entry through `getLiveEntry()`
+- forward the `LiveDataEntry` to `context.cache.set()`
+- leave response freshness policy to the route
+
+That means the endpoint can be served from Astro route cache, and invalidating the entry tag also invalidates the cached tool response.
+
+## Cached collection endpoint
+
+```ts title="src/pages/api/ai/posts.json.ts"
+import type { APIRoute } from 'astro';
+import { WordPressClient } from 'wp-astrojs-integration';
+import { getLiveContentCollectionTool } from 'wp-astrojs-integration/ai-sdk';
+
+const wp = new WordPressClient({
+  baseUrl: import.meta.env.WP_URL,
+});
+
+export const GET: APIRoute = async (context) => {
+  const tool = getLiveContentCollectionTool(wp, context.cache, {
+    collection: 'posts',
+    contentType: 'posts',
+    fixedArgs: {
+      orderby: 'date',
+      order: 'desc',
+      perPage: 10,
+    },
+  });
+
+  const result = await tool.execute?.({}, {
+    toolCallId: 'list-posts',
+    messages: [],
+  });
+
+  context.cache.set({ maxAge: 300, swr: 60 });
+
+  return Response.json(result);
+};
+```
+
+For collections, the helper uses `getLiveCollection()`. Astro merges the collection-level hint plus all entry hints, so invalidating one returned entry will also invalidate the cached collection response.
+
+## Personalized reads
+
+If a request can return user-specific content, disable route caching for that request.
+
+```ts title="Cookie-aware personalized tool"
+const tool = getLiveContentTool(wp, context.cache, {
+  collection: 'posts',
+  contentType: 'posts',
+  personalized: () => Boolean(context.request.headers.get('cookie')),
+});
+```
+
+When `personalized` resolves to `true`, the helper calls `cache.set(false)` and skips live-entry cache registration for that request.
+
+Use this for session-aware reads, per-user auth, or anything else that should not be shared across requests.
+
+## Caveats
+
+- These helpers are request-scoped because Astro cache access is request-scoped.
+- They are intentionally read-only. Use the base `fluent-wp-client/ai-sdk` mutation tools for writes.
+- They forward live collection cache hints only. Set `context.cache.set({ maxAge, swr })` in the route when you want response freshness policy.
+- If the referenced live collection is not defined, the helper returns a clear runtime error that points back to `src/live.config.ts`.
+- `includeContent` and `includeBlocks` are not supported here because Astro live loaders return serializable entry data, not raw content-query helpers.
+
+## Related guides
+
+- See [`./reading-content.mdx`](./reading-content.mdx) for live collection setup.
+- See [`./caching.mdx`](./caching.mdx) for route caching and invalidation.

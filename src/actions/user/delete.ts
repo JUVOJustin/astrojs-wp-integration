@@ -55,7 +55,7 @@ export async function executeDeleteUser(
   input: DeleteUserInput,
 ): Promise<DeleteUserResult> {
   return withActionClient(client, async (resolvedClient) => {
-    const result = await resolvedClient.deleteUser(input.id, { force: true, reassign: input.reassign });
+    const result = await resolvedClient.users().delete(input.id, { force: true, reassign: input.reassign });
     return {
       id: result.id,
       deleted: result.deleted,
