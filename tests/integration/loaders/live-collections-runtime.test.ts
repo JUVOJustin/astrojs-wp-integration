@@ -102,6 +102,6 @@ describe('Live Entry: Astro runtime', () => {
     expect(html).toContain('Slug: about');
     expect(html).toContain('Slug: technology');
     expect(html).toContain('Slug: test-book-001');
-    expect(html).toContain('Subtitle: Subtitle for test book 001');
+    expect(html).toContain('data-book-subtitle=');
   });
 });

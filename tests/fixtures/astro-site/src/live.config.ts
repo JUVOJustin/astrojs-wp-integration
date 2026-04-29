@@ -5,12 +5,8 @@
  * collections defined in `src/content.config.ts` inside the same fixture app.
  */
 import { defineLiveCollection } from 'astro:content';
-import { WordPressClient } from 'fluent-wp-client';
 import { z } from 'astro/zod';
-import { resolveWpBaseUrl } from '../../../helpers/wp-env';
-import { trackedWordPressFetch } from './lib/wp-fetch-metrics';
-import { createAcfChoiceLabelMapper } from './lib/acf-choice-label-mapper';
-import { useTestAcfChoiceCatalog } from './lib/test-acf-catalog';
+import { WordPressClient } from 'fluent-wp-client';
 import {
   wordPressCategoryLoader,
   wordPressContentLoader,
@@ -18,12 +14,16 @@ import {
   wordPressPostLoader,
   wordPressUserLoader,
 } from '../../../../src/loaders/live';
+import { resolveWpBaseUrl } from '../../../helpers/wp-env';
 import {
   booksItemSchema,
   categoriesItemSchema,
   pagesItemSchema,
   postsItemSchema,
 } from './generated/wp-schemas';
+import { createAcfChoiceLabelMapper } from './lib/acf-choice-label-mapper';
+import { useTestAcfChoiceCatalog } from './lib/test-acf-catalog';
+import { trackedWordPressFetch } from './lib/wp-fetch-metrics';
 
 const baseUrl = resolveWpBaseUrl();
 const wp = new WordPressClient({

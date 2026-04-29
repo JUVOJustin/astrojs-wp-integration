@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { callAction, ActionError } from '../../helpers/action-client';
+import { describe, expect, it } from 'vitest';
+import { ActionError, callAction } from '../../helpers/action-client';
 
 /**
  * Integration tests validating that Astro actions do not leak user-specific
