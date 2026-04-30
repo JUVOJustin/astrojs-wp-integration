@@ -5,6 +5,7 @@
  * collections defined in `src/content.config.ts` inside the same fixture app.
  */
 import { defineLiveCollection } from 'astro:content';
+import { defineWordPressCollection } from 'virtual:wp-astrojs/collections';
 import { z } from 'astro/zod';
 import { WordPressClient } from 'fluent-wp-client';
 import {
@@ -65,6 +66,15 @@ const liveBooks = defineLiveCollection({
   schema: booksItemSchema,
 });
 
+/** Catalog-backed live collection used to guard against content-config import cycles. */
+const liveCatalogBooks =
+  process.env.ASTRO_TEST_LIVE_CATALOG === '1'
+    ? defineWordPressCollection('books', {
+        client: wp,
+        mode: 'live',
+      })
+    : liveBooks;
+
 /** Live user collection loaded at request time. */
 const liveUsers = defineLiveCollection({
   loader: wordPressUserLoader(wp),
@@ -83,5 +93,6 @@ export const collections = {
   livePages,
   liveCategories,
   liveBooks,
+  liveCatalogBooks,
   liveUsers,
 };

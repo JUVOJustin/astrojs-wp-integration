@@ -9,18 +9,48 @@
  * Requires `wp-env` to be running (`npm run wp:start`).
  */
 
+import { execFile } from 'node:child_process';
 import { cp, mkdtemp, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { build } from 'astro';
 import { describe, expect, it } from 'vitest';
 import { resolveWpBaseUrl } from '../../helpers/wp-env';
 
+const execFileAsync = promisify(execFile);
+
 const fixtureRoot = fileURLToPath(
   new URL('../../fixtures/astro-site', import.meta.url),
 );
+const astroBin = fileURLToPath(
+  new URL('../../../node_modules/astro/bin/astro.mjs', import.meta.url),
+);
 
 describe('Static Loaders: Astro build integration', () => {
+  it('syncs when live config imports catalog-backed collection helpers', async () => {
+    const buildRoot = await mkdtemp(
+      path.join(path.dirname(fixtureRoot), '.tmp-sync-fixture-'),
+    );
+
+    try {
+      await cp(fixtureRoot, buildRoot, { recursive: true });
+
+      await execFileAsync(process.execPath, [astroBin, 'sync'], {
+        cwd: buildRoot,
+        env: {
+          ...process.env,
+          ASTRO_TEST_CATALOG: '1',
+          ASTRO_TEST_LIVE_CATALOG: '1',
+          WP_BASE_URL: resolveWpBaseUrl(),
+          WP_CATALOG_URL: resolveWpBaseUrl(),
+        },
+      });
+    } finally {
+      await rm(buildRoot, { recursive: true, force: true });
+    }
+  });
+
   it('builds a minimal site with WordPress static loaders and catalog helpers', async () => {
     const buildRoot = await mkdtemp(
       path.join(path.dirname(fixtureRoot), '.tmp-build-fixture-'),

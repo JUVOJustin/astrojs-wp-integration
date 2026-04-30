@@ -321,7 +321,6 @@ function createCatalogVirtualModule(state: CatalogState): Plugin {
 
       if (id === RESOLVED_COLLECTIONS_VIRTUAL_MODULE_ID) {
         return `
-          import { defineCollection, defineLiveCollection } from 'astro:content';
           import {
             wordPressCategoryLoader,
             wordPressCategoryStaticLoader,
@@ -342,6 +341,9 @@ function createCatalogVirtualModule(state: CatalogState): Plugin {
           } from 'wp-astrojs-integration';
           import { createWordPressClient } from 'virtual:wp-astrojs/catalog';
           import { getWordPressResourceSchemas } from 'virtual:wp-astrojs/schemas';
+
+          const CONTENT_LAYER_TYPE = 'content_layer';
+          const LIVE_CONTENT_TYPE = 'live';
 
           function resolveKind(resource, requestedKind) {
             if (requestedKind && requestedKind !== 'auto') return requestedKind;
@@ -414,8 +416,11 @@ function createCatalogVirtualModule(state: CatalogState): Plugin {
               throw new Error(\`WordPress catalog does not provide an item schema for resource "\${resource}". Pass options.schema explicitly.\`);
             }
 
-            const collection = { loader, schema };
-            return mode === 'live' ? defineLiveCollection(collection) : defineCollection(collection);
+            return {
+              loader,
+              schema,
+              type: mode === 'live' ? LIVE_CONTENT_TYPE : CONTENT_LAYER_TYPE,
+            };
           }
         `;
       }
