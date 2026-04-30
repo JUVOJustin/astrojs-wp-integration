@@ -50,7 +50,7 @@ describe('Live Collections: Astro runtime', () => {
 
     expect(response.status).toBe(200);
     expect(html).toContain('data-type="book"');
-    expect(html).toContain('data-subtitle="Subtitle for test book 001"');
+    expect(html).toContain('data-subtitle="Subtitle for test book 002"');
   });
 
   it('renders live users without exposing private emails', async () => {
