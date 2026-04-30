@@ -5,6 +5,7 @@ on:
     tags:
       - '*'
 
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -12,9 +13,11 @@ jobs:
       contents: write
       id-token: write
 
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -22,15 +25,32 @@ jobs:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
+
       - name: Extract tag version
         id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: |
+          RAW="${GITHUB_REF#refs/tags/}"
+          # Strip optional leading "v" so npm version accepts the value.
+          CLEAN="${RAW#v}"
+          echo "RAW=$RAW" >> $GITHUB_OUTPUT
+          echo "VERSION=$CLEAN" >> $GITHUB_OUTPUT
+          # Detect prereleases by SemVer convention (e.g. 3.0.0-rc.1, 1.2.3-beta)
+          # or by a leading "v" on an otherwise matching prerelease marker.
+          if [[ "$CLEAN" =~ -[A-Za-z0-9]+ ]]; then
+            echo "NPM_TAG=next" >> $GITHUB_OUTPUT
+            echo "IS_PRERELEASE=true" >> $GITHUB_OUTPUT
+          else
+            echo "NPM_TAG=latest" >> $GITHUB_OUTPUT
+            echo "IS_PRERELEASE=false" >> $GITHUB_OUTPUT
+          fi
+
 
       - name: Update package.json version
         run: npm version ${{ steps.version.outputs.VERSION }} --no-git-tag-version --allow-same-version
 
       - run: npm ci
       - run: npm run build
+
 
       - name: Commit version update
         uses: test-room-7/action-update-file@v1
@@ -41,4 +61,5 @@ jobs:
           commit-msg: "chore: update package.json version to ${{ steps.version.outputs.VERSION }}"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - run: npm publish
+      - name: Publish to npm
+        run: npm publish --tag ${{ steps.version.outputs.NPM_TAG }}
