@@ -5,6 +5,7 @@
 This repository ships one npm package:
 
 - **`wp-astrojs-integration`** (`src/`) — Astro loaders, Astro actions, Astro-aware AI SDK helpers, auth bridge, and components built on top of the published `fluent-wp-client` package
+- The package also exposes `wp-astrojs-integration/integration`, an Astro integration that can fetch and cache a WordPress discovery catalog for catalog-aware helpers.
 
 ## Architecture Priorities
 

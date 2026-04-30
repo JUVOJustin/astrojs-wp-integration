@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build package
+        run: npm run build
+
       - name: Start WordPress environment
         run: npm run wp:start
 
@@ -50,6 +53,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Build package
+        run: npm run build
 
       - name: Start WordPress environment
         run: npm run wp:start

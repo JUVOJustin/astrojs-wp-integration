@@ -11,9 +11,13 @@ The easiest way to get a very typesafe setup is:
 
 1. Generate Zod schemas from your real WordPress site with the `fluent-wp-client` CLI.
 2. Use those schemas in Astro collections and action factories.
-3. Use the standalone `WordPressClient` directly when you need advanced features such as embeds or discovery.
+3. Optionally enable the Astro catalog integration so discovery metadata is fetched during builds and reused by catalog-aware helpers.
 
 This package is the Astro integration layer. `fluent-wp-client` is the source of truth for resource access, discovery, embeds, and schema generation.
+
+For build-time catalog discovery, use `wp-astrojs-integration/integration` in `astro.config.mjs`. See `docs/catalog.mdx` for the full setup.
+
+When the catalog integration is enabled, `virtual:wp-astrojs/collections` and `virtual:wp-astrojs/schemas` can apply catalog-derived Zod schemas to loaders and action factories automatically.
 
 ## Recommended Approach
 

@@ -23,6 +23,7 @@ npm install wp-astrojs-integration ai
 |---|---|---|
 | Live content collections | Request-time WordPress data for SSR routes | `defineLiveCollection` + `wordPress*Loader` |
 | Route caching | Astro `cacheHint` metadata plus a targeted invalidation action for live routes | `Astro.cache.set()`, `createWpCacheInvalidateAction` |
+| Catalog integration | Build-time WordPress discovery cached in Astro and reused by catalog-aware helpers | `wp-astrojs-integration/integration`, `virtual:wp-astrojs/catalog` |
 | AI SDK live reads | Astro-aware AI SDK read tools backed by live collections and route caching | `wp-astrojs-integration/ai-sdk` |
 | Static content collections | Build-time WordPress snapshots for SSG | `defineCollection` + `wordPress*StaticLoader` |
 | Server actions | Typed create/update/delete actions for posts, pages, users, and abilities | `create*Action` factories |
@@ -45,7 +46,102 @@ npm install wp-astrojs-integration ai
 
 ## Quick start
 
-### 1) Live collection (SSR)
+### 1) Configure the catalog integration
+
+Add the Astro integration so WordPress discovery metadata is fetched during builds and reused by catalog-aware clients, schemas, collections, and actions.
+
+```js title="astro.config.mjs"
+import { defineConfig } from 'astro/config';
+import wordpress from 'wp-astrojs-integration/integration';
+
+export default defineConfig({
+  integrations: [
+    wordpress({
+      catalog: {
+        enabled: true,
+        refresh: 'build',
+        required: true,
+      },
+    }),
+  ],
+});
+```
+
+Set the WordPress URL in `.env`.
+
+```bash title=".env"
+WP_CATALOG_URL=https://cms.example.com
+```
+
+### 2) Create a catalog-backed client
+
+Create clients from the generated virtual module so discovery-aware calls automatically use the stored catalog instead of re-discovering WordPress.
+
+```ts title="src/lib/wp.ts"
+import { createWordPressClient } from 'virtual:wp-astrojs/catalog';
+
+export const wp = createWordPressClient({
+  baseUrl: import.meta.env.WP_CATALOG_URL,
+});
+```
+
+### 3) Define schema-backed collections
+
+Use `defineWordPressCollection()` to create Astro collections with the correct WordPress loader and a catalog-derived Zod schema.
+
+```ts title="src/content.config.ts"
+import { defineWordPressCollection } from 'virtual:wp-astrojs/collections';
+import { wp } from './lib/wp';
+
+export const collections = {
+  posts: defineWordPressCollection('posts', { client: wp }),
+  books: defineWordPressCollection('books', { client: wp }),
+  livePosts: defineWordPressCollection('posts', {
+    mode: 'live',
+    client: wp,
+  }),
+};
+```
+
+### 4) Use catalog schemas in actions
+
+Use `withWordPressActionSchemas()` to add catalog-derived input and response schemas to action factories. Explicit `schema` and `responseSchema` options still win when you pass them.
+
+```ts title="src/actions/index.ts"
+import { createCreatePostAction } from 'wp-astrojs-integration';
+import { withWordPressActionSchemas } from 'virtual:wp-astrojs/schemas';
+import { wp } from '../lib/wp';
+
+export const server = {
+  createBook: createCreatePostAction(
+    wp,
+    withWordPressActionSchemas('books', { resource: 'books' }),
+  ),
+};
+```
+
+### 5) Render WordPress content in Astro pages
+
+```astro
+---
+import { getLiveEntry } from 'astro:content';
+import WPContent from 'wp-astrojs-integration/components/WPContent.astro';
+
+const { slug } = Astro.params;
+const { entry: post } = await getLiveEntry('livePosts', { slug });
+---
+
+<article>
+  <h1 set:html={post.data.title.rendered} />
+  <WPContent content={post.data.content.rendered} baseUrl={import.meta.env.WP_CATALOG_URL} />
+</article>
+```
+
+## Manual Loader Setup
+
+You can still wire loaders and schemas manually when you want full control.
+
+### Live collection (SSR)
 
 ```ts
 // src/live.config.ts
@@ -80,7 +176,7 @@ const posts = defineLiveCollection({
 });
 ```
 
-### 2) Static collection (SSG)
+### Static collection (SSG)
 
 ```ts
 // src/content.config.ts
@@ -97,23 +193,6 @@ const posts = defineCollection({
 });
 
 export const collections = { posts };
-```
-
-### 3) Render WordPress content in Astro pages
-
-```astro
----
-import { getLiveEntry } from 'astro:content';
-import WPContent from 'wp-astrojs-integration/components/WPContent.astro';
-
-const { slug } = Astro.params;
-const { entry: post } = await getLiveEntry('posts', { slug });
----
-
-<article>
-  <h1 set:html={post.data.title.rendered} />
-  <WPContent content={post.data.content.rendered} baseUrl={import.meta.env.PUBLIC_WORDPRESS_BASE_URL} />
-</article>
 ```
 
 Live loaders return the base resource payload by default. If you need embedded relations like featured media, enable `embed` on the loader options. If you need a custom request pipeline, set `fetch` on `WordPressClient`; the live loaders reuse that client as-is.

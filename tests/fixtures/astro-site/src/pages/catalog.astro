@@ -1,0 +1,42 @@
+---
+import { getCollection } from 'astro:content';
+import {
+  catalog,
+  catalogPath,
+  defineWordPressClient,
+  hasCatalog,
+} from 'virtual:wp-astrojs/catalog';
+import {
+  getWordPressContentSchemas,
+  withWordPressActionSchemas,
+} from 'virtual:wp-astrojs/schemas';
+import { resolveWpBaseUrl } from '../../../../helpers/wp-env';
+
+const wp = defineWordPressClient({ baseUrl: resolveWpBaseUrl() });
+const postsDescription = await wp.content('posts').describe();
+const booksDescription = await wp.content('books').describe();
+const postsSchemas = getWordPressContentSchemas('posts');
+const actionOptions = withWordPressActionSchemas('posts', {
+  resource: 'posts',
+});
+const catalogPosts = await getCollection('catalogPosts');
+---
+
+<html lang="en">
+  <head>
+    <title>Catalog Test</title>
+  </head>
+  <body>
+    <h1>Catalog Test</h1>
+    <p id="has-catalog">{String(hasCatalog)}</p>
+    <p id="catalog-path">{catalogPath ?? 'missing'}</p>
+    <p id="has-posts">{String(Boolean(catalog?.content.posts))}</p>
+    <p id="has-books">{String(Boolean(catalog?.content.books))}</p>
+    <p id="posts-resource">{postsDescription.resource}</p>
+    <p id="books-resource">{booksDescription.resource}</p>
+    <p id="has-posts-item-schema">{String(Boolean(postsSchemas.item))}</p>
+    <p id="has-posts-create-schema">{String(Boolean(actionOptions.schema))}</p>
+    <p id="has-posts-response-schema">{String(Boolean(actionOptions.responseSchema))}</p>
+    <p id="catalog-posts-count">{catalogPosts.length}</p>
+  </body>
+</html>

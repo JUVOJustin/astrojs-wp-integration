@@ -22,6 +22,10 @@
       "types": "./dist/ai-sdk/index.d.ts",
       "import": "./dist/ai-sdk/index.js"
     },
+    "./integration": {
+      "types": "./dist/integration.d.ts",
+      "import": "./dist/integration.js"
+    },
     "./components": {
       "import": "./src/components/index.ts"
     },
@@ -71,6 +75,7 @@
   "homepage": "https://github.com/JUVOJustin/astrojs-wp-integration#readme",
   "license": "MIT",
   "dependencies": {
+    "devalue": "^5.6.4",
     "fluent-wp-client": "^3.0.0-rc.3"
   },
   "peerDependencies": {
@@ -88,7 +93,6 @@
     "@wordpress/env": "^11.4.0",
     "ai": "^5.0.179",
     "astro": "^6.1.8",
-    "devalue": "^5.6.4",
     "typescript": "^5.7.2",
     "vitest": "^4.0.18"
   }

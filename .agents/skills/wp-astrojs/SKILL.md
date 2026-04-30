@@ -13,6 +13,60 @@ The library code is small and easy to grep when you need precise API details. Pr
 
 ### 1. Init a `WordPressClient`
 
+For projects that want build-time WordPress discovery, prefer the Astro catalog integration and virtual module:
+
+```js
+// astro.config.mjs
+import { defineConfig } from 'astro/config';
+import wordpress from 'wp-astrojs-integration/integration';
+
+export default defineConfig({
+  integrations: [wordpress({ catalog: { enabled: true, refresh: 'build', required: true } })],
+});
+```
+
+```ts
+// src/lib/wp.ts
+import { createWordPressClient } from 'virtual:wp-astrojs/catalog';
+
+export const wp = createWordPressClient({
+  baseUrl: import.meta.env.WP_CATALOG_URL,
+});
+```
+
+Set `WP_CATALOG_URL` and optionally `WP_CATALOG_USERNAME` / `WP_CATALOG_PASSWORD`, `WP_CATALOG_TOKEN`, or `WP_CATALOG_AUTH_HEADER` in `.env`. See `docs/catalog.mdx` for the full setup.
+
+Use `required: false` when local dev should continue without a reachable WordPress backend. The virtual module remains importable, but `hasCatalog` is `false`.
+
+Catalog-derived schemas can simplify collections and actions:
+
+```ts
+// src/content.config.ts
+import { defineWordPressCollection } from 'virtual:wp-astrojs/collections';
+import { wp } from './lib/wp';
+
+export const collections = {
+  posts: defineWordPressCollection('posts', { client: wp }),
+  books: defineWordPressCollection('books', { client: wp }),
+};
+```
+
+```ts
+// src/actions/index.ts
+import { createCreatePostAction } from 'wp-astrojs-integration';
+import { withWordPressActionSchemas } from 'virtual:wp-astrojs/schemas';
+import { wp } from '../lib/wp';
+
+export const server = {
+  createBook: createCreatePostAction(
+    wp,
+    withWordPressActionSchemas('books', { resource: 'books' }),
+  ),
+};
+```
+
+For simple projects without catalog discovery, instantiate the client directly:
+
 ```ts
 // src/lib/wp.ts
 import { WordPressClient } from 'wp-astrojs-integration';
@@ -120,6 +174,8 @@ const { data, error } = await Astro.callAction(actions.createPost, {
 
 The client can introspect WordPress once and reuse the result everywhere through the `WordPressDiscoveryCatalog`.
 
+In Astro projects, the simplified path is `wp-astrojs-integration/integration` plus `virtual:wp-astrojs/catalog`. This fetches and stores the catalog in Astro's cache directory during setup/build, then seeds clients with `client.useCatalog(catalog)` automatically.
+
 ```ts
 // One-time exploration
 const catalog = await wp.explore();
@@ -160,5 +216,6 @@ Use the catalog to drive site-specific normalization (for example ACF choice →
 - Caching and route invalidation: [references/caching.mdx](references/caching.mdx)
 - Auth bridge for sessions/middleware: [references/auth-action-bridge.mdx](references/auth-action-bridge.mdx)
 - AI SDK live-collection tools: [references/ai-sdk.mdx](references/ai-sdk.mdx)
+- Catalog integration: [references/catalog.mdx](references/catalog.mdx) and `docs/catalog.mdx`
 - Typesafe schema generation: [references/typesafe-integration.mdx](references/typesafe-integration.mdx)
 - Actions overview (incl. abilities): [references/actions.mdx](references/actions.mdx)
