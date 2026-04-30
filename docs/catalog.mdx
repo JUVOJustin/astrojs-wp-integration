@@ -1,0 +1,239 @@
+---
+title: Catalog Integration
+description: Fetch a WordPress discovery catalog during Astro builds and reuse it through a generated virtual module.
+---
+
+## Overview
+
+The catalog integration discovers your WordPress REST API during Astro setup and stores the result in Astro's cache directory. Catalog-aware helpers can then use the stored metadata without repeating expensive discovery requests.
+
+Use it when you want:
+
+- schema and resource metadata available during builds
+- discovery-aware helpers such as `describe()` to avoid extra network requests
+- AI SDK tools and mapping code to share one build-time catalog
+- authenticated discovery for private resources, ACF fields, users, or abilities
+
+The catalog contains metadata. Normal content reads such as `client.content('posts').list()` still fetch live WordPress data.
+
+The virtual module is always importable when the integration is installed. When the catalog is disabled or optional discovery fails, `catalog` is `undefined` and `hasCatalog` is `false`.
+
+> [!CAUTION]
+> The catalog can contain a large amount of schema metadata. Import `virtual:wp-astrojs/catalog`, `virtual:wp-astrojs/schemas`, and `virtual:wp-astrojs/collections` from server-only Astro files such as `content.config.ts`, `actions/index.ts`, pages, endpoints, or server utilities. Avoid importing them from client-side islands or browser bundles.
+
+## Configure Astro
+
+Add the integration to `astro.config.mjs`.
+
+```js title="astro.config.mjs"
+import { defineConfig } from 'astro/config';
+import wordpress from 'wp-astrojs-integration/integration';
+
+export default defineConfig({
+  integrations: [
+    wordpress({
+      catalog: {
+        enabled: true,
+        refresh: 'build',
+        required: true,
+      },
+    }),
+  ],
+});
+```
+
+## Environment Variables
+
+Set at least `WP_CATALOG_URL` in `.env`.
+
+```bash title=".env"
+WP_CATALOG_URL=https://cms.example.com
+```
+
+Authenticated discovery supports application passwords, JWT tokens, or a prebuilt Authorization header.
+
+```bash title="Application password"
+WP_CATALOG_USERNAME=admin
+WP_CATALOG_PASSWORD="xxxx xxxx xxxx xxxx"
+```
+
+```bash title="JWT token"
+WP_CATALOG_TOKEN=eyJhbGciOi...
+```
+
+```bash title="Prebuilt Authorization header"
+WP_CATALOG_AUTH_HEADER="Basic base64-value"
+```
+
+## Use the Catalog-Backed Client
+
+The integration exposes `virtual:wp-astrojs/catalog`. Create your shared client from this module so it is seeded with the stored catalog.
+
+```ts title="src/lib/wp.ts"
+import { createWordPressClient } from 'virtual:wp-astrojs/catalog';
+
+export const wp = createWordPressClient({
+  baseUrl: import.meta.env.WP_CATALOG_URL,
+});
+```
+
+`defineWordPressClient()` is available as an alias if you prefer Astro-style naming.
+
+Use the client with loaders and actions as usual.
+
+```ts title="src/content.config.ts"
+import { defineCollection } from 'astro:content';
+import { postSchema, wordPressPostStaticLoader } from 'wp-astrojs-integration';
+import { wp } from './lib/wp';
+
+export const collections = {
+  posts: defineCollection({
+    loader: wordPressPostStaticLoader(wp),
+    schema: postSchema,
+  }),
+};
+```
+
+## Use Catalog Schemas with Loaders
+
+The integration also exposes `virtual:wp-astrojs/collections`. Use `defineWordPressCollection()` when you want the loader and schema to come from the catalog together.
+
+```ts title="src/content.config.ts"
+import { defineWordPressCollection } from 'virtual:wp-astrojs/collections';
+import { wp } from './lib/wp';
+
+export const collections = {
+  posts: defineWordPressCollection('posts', { client: wp }),
+  books: defineWordPressCollection('books', { client: wp }),
+  livePosts: defineWordPressCollection('posts', {
+    mode: 'live',
+    client: wp,
+  }),
+};
+```
+
+Pass `schema` when you need to override the generated schema, or `loaderOptions` to forward options such as `mapEntry` or `embed` to the underlying WordPress loader.
+
+```ts title="Override collection behavior"
+export const collections = {
+  mappedBooks: defineWordPressCollection('books', {
+    client: wp,
+    loaderOptions: {
+      mapEntry: (book) => ({
+        ...book,
+        title: { ...book.title, rendered: book.title.rendered.trim() },
+      }),
+    },
+  }),
+};
+```
+
+## Use Catalog Schemas with Actions
+
+Use `virtual:wp-astrojs/schemas` to apply catalog-derived create and response schemas to action factories.
+
+```ts title="src/actions/index.ts"
+import { createCreatePostAction, createUpdatePostAction } from 'wp-astrojs-integration';
+import { withWordPressActionSchemas } from 'virtual:wp-astrojs/schemas';
+import { wp } from '../lib/wp';
+
+export const server = {
+  createBook: createCreatePostAction(
+    wp,
+    withWordPressActionSchemas('books', { resource: 'books' }),
+  ),
+  updateBook: createUpdatePostAction(
+    wp,
+    withWordPressActionSchemas('books', { resource: 'books' }),
+  ),
+};
+```
+
+`withWordPressActionSchemas()` only fills missing `schema` and `responseSchema` values. Explicit schemas still win.
+
+```ts title="Override one action schema"
+export const server = {
+  createBook: createCreatePostAction(
+    wp,
+    withWordPressActionSchemas('books', {
+      resource: 'books',
+      schema: customCreateBookSchema,
+    }),
+  ),
+};
+```
+
+## Options
+
+```ts
+wordpress({
+  catalog: {
+    enabled: true,
+    refresh: 'build',
+    required: true,
+    envPrefix: 'WP_CATALOG_',
+    include: ['content', 'terms', 'resources', 'abilities'],
+    cacheFile: 'wp-astrojs/catalog.json',
+  },
+});
+```
+
+| Option | Default | Description |
+|---|---:|---|
+| `enabled` | `true` | Enables catalog discovery. |
+| `refresh` | `'build'` | Controls when discovery fetches from WordPress. Use `'build'`, `'dev'`, `'always'`, or `'manual'`. `manual` never fetches and requires a stored catalog unless `required` is `false`. |
+| `required` | `true` | Throws when the catalog cannot be loaded or fetched. Set to `false` to warn and continue with `catalog` as `undefined`. |
+| `envPrefix` | `'WP_CATALOG_'` | Prefix for URL and auth env vars. |
+| `url` | `WP_CATALOG_URL` | WordPress base URL. Prefer env vars for deploy portability. |
+| `include` | all kinds | Limits discovery to `content`, `terms`, `resources`, or `abilities`. |
+| `cacheFile` | `wp-astrojs/catalog.json` | Relative file inside Astro's cache directory. |
+
+## Virtual Module Exports
+
+```ts
+import {
+  catalog,
+  catalogPath,
+  createWordPressClient,
+  defineWordPressClient,
+  hasCatalog,
+  seedWordPressClient,
+} from 'virtual:wp-astrojs/catalog';
+```
+
+| Export | Description |
+|---|---|
+| `catalog` | The stored `WordPressDiscoveryCatalog`, or `undefined` when disabled. |
+| `catalogPath` | Absolute path to the cached catalog file. |
+| `hasCatalog` | Boolean convenience flag. |
+| `seedWordPressClient(client)` | Calls `client.useCatalog(catalog)` when a catalog exists. |
+| `createWordPressClient(config)` | Creates a `WordPressClient` and seeds it with the catalog. |
+| `defineWordPressClient(config)` | Alias for `createWordPressClient(config)`. |
+
+## Schema Module Exports
+
+```ts
+import {
+  getWordPressContentSchemas,
+  getWordPressResourceSchemas,
+  getWordPressTermSchemas,
+  withWordPressActionSchemas,
+} from 'virtual:wp-astrojs/schemas';
+```
+
+| Export | Description |
+|---|---|
+| `getWordPressResourceSchemas(resource, options)` | Returns catalog-derived Zod schemas for any discovered resource. |
+| `getWordPressContentSchemas(resource)` | Returns schemas for one content resource such as `posts`, `pages`, or `books`. |
+| `getWordPressTermSchemas(resource)` | Returns schemas for one term resource such as `categories`, `tags`, or `genres`. |
+| `withWordPressActionSchemas(resource, options)` | Adds missing `schema` and `responseSchema` options for action factories. |
+
+## Collection Module Exports
+
+```ts
+import { defineWordPressCollection } from 'virtual:wp-astrojs/collections';
+```
+
+| Export | Description |
+|---|---|
+| `defineWordPressCollection(resource, options)` | Defines a static or live Astro collection using a WordPress loader and catalog-derived item schema. |

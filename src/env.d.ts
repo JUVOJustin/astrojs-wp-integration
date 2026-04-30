@@ -94,3 +94,82 @@ declare module 'astro:content' {
     cacheHint?: unknown;
   }>;
 }
+
+// Keep these local development declarations in sync with VIRTUAL_MODULE_TYPES in src/integration.ts.
+declare module 'virtual:wp-astrojs/catalog' {
+  import type {
+    WordPressClient,
+    WordPressClientConfig,
+    WordPressDiscoveryCatalog,
+  } from 'wp-astrojs-integration';
+
+  export const catalog: WordPressDiscoveryCatalog | undefined;
+  export const catalogPath: string | undefined;
+  export const hasCatalog: boolean;
+
+  export function seedWordPressClient<TClient extends WordPressClient>(
+    client: TClient,
+  ): TClient;
+
+  export function createWordPressClient(
+    config?: WordPressClientConfig,
+  ): WordPressClient;
+
+  export const defineWordPressClient: typeof createWordPressClient;
+}
+
+declare module 'virtual:wp-astrojs/schemas' {
+  import type { ResourceZodSchemas } from 'wp-astrojs-integration';
+
+  export type WordPressCatalogResourceKind =
+    | 'auto'
+    | 'content'
+    | 'terms'
+    | 'resources';
+
+  export interface WordPressCatalogSchemaOptions {
+    kind?: WordPressCatalogResourceKind;
+  }
+
+  export function getWordPressResourceSchemas(
+    resource: string,
+    options?: WordPressCatalogSchemaOptions,
+  ): ResourceZodSchemas;
+
+  export function getWordPressContentSchemas(
+    resource: string,
+  ): ResourceZodSchemas;
+
+  export function getWordPressTermSchemas(resource: string): ResourceZodSchemas;
+
+  export function withWordPressActionSchemas<
+    TOptions extends Record<string, unknown>,
+  >(
+    resource: string,
+    options?: TOptions & WordPressCatalogSchemaOptions,
+  ): TOptions & { schema?: unknown; responseSchema?: unknown };
+}
+
+declare module 'virtual:wp-astrojs/collections' {
+  import type { WordPressCatalogResourceKind } from 'virtual:wp-astrojs/schemas';
+  import type { LiveLoader, Loader } from 'astro/loaders';
+  import type {
+    WordPressClient,
+    WordPressClientConfig,
+  } from 'wp-astrojs-integration';
+
+  export interface DefineWordPressCollectionOptions {
+    mode?: 'static' | 'live';
+    kind?: WordPressCatalogResourceKind | 'media' | 'users';
+    client?: WordPressClient;
+    clientConfig?: WordPressClientConfig;
+    schema?: unknown;
+    loader?: Loader | LiveLoader;
+    loaderOptions?: Record<string, unknown>;
+  }
+
+  export function defineWordPressCollection(
+    resource: string,
+    options?: DefineWordPressCollectionOptions,
+  ): unknown;
+}

@@ -260,6 +260,7 @@ export async function setup(): Promise<void> {
   // in a separate process — process.env changes are not inherited by workers)
   const envData: Record<string, string> = {
     WP_BASE_URL: baseUrl,
+    WP_CATALOG_URL: baseUrl,
     WP_APP_PASSWORD: appPassword,
     WP_JWT_TOKEN: jwtToken,
     WP_COOKIE_AUTH_HEADER: cookieAuthSession.cookieHeader,

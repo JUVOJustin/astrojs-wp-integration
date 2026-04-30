@@ -4,6 +4,7 @@
  * Build tests use these static collections to verify end-to-end content loading.
  */
 import { defineCollection } from 'astro:content';
+import { defineWordPressCollection } from 'virtual:wp-astrojs/collections';
 import { WordPressClient } from 'fluent-wp-client';
 import {
   wordPressCategoryStaticLoader,
@@ -61,4 +62,16 @@ const books = defineCollection({
   schema: booksItemSchema,
 });
 
-export const collections = { posts, mappedPosts, pages, categories, books };
+const catalogPosts =
+  process.env.ASTRO_TEST_CATALOG === '1'
+    ? defineWordPressCollection('posts', { client: wp })
+    : posts;
+
+export const collections = {
+  posts,
+  mappedPosts,
+  pages,
+  categories,
+  books,
+  catalogPosts,
+};

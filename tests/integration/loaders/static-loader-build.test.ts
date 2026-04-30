@@ -14,13 +14,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'astro';
 import { describe, expect, it } from 'vitest';
+import { resolveWpBaseUrl } from '../../helpers/wp-env';
 
 const fixtureRoot = fileURLToPath(
   new URL('../../fixtures/astro-site', import.meta.url),
 );
 
 describe('Static Loaders: Astro build integration', () => {
-  it('builds a minimal site with WordPress static loaders', async () => {
+  it('builds a minimal site with WordPress static loaders and catalog helpers', async () => {
     const buildRoot = await mkdtemp(
       path.join(path.dirname(fixtureRoot), '.tmp-build-fixture-'),
     );
@@ -33,11 +34,27 @@ describe('Static Loaders: Astro build integration', () => {
       });
 
       // Run the programmatic Astro build against the shared fixture project.
+      const previousCatalogFlag = process.env.ASTRO_TEST_CATALOG;
+      const previousCatalogUrl = process.env.WP_CATALOG_URL;
       process.env.ASTRO_TEST_MODE = 'build';
+      process.env.ASTRO_TEST_CATALOG = '1';
+      process.env.WP_CATALOG_URL = resolveWpBaseUrl();
       try {
         await build({ root: buildRoot, logLevel: 'silent' });
       } finally {
         delete process.env.ASTRO_TEST_MODE;
+
+        if (previousCatalogFlag === undefined) {
+          delete process.env.ASTRO_TEST_CATALOG;
+        } else {
+          process.env.ASTRO_TEST_CATALOG = previousCatalogFlag;
+        }
+
+        if (previousCatalogUrl === undefined) {
+          delete process.env.WP_CATALOG_URL;
+        } else {
+          process.env.WP_CATALOG_URL = previousCatalogUrl;
+        }
       }
 
       // Read the built index.html produced by the build.
@@ -92,6 +109,44 @@ describe('Static Loaders: Astro build integration', () => {
       expect(mappedPostsHtml).toContain('data-slug="test-post-001"');
       expect(mappedPostsHtml).toContain('Project status: In progress');
       expect(mappedPostsHtml).not.toContain('Project status: in_progress');
+
+      const catalogHtml = await readFile(
+        path.join(buildRoot, 'dist', 'catalog', 'index.html'),
+        'utf-8',
+      );
+
+      expect(catalogHtml).toContain('<h1>Catalog Test</h1>');
+      expect(catalogHtml).toContain('<p id="has-catalog">true</p>');
+      expect(catalogHtml).toMatch(
+        /<p id="catalog-path">.*node_modules\/\.astro\/wp-astrojs-test\/catalog\.json<\/p>/,
+      );
+      expect(catalogHtml).toContain('<p id="has-posts">true</p>');
+      expect(catalogHtml).toContain('<p id="has-books">true</p>');
+      expect(catalogHtml).toContain('<p id="posts-resource">posts</p>');
+      expect(catalogHtml).toContain('<p id="books-resource">books</p>');
+      expect(catalogHtml).toContain('<p id="has-posts-item-schema">true</p>');
+      expect(catalogHtml).toContain('<p id="has-posts-create-schema">true</p>');
+      expect(catalogHtml).toContain(
+        '<p id="has-posts-response-schema">true</p>',
+      );
+      expect(catalogHtml).toMatch(/<p id="catalog-posts-count">\d+<\/p>/);
+
+      const catalogJson = await readFile(
+        path.join(
+          buildRoot,
+          'node_modules',
+          '.astro',
+          'wp-astrojs-test',
+          'catalog.json',
+        ),
+        'utf-8',
+      );
+      const catalog = JSON.parse(catalogJson) as {
+        content?: Record<string, unknown>;
+      };
+
+      expect(catalog.content?.posts).toBeDefined();
+      expect(catalog.content?.books).toBeDefined();
     } finally {
       await rm(buildRoot, { recursive: true, force: true });
     }

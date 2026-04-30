@@ -23,6 +23,7 @@ npm install wp-astrojs-integration ai
 |---|---|---|
 | Live content collections | Request-time WordPress data for SSR routes | `defineLiveCollection` + `wordPress*Loader` |
 | Route caching | Astro `cacheHint` metadata plus a targeted invalidation action for live routes | `Astro.cache.set()`, `createWpCacheInvalidateAction` |
+| Catalog integration | Build-time WordPress discovery cached in Astro and reused by catalog-aware helpers | `wp-astrojs-integration/integration`, `virtual:wp-astrojs/catalog` |
 | AI SDK live reads | Astro-aware AI SDK read tools backed by live collections and route caching | `wp-astrojs-integration/ai-sdk` |
 | Static content collections | Build-time WordPress snapshots for SSG | `defineCollection` + `wordPress*StaticLoader` |
 | Server actions | Typed create/update/delete actions for posts, pages, users, and abilities | `create*Action` factories |
@@ -44,6 +45,72 @@ npm install wp-astrojs-integration ai
 | Users | `WordPressAuthor` | `wordPressUserLoader` | `wordPressUserStaticLoader` | |
 
 ## Quick start
+
+### 0) Optional catalog integration
+
+Add the Astro integration when you want WordPress discovery metadata to be fetched during builds and reused by catalog-aware helpers.
+
+```js title="astro.config.mjs"
+import { defineConfig } from 'astro/config';
+import wordpress from 'wp-astrojs-integration/integration';
+
+export default defineConfig({
+  integrations: [
+    wordpress({
+      catalog: {
+        enabled: true,
+        refresh: 'build',
+        required: true,
+      },
+    }),
+  ],
+});
+```
+
+Set at least the WordPress URL in `.env`. Credentials are optional but recommended when private post types, ACF fields, users, or abilities require authentication.
+
+```bash title=".env"
+WP_CATALOG_URL=https://cms.example.com
+WP_CATALOG_USERNAME=admin
+WP_CATALOG_PASSWORD="xxxx xxxx xxxx xxxx"
+```
+
+Then create clients from the generated virtual module so discovery-aware calls automatically use the stored catalog instead of re-discovering WordPress.
+
+```ts title="src/lib/wp.ts"
+import { createWordPressClient } from 'virtual:wp-astrojs/catalog';
+
+export const wp = createWordPressClient({
+  baseUrl: import.meta.env.WP_CATALOG_URL,
+});
+```
+
+Set `required: false` if local development should continue when WordPress is unavailable; in that case `virtual:wp-astrojs/catalog` still imports, but `hasCatalog` is `false`.
+
+Catalog-derived schemas can also remove collection and action boilerplate:
+
+```ts title="src/content.config.ts"
+import { defineWordPressCollection } from 'virtual:wp-astrojs/collections';
+import { wp } from './lib/wp';
+
+export const collections = {
+  posts: defineWordPressCollection('posts', { client: wp }),
+  books: defineWordPressCollection('books', { client: wp }),
+};
+```
+
+```ts title="src/actions/index.ts"
+import { createCreatePostAction } from 'wp-astrojs-integration';
+import { withWordPressActionSchemas } from 'virtual:wp-astrojs/schemas';
+import { wp } from '../lib/wp';
+
+export const server = {
+  createBook: createCreatePostAction(
+    wp,
+    withWordPressActionSchemas('books', { resource: 'books' }),
+  ),
+};
+```
 
 ### 1) Live collection (SSR)
 
