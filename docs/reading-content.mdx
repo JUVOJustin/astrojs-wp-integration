@@ -233,6 +233,18 @@ const { entries: techPosts } = await getLiveCollection('posts', { categories: [3
 // Posts with specific tags
 const { entries: featuredPosts } = await getLiveCollection('posts', { tags: [12, 15] });
 
+// Search posts by keyword
+const { entries: results } = await getLiveCollection('posts', { search: 'headless WordPress' });
+
+// Fetch specific posts by ID
+const { entries: selected } = await getLiveCollection('posts', { include: [1, 5, 9] });
+
+// Exclude specific posts
+const { entries: others } = await getLiveCollection('posts', { exclude: [42] });
+
+// Posts by a specific author
+const { entries: authorPosts } = await getLiveCollection('posts', { author: 3 });
+
 // Draft posts (requires auth)
 const { entries: drafts } = await getLiveCollection('posts', { status: 'draft' });
 
@@ -595,6 +607,51 @@ const posts = await getCollection('posts');
 </ul>
 ```
 
+### Build-time filters
+
+Static loaders accept an optional `filter` in their options. This filter is passed to `listAll()` once at build time and scopes which entries are fetched. Pagination is handled automatically — the `page` field has no effect; `listAll()` always exhausts all matching pages.
+
+```ts
+// src/content.config.ts
+
+// Only fetch posts in the "tutorials" category (ID 5)
+const tutorials = defineCollection({
+  loader: wordPressPostStaticLoader(wp, {
+    filter: { categories: [5] },
+  }),
+  schema: postSchema,
+});
+
+// Only fetch a specific subset of pages by ID
+const keyPages = defineCollection({
+  loader: wordPressPageStaticLoader(wp, {
+    filter: { include: [1, 2, 3] },
+  }),
+  schema: pageSchema,
+});
+
+// Only fetch non-empty categories, ordered by post count
+const activeCategories = defineCollection({
+  loader: wordPressCategoryStaticLoader(wp, {
+    filter: { hideEmpty: true, orderby: 'count', order: 'desc' },
+  }),
+  schema: categorySchema,
+});
+
+// CPT with search scope
+const featuredBooks = defineCollection({
+  loader: wordPressContentStaticLoader(wp, {
+    resource: 'books',
+    filter: { search: 'award' },
+  }),
+  schema: bookSchema,
+});
+```
+
+:::note
+Build-time filters do not affect runtime reads. Use live loaders and pass filters to `getLiveCollection()` when you need per-request scoping.
+:::
+
 ### Static single entry
 
 ```astro
@@ -854,41 +911,99 @@ const { entries: categories } = await getLiveCollection('product-categories');
 
 ## Reference: Common filter options
 
-### Posts filter
+All filter fields accepted by `fluent-wp-client` pass through directly. The fields below are the most commonly used; see the `fluent-wp-client` type definitions for the full list.
+
+Live loader filters are passed as the second argument to `getLiveCollection()` or `getLiveEntry()`. Static loader filters are passed as `filter` in the loader options and applied once at build time.
+
+### Posts and custom post types
 
 ```ts
 {
-  id?: number;           // Lookup single post by ID
-  slug?: string;         // Lookup single post by slug
+  // Entry lookup (live loaders only — ignored by static loaders)
+  id?: number;           // Fetch one post by numeric ID
+  slug?: string;         // Fetch one post by slug
+
+  // Collection scoping
+  search?: string;       // Full-text search
+  include?: number[];    // Only return posts with these IDs
+  exclude?: number[];    // Omit posts with these IDs
+  author?: number;       // Filter by author ID
+  authorExclude?: number | number[];   // Exclude posts by author ID
+  categories?: number | number[];      // Filter by category IDs
+  categoriesExclude?: number | number[]; // Exclude by category IDs
+  tags?: number | number[];            // Filter by tag IDs
+  tagsExclude?: number | number[];     // Exclude by tag IDs
+  taxRelation?: 'AND' | 'OR';          // Relation between taxonomy filters
   status?: 'publish' | 'draft' | 'pending' | 'private' | 'future';
-  categories?: number[]; // Category IDs
-  tags?: number[];       // Tag IDs
-  orderby?: 'date' | 'modified' | 'title' | 'author' | 'id' | 'slug';
+  sticky?: boolean;
+  after?: string;        // ISO 8601 — posts published after this date
+  before?: string;       // ISO 8601 — posts published before this date
+
+  // Ordering and pagination
+  orderby?: 'date' | 'modified' | 'title' | 'author' | 'id' | 'slug' | 'relevance';
   order?: 'asc' | 'desc';
+  perPage?: number;      // Items per page (live loaders); batch size for listAll (static)
+  page?: number;         // Page number (live loaders only)
+  offset?: number;
+
+  // Embedding
+  embed?: boolean | string[]; // Request _embedded relations
 }
 ```
 
-### Pages filter
+### Pages
+
+Same as posts plus:
 
 ```ts
 {
-  id?: number;
-  slug?: string;
-  status?: 'publish' | 'draft' | 'pending' | 'private' | 'future';
-  orderby?: 'date' | 'modified' | 'title' | 'author' | 'id' | 'slug';
-  order?: 'asc' | 'desc';
+  parent?: number;                      // Filter by parent page ID
+  parentExclude?: number | number[];    // Exclude by parent page ID
+  orderby?: 'date' | 'modified' | 'title' | 'author' | 'id' | 'slug' | 'menu_order';
 }
 ```
 
-### Terms filter (categories, tags, custom)
+### Terms filter (categories, tags, custom taxonomies)
 
 ```ts
 {
+  // Entry lookup (live loaders only)
   id?: number;
   slug?: string;
-  hideEmpty?: boolean;   // Hide terms with no posts
+
+  // Collection scoping
+  search?: string;
+  include?: number | number[];
+  exclude?: number | number[];
+  hideEmpty?: boolean;   // Omit terms with no associated posts
   parent?: number;       // Filter by parent term ID
-  orderby?: 'name' | 'count' | 'slug' | 'id';
+
+  // Ordering and pagination
+  orderby?: 'name' | 'count' | 'slug' | 'id' | 'include';
   order?: 'asc' | 'desc';
+  perPage?: number;
+  page?: number;         // Live loaders only
+}
+```
+
+### Users
+
+```ts
+{
+  // Entry lookup (live loaders only)
+  id?: number;
+  slug?: string;
+
+  // Collection scoping
+  search?: string;
+  include?: number | number[];
+  exclude?: number | number[];
+  roles?: string[];
+
+  // Ordering and pagination
+  orderby?: 'id' | 'name' | 'slug' | 'email' | 'url' | 'registered_date' | 'include';
+  order?: 'asc' | 'desc';
+  perPage?: number;
+  page?: number;         // Live loaders only
 }
 ```

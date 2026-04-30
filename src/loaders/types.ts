@@ -5,12 +5,19 @@
 import type {
   CategoriesFilter,
   MediaFilter as ClientMediaFilter,
+  ExtensibleFilter,
   PagesFilter,
   PostsFilter,
-  QueryParams,
   TagsFilter,
   UsersFilter,
 } from 'fluent-wp-client';
+
+/**
+ * Build-time filter for static loaders. Passed as loader options and forwarded
+ * to `listAll()` once at build/prerender time to scope which entries are fetched.
+ * `page` is omitted because `listAll()` handles pagination internally.
+ */
+export type StaticLoaderFilter<TFilter> = Omit<TFilter, 'page'>;
 
 /**
  * Optional embed configuration forwarded to fluent-wp-client content reads.
@@ -66,7 +73,13 @@ export interface WordPressTermLoaderOptions<TEntry = unknown, TFilter = unknown>
  * Options for generic static taxonomy loaders.
  */
 export interface WordPressTermStaticLoaderOptions<TEntry = unknown>
-  extends WordPressTermLoaderOptions<TEntry> {}
+  extends WordPressTermLoaderOptions<TEntry> {
+  /**
+   * Build-time filter forwarded to `listAll()`. Scopes which terms are fetched
+   * at build/prerender time. `page` is omitted — `listAll()` handles pagination.
+   */
+  filter?: StaticLoaderFilter<ExtensibleFilter<CategoriesFilter>>;
+}
 
 /**
  * Base filter shape for loader entry lookup by ID or slug.
@@ -74,30 +87,46 @@ export interface WordPressTermStaticLoaderOptions<TEntry = unknown>
 export interface LoaderEntryLookup {
   /** WordPress entity ID */
   id?: number;
-  /** WordPress entity slug */
+  /** WordPress entity slug for single-entry lookups. */
   slug?: string;
 }
 
 /**
+ * Live loader filters use fluent-wp-client collection filters while also
+ * accepting a string slug for Astro single-entry lookups.
+ */
+export type WordPressLiveFilter<TFilter extends object> = Omit<
+  ExtensibleFilter<TFilter>,
+  'slug'
+> &
+  LoaderEntryLookup & {
+    slug?:
+      | string
+      | (ExtensibleFilter<TFilter> extends { slug?: infer TSlug }
+          ? TSlug
+          : never);
+  };
+
+/**
  * Filter options for posts (live loader).
  */
-export type PostFilter = PostsFilter & LoaderEntryLookup;
+export type PostFilter = WordPressLiveFilter<PostsFilter>;
 
 /**
  * Filter options for pages (live loader).
  */
-export type PageFilter = PagesFilter & LoaderEntryLookup;
+export type PageFilter = WordPressLiveFilter<PagesFilter>;
 
 /**
  * Filter options for media (live loader).
  */
-export type MediaFilter = ClientMediaFilter & LoaderEntryLookup;
+export type MediaFilter = WordPressLiveFilter<ClientMediaFilter>;
 
 /**
  * Filter options for categories/taxonomies (live loader).
  * @deprecated Use 'hideEmpty' instead of 'hide_empty' (kept for backward compatibility)
  */
-export type CategoryFilter = CategoriesFilter &
+export type CategoryFilter = ExtensibleFilter<CategoriesFilter> &
   LoaderEntryLookup & {
     /** Legacy field kept for backward compatibility. */
     hide_empty?: boolean;
@@ -107,7 +136,7 @@ export type CategoryFilter = CategoriesFilter &
  * Filter options for tags (live loader).
  * @deprecated Use 'hideEmpty' instead of 'hide_empty' (kept for backward compatibility)
  */
-export type TagFilter = TagsFilter &
+export type TagFilter = ExtensibleFilter<TagsFilter> &
   LoaderEntryLookup & {
     /** Legacy field kept for backward compatibility. */
     hide_empty?: boolean;
@@ -115,10 +144,13 @@ export type TagFilter = TagsFilter &
 
 /**
  * Filter options for generic term resources (custom taxonomies).
+ * Uses `ExtensibleFilter<CategoriesFilter>` so it satisfies the index signature
+ * required by the generic `client.terms(string)` overload without casting.
+ * Adds `hide_empty` for backward compatibility.
  */
-export type TermFilter = QueryParams &
+export type TermFilter = ExtensibleFilter<CategoriesFilter> &
   LoaderEntryLookup & {
-    hideEmpty?: boolean;
+    /** @deprecated Use `hideEmpty` instead. */
     hide_empty?: boolean;
   };
 
@@ -139,14 +171,35 @@ export interface WordPressContentLoaderOptions<
  * Options for generic static content loaders.
  */
 export interface WordPressContentStaticLoaderOptions<TEntry = unknown>
-  extends WordPressContentLoaderOptions<TEntry> {}
+  extends WordPressContentLoaderOptions<TEntry> {
+  /**
+   * Build-time filter forwarded to `listAll()`. Scopes which entries are fetched
+   * at build/prerender time. `page` is omitted — `listAll()` handles pagination.
+   */
+  filter?: StaticLoaderFilter<ExtensibleFilter<PostsFilter>>;
+}
+
+/**
+ * Options for typed static loaders (posts, pages, media, categories, tags, users).
+ * Extends the base entry-mapping options with an optional build-time filter.
+ */
+export interface WordPressStaticLoaderOptions<TEntry, TFilter>
+  extends WordPressEntryMappingOptions<TEntry> {
+  /**
+   * Build-time filter forwarded to `listAll()`. Scopes which entries are fetched
+   * at build/prerender time. `page` is omitted — `listAll()` handles pagination.
+   */
+  filter?: StaticLoaderFilter<TFilter>;
+}
 
 /**
  * Filter options for content resources (custom post types).
+ * Uses `ExtensibleFilter<PostsFilter>` so it satisfies the index signature
+ * required by the generic `client.content(string)` overload without casting.
  */
-export type ContentFilter = PostsFilter & LoaderEntryLookup;
+export type ContentFilter = WordPressLiveFilter<PostsFilter>;
 
 /**
  * Filter options for users (live loader).
  */
-export type UserFilter = UsersFilter & LoaderEntryLookup;
+export type UserFilter = ExtensibleFilter<UsersFilter> & LoaderEntryLookup;

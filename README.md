@@ -450,6 +450,8 @@ const posts = defineLiveCollection({
 | Content APIs | `getLiveEntry`, `getLiveCollection` | `getEntry`, `getCollection` |
 | Post/page payload shape | Plain serializable objects | Plain serializable objects |
 
+Live loaders accept fluent-wp-client collection filters through `getLiveCollection()`, including `search`, `include`, `exclude`, taxonomy filters, `slug`, and custom query params. Static loaders accept the same build-time query shape through `options.filter`; the filter is passed to `listAll()` and all matching pages are fetched during the build.
+
 ## Development and testing
 
 ```bash

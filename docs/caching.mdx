@@ -67,6 +67,31 @@ Astro.cache.set({ maxAge: 300 });
 <h1>{entry.data.title.rendered}</h1>
 ```
 
+## Filtered Collections
+
+Filtered live collections can use collection-level cache hints when the result set has stable membership, such as `include`, `exclude`, taxonomy filters, author filters, or explicit ordering.
+
+Free-text `search` filters do not receive a collection-level cache hint. A search result can change when any matching or formerly matching WordPress entity changes, so caching the whole result set under one route hint is not safe. Entries returned from the search still include per-entry cache hints, so routes can cache individual entity pages or compose their own narrower strategy.
+
+```astro title="src/pages/search.astro"
+---
+import { getLiveCollection } from 'astro:content';
+
+const { entries, cacheHint } = await getLiveCollection('posts', {
+  search: Astro.url.searchParams.get('q') ?? '',
+});
+
+// `cacheHint` is undefined for free-text search results.
+if (cacheHint) {
+  Astro.cache.set(cacheHint);
+}
+---
+
+<ul>
+  {entries.map((entry) => <li>{entry.data.title.rendered}</li>)}
+</ul>
+```
+
 ## Invalidation Actions
 
 Create the action next to your existing WordPress write actions:

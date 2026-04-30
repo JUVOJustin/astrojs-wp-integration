@@ -339,5 +339,79 @@ describe('Static Loaders', () => {
         expect.stringContaining('books'),
       );
     });
+
+    it('scopes CPT collection at build time with include filter', async () => {
+      // First load without filter to get a known id
+      const loaderAll = wordPressContentStaticLoader(createClient(), {
+        resource: 'books',
+      });
+      const { store: storeAll, entries: entriesAll } = createMockStore();
+      await loaderAll.load({
+        store: storeAll,
+        logger: createMockLogger(),
+      } as never);
+
+      const firstId = (
+        entriesAll.values().next().value as { data: { id: number } }
+      ).data.id;
+
+      const loader = wordPressContentStaticLoader(createClient(), {
+        resource: 'books',
+        filter: { include: [firstId] },
+      });
+      const { store, entries } = createMockStore();
+      const logger = createMockLogger();
+
+      await loader.load({ store, logger } as never);
+
+      expect(entries.size).toBe(1);
+      expect(
+        (entries.values().next().value as { data: { id: number } }).data.id,
+      ).toBe(firstId);
+    });
+  });
+
+  describe('build-time filters', () => {
+    it('scopes post collection at build time with search filter', async () => {
+      const loader = wordPressPostStaticLoader(createClient(), {
+        filter: { search: 'Test Post 001' },
+      });
+      const { store, entries } = createMockStore();
+
+      await loader.load({ store, logger: createMockLogger() } as never);
+
+      expect(entries.size).toBeGreaterThan(0);
+      const slugs = [...entries.values()].map(
+        (e) => (e as { data: { slug: string } }).data.slug,
+      );
+      expect(slugs).toContain('test-post-001');
+    });
+
+    it('scopes post collection at build time with include filter', async () => {
+      // Load without filter first to resolve a known post id
+      const loaderAll = wordPressPostStaticLoader(createClient());
+      const { store: storeAll, entries: entriesAll } = createMockStore();
+      await loaderAll.load({
+        store: storeAll,
+        logger: createMockLogger(),
+      } as never);
+
+      const allEntries = [...entriesAll.values()] as Array<{
+        data: { id: number; slug: string };
+      }>;
+      const target = allEntries.find((e) => e.data.slug === 'test-post-001')!;
+
+      const loader = wordPressPostStaticLoader(createClient(), {
+        filter: { include: [target.data.id] },
+      });
+      const { store, entries } = createMockStore();
+
+      await loader.load({ store, logger: createMockLogger() } as never);
+
+      expect(entries.size).toBe(1);
+      expect(
+        (entries.values().next().value as { data: { slug: string } }).data.slug,
+      ).toBe('test-post-001');
+    });
   });
 });

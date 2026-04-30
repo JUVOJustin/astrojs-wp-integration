@@ -246,6 +246,76 @@ describe('Live Loaders', () => {
       expect(result.entries[0].data.slug).toBe('test-post-001');
     });
 
+    it('forwards search filter and returns only matching posts', async () => {
+      const loader = wordPressPostLoader(createPublicClient());
+      const result = (await loader.loadCollection!({
+        filter: { search: 'Test Post 001' },
+      } as never)) as {
+        entries: Array<{
+          data: { id: number; slug: string };
+          cacheHint?: { tags?: string[] };
+        }>;
+        cacheHint?: { tags?: string[] };
+      };
+
+      expect(result.entries.length).toBeGreaterThan(0);
+      expect(result.entries.some((e) => e.data.slug === 'test-post-001')).toBe(
+        true,
+      );
+      expect(result.cacheHint).toBeUndefined();
+      expect(result.entries[0].cacheHint?.tags).toContain(
+        `wp:entry:posts:${result.entries[0].data.id}`,
+      );
+    });
+
+    it('forwards include filter and returns only the specified posts', async () => {
+      const loader = wordPressPostLoader(createPublicClient());
+      // First fetch by slug to get the numeric id
+      const entry = (await loader.loadEntry!({
+        filter: { slug: 'test-post-001' },
+      } as never)) as { data: { id: number } };
+
+      const id = entry.data.id;
+
+      const result = (await loader.loadCollection!({
+        filter: { include: [id] },
+      } as never)) as {
+        entries: Array<{ data: { id: number } }>;
+      };
+
+      expect(result.entries).toHaveLength(1);
+      expect(result.entries[0].data.id).toBe(id);
+    });
+
+    it('forwards exclude filter and omits the specified post', async () => {
+      const loader = wordPressPostLoader(createPublicClient());
+      const entry = (await loader.loadEntry!({
+        filter: { slug: 'test-post-001' },
+      } as never)) as { data: { id: number } };
+
+      const id = entry.data.id;
+
+      const result = (await loader.loadCollection!({
+        filter: { perPage: 20, exclude: [id] },
+      } as never)) as {
+        entries: Array<{ data: { id: number } }>;
+      };
+
+      expect(result.entries.every((e) => e.data.id !== id)).toBe(true);
+    });
+
+    it('forwards upstream slug collection filter without treating it as lookup-only', async () => {
+      const loader = wordPressPostLoader(createPublicClient());
+      const result = (await loader.loadCollection!({
+        filter: { slug: ['test-post-001'] },
+      } as never)) as {
+        entries: Array<{ data: { slug: string } }>;
+      };
+
+      expect(result.entries).toHaveLength(1);
+      expect(result.entries[0].data.slug).toBe('test-post-001');
+    });
+
     it('returns one error object for missing entries', async () => {
       const loader = wordPressPostLoader(createPublicClient());
       const result = (await loader.loadEntry!({
@@ -647,6 +717,87 @@ describe('Live Loaders', () => {
       for (const entry of result.entries) {
         expectSerializableContentData(entry.data);
       }
+    });
+
+    it('forwards search filter for CPT collections', async () => {
+      const loader = wordPressContentLoader(createPublicClient(), {
+        resource: 'books',
+      });
+
+      const result = (await loader.loadCollection!({
+        filter: { search: 'Test Book 001' },
+      } as never)) as {
+        entries: Array<{
+          data: { id: number; slug: string };
+          cacheHint?: { tags?: string[] };
+        }>;
+        cacheHint?: { tags?: string[] };
+      };
+
+      expect(result.entries.length).toBeGreaterThan(0);
+      expect(result.entries.some((e) => e.data.slug === 'test-book-001')).toBe(
+        true,
+      );
+      expect(result.cacheHint).toBeUndefined();
+      expect(result.entries[0].cacheHint?.tags).toContain(
+        `wp:entry:books:${result.entries[0].data.id}`,
+      );
+    });
+
+    it('forwards include filter for CPT collections', async () => {
+      const loader = wordPressContentLoader(createPublicClient(), {
+        resource: 'books',
+      });
+
+      const entry = (await loader.loadEntry!({
+        filter: { slug: 'test-book-001' },
+      } as never)) as { data: { id: number } };
+
+      const id = entry.data.id;
+
+      const result = (await loader.loadCollection!({
+        filter: { include: [id] },
+      } as never)) as {
+        entries: Array<{ data: { id: number } }>;
+      };
+
+      expect(result.entries).toHaveLength(1);
+      expect(result.entries[0].data.id).toBe(id);
+    });
+
+    it('forwards exclude filter for CPT collections', async () => {
+      const loader = wordPressContentLoader(createPublicClient(), {
+        resource: 'books',
+      });
+
+      const entry = (await loader.loadEntry!({
+        filter: { slug: 'test-book-001' },
+      } as never)) as { data: { id: number } };
+
+      const id = entry.data.id;
+
+      const result = (await loader.loadCollection!({
+        filter: { exclude: [id] },
+      } as never)) as {
+        entries: Array<{ data: { id: number } }>;
+      };
+
+      expect(result.entries.every((e) => e.data.id !== id)).toBe(true);
+    });
+
+    it('forwards upstream slug collection filter for CPT collections', async () => {
+      const loader = wordPressContentLoader(createPublicClient(), {
+        resource: 'books',
+      });
+
+      const result = (await loader.loadCollection!({
+        filter: { slug: ['test-book-001'] },
+      } as never)) as {
+        entries: Array<{ data: { slug: string } }>;
+      };
+
+      expect(result.entries).toHaveLength(1);
+      expect(result.entries[0].data.slug).toBe('test-book-001');
     });
 
     it('returns error object for missing CPT entries', async () => {

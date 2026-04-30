@@ -84,6 +84,17 @@ interface LiveLoaderDefinition<TEntry extends IdentifiableEntry, TFilter> {
 }
 
 /**
+ * Strips the loader-only ID lookup field while preserving upstream collection
+ * filters such as `slug`, `search`, `include`, and custom query params.
+ */
+function stripEntryLookupId<T extends { id?: unknown }>(
+  filter: T,
+): Omit<T, 'id'> {
+  const { id: _id, ...rest } = filter;
+  return rest;
+}
+
+/**
  * Unwraps Astro's optional nested `filter` shape into the real loader filter.
  */
 function normalizeLoaderFilter<TFilter>(filter: unknown): TFilter | undefined {
@@ -148,6 +159,18 @@ function createLiveEntry<TEntry extends IdentifiableEntry>(
 }
 
 /**
+ * Free-text searches can change membership when any matching or formerly
+ * matching entity changes, so only per-entry hints are safe for these results.
+ */
+function hasFreeTextSearchFilter(filter: unknown): boolean {
+  if (typeof filter !== 'object' || filter === null) {
+    return false;
+  }
+
+  return typeof (filter as { search?: unknown }).search === 'string';
+}
+
+/**
  * Creates one reusable live loader backed by `WordPressClient` methods.
  */
 function createLiveWordPressLoader<TEntry extends IdentifiableEntry, TFilter>(
@@ -180,10 +203,9 @@ function createLiveWordPressLoader<TEntry extends IdentifiableEntry, TFilter>(
             mapLiveEntry(entry, definition, resolvedFilter),
           ),
         );
-        const cacheHint = definition.createCollectionCacheHint?.(
-          entries,
-          resolvedFilter,
-        );
+        const cacheHint = hasFreeTextSearchFilter(resolvedFilter)
+          ? undefined
+          : definition.createCollectionCacheHint?.(entries, resolvedFilter);
 
         return {
           entries: mappedEntries.map((entry, index) =>
@@ -241,7 +263,7 @@ async function loadPostEntry(
     return client.content('posts').item(filter.id, { embed: options?.embed });
   }
 
-  if (filter?.slug) {
+  if (typeof filter?.slug === 'string') {
     return client.content('posts').item(filter.slug, { embed: options?.embed });
   }
 
@@ -260,7 +282,7 @@ async function loadPageEntry(
     return client.content('pages').item(filter.id, { embed: options?.embed });
   }
 
-  if (filter?.slug) {
+  if (typeof filter?.slug === 'string') {
     return client.content('pages').item(filter.slug, { embed: options?.embed });
   }
 
@@ -278,7 +300,7 @@ async function loadMediaEntry(
     return client.media().item(filter.id);
   }
 
-  if (filter?.slug) {
+  if (typeof filter?.slug === 'string') {
     return client.media().item(filter.slug);
   }
 
@@ -296,7 +318,7 @@ async function loadCategoryEntry(
     return client.terms('categories').item(filter.id);
   }
 
-  if (filter?.slug) {
+  if (typeof filter?.slug === 'string') {
     return client.terms('categories').item(filter.slug);
   }
 
@@ -314,7 +336,7 @@ async function loadTagEntry(
     return client.terms('tags').item(filter.id);
   }
 
-  if (filter?.slug) {
+  if (typeof filter?.slug === 'string') {
     return client.terms('tags').item(filter.slug);
   }
 
@@ -329,7 +351,7 @@ function createTermQueryFilter(filter: TermFilter | undefined): TermFilter {
     return {};
   }
 
-  const { id: _id, slug: _slug, hide_empty, hideEmpty, ...rest } = filter;
+  const { id: _id, hide_empty, hideEmpty, ...rest } = filter;
 
   return {
     ...rest,
@@ -349,7 +371,7 @@ async function loadTermEntry(
     return client.terms(resource).item(filter.id);
   }
 
-  if (filter?.slug) {
+  if (typeof filter?.slug === 'string') {
     return client.terms(resource).item(filter.slug);
   }
 
@@ -394,16 +416,9 @@ export function wordPressPostLoader(
       createContentCollectionCacheHint('posts', entries),
     loadCollectionData: (client, filter: PostFilter | undefined) =>
       client.content('posts').list({
-        status: filter?.status as never,
-        categories: filter?.categories,
-        tags: filter?.tags,
-        search: filter?.search,
-        orderby: filter?.orderby,
-        order: filter?.order,
-        page: filter?.page,
-        perPage: filter?.perPage,
+        ...(filter ? stripEntryLookupId(filter) : {}),
         embed: options?.embed,
-      }),
+      } as never),
     mapEntry: options?.mapEntry,
     loadEntryData: (client, filter: PostFilter | undefined) =>
       loadPostEntry(client, filter, options),
@@ -430,14 +445,9 @@ export function wordPressPageLoader(
       createContentCollectionCacheHint('pages', entries),
     loadCollectionData: (client, filter: PageFilter | undefined) =>
       client.content('pages').list({
-        status: filter?.status as never,
-        search: filter?.search,
-        orderby: filter?.orderby,
-        order: filter?.order,
-        page: filter?.page,
-        perPage: filter?.perPage,
+        ...(filter ? stripEntryLookupId(filter) : {}),
         embed: options?.embed,
-      }),
+      } as never),
     mapEntry: options?.mapEntry,
     loadEntryData: (client, filter: PageFilter | undefined) =>
       loadPageEntry(client, filter, options),
@@ -461,7 +471,10 @@ export function wordPressMediaLoader(
     createEntryCacheHint: createMediaEntryCacheHint,
     createCollectionCacheHint: (entries) =>
       createMediaCollectionCacheHint(entries),
-    loadCollectionData: (client) => client.media().listAll(),
+    loadCollectionData: (client, filter) =>
+      filter
+        ? client.media().list(stripEntryLookupId(filter))
+        : client.media().listAll(),
     loadEntryData: loadMediaEntry,
     mapEntry: options?.mapEntry,
   }) as LiveLoader<WordPressMedia, MediaFilter>;
@@ -486,10 +499,8 @@ export function wordPressCategoryLoader(
       createTermCollectionCacheHint('categories', entries),
     loadCollectionData: (client, filter) =>
       client.terms('categories').list({
+        ...(filter ? stripEntryLookupId(filter) : {}),
         hideEmpty: filter?.hideEmpty ?? filter?.hide_empty,
-        parent: filter?.parent,
-        orderby: filter?.orderby,
-        order: filter?.order,
       }),
     loadEntryData: loadCategoryEntry,
     mapEntry: options?.mapEntry,
@@ -514,14 +525,8 @@ export function wordPressTagLoader(
       createTermCollectionCacheHint('tags', entries),
     loadCollectionData: (client, filter) =>
       client.terms('tags').list({
+        ...(filter ? stripEntryLookupId(filter) : {}),
         hideEmpty: filter?.hideEmpty ?? filter?.hide_empty,
-        exclude: filter?.exclude,
-        include: filter?.include,
-        search: filter?.search,
-        orderby: filter?.orderby,
-        order: filter?.order,
-        page: filter?.page,
-        perPage: filter?.perPage,
       }),
     loadEntryData: loadTagEntry,
     mapEntry: options?.mapEntry,
@@ -574,7 +579,7 @@ async function loadContentEntry(
     >;
   }
 
-  if (filter?.slug) {
+  if (typeof filter?.slug === 'string') {
     return client
       .content(resource)
       .item(filter.slug, { embed: options?.embed }) as unknown as Promise<
@@ -602,9 +607,7 @@ export function wordPressUserLoader(
     createCollectionCacheHint: () => createUserCollectionCacheHint(),
     loadCollectionData: (client, filter) =>
       client.users().list({
-        roles: filter?.roles,
-        orderby: filter?.orderby,
-        order: filter?.order,
+        ...(filter ? stripEntryLookupId(filter) : {}),
       }),
     loadEntryData: loadUserEntry,
     mapEntry: options?.mapEntry,
@@ -635,15 +638,9 @@ export function wordPressContentLoader<
       createContentCollectionCacheHint(resource, entries),
     loadCollectionData: (client, filter: ContentFilter | undefined) =>
       client.content<TEntry>(resource).list({
-        status: filter?.status as never,
-        categories: filter?.categories,
-        tags: filter?.tags,
-        orderby: filter?.orderby,
-        order: filter?.order,
-        perPage: filter?.perPage,
-        page: filter?.page,
+        ...(filter ? stripEntryLookupId(filter) : {}),
         embed,
-      }),
+      } as never),
     loadEntryData: (client, filter: ContentFilter | undefined) =>
       loadContentEntry(client, resource, filter, { embed }) as Promise<
         TEntry | undefined
