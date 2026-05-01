@@ -151,6 +151,8 @@ declare module 'virtual:wp-astrojs/schemas' {
 }
 
 declare module 'virtual:wp-astrojs/collections' {
+  import type { BaseSchema } from 'astro:content';
+  import type { WordPressGeneratedResourceSchemas } from 'virtual:wp-astrojs/generated-schemas';
   import type { WordPressCatalogResourceKind } from 'virtual:wp-astrojs/schemas';
   import type { LiveLoader, Loader } from 'astro/loaders';
   import type {
@@ -158,18 +160,49 @@ declare module 'virtual:wp-astrojs/collections' {
     WordPressClientConfig,
   } from 'wp-astrojs-integration';
 
-  export interface DefineWordPressCollectionOptions {
+  export interface DefineWordPressCollectionOptions<
+    TSchema extends BaseSchema = BaseSchema,
+  > {
     mode?: 'static' | 'live';
     kind?: WordPressCatalogResourceKind | 'media' | 'users';
     client?: WordPressClient;
     clientConfig?: WordPressClientConfig;
-    schema?: unknown;
+    schema?: TSchema;
     loader?: Loader | LiveLoader;
     loaderOptions?: Record<string, unknown>;
   }
 
-  export function defineWordPressCollection(
+  export type GeneratedWordPressSchema<
+    TResource extends keyof WordPressGeneratedResourceSchemas,
+  > = WordPressGeneratedResourceSchemas[TResource] extends BaseSchema
+    ? WordPressGeneratedResourceSchemas[TResource]
+    : BaseSchema;
+
+  export function defineWordPressCollection<
+    TResource extends keyof WordPressGeneratedResourceSchemas,
+    TSchema extends BaseSchema = GeneratedWordPressSchema<TResource>,
+  >(
+    resource: TResource,
+    options?: DefineWordPressCollectionOptions<TSchema>,
+  ): {
+    type: 'content_layer' | 'live';
+    schema: TSchema;
+    loader: Loader | LiveLoader;
+  };
+
+  export function defineWordPressCollection<
+    TSchema extends BaseSchema = BaseSchema,
+  >(
     resource: string,
-    options?: DefineWordPressCollectionOptions,
-  ): unknown;
+    options?: DefineWordPressCollectionOptions<TSchema>,
+  ): {
+    type: 'content_layer' | 'live';
+    schema: TSchema;
+    loader: Loader | LiveLoader;
+  };
+}
+
+declare module 'virtual:wp-astrojs/generated-schemas' {
+  export interface WordPressGeneratedResourceSchemas {}
+  export const wordPressGeneratedSchemaMap: WordPressGeneratedResourceSchemas;
 }

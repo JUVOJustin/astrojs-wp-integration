@@ -9,7 +9,7 @@ import { Steps, CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 The easiest way to get a very typesafe setup is:
 
-1. Generate Zod schemas from your real WordPress site with the `fluent-wp-client` CLI.
+1. Generate Zod schemas and TypeScript declarations from your real WordPress site with the `fluent-wp-client` CLI.
 2. Use those schemas in Astro collections and action factories.
 3. Optionally enable the Astro catalog integration so discovery metadata is fetched during builds and reused by catalog-aware helpers.
 
@@ -37,11 +37,11 @@ Use runtime discovery only when schemas are not known at build time, such as mul
 
 1. Generate schemas from your WordPress site.
 
-   ```bash title="Generate Zod schemas"
+   ```bash title="Generate Zod schemas and types"
    npx fluent-wp-client schemas \
      --url https://example.com \
-     --format zod \
-     --zod-out src/generated/wp-schemas.ts
+     --zod-out src/generated/wp-schemas.ts \
+     --types-out src/generated/wp-types.d.ts
    ```
 
 2. Create a shared WordPress client.
@@ -112,9 +112,12 @@ Use runtime discovery only when schemas are not known at build time, such as mul
 With that setup you get:
 
 - typed collection entries in Astro
+- generated TypeScript declarations for the WordPress instance
 - typed action inputs
 - optional typed action response validation via `responseSchema`
 - much better support for custom post types and custom fields
+
+The catalog integration uses the same rc.5 CLI output model internally. It writes Zod runtime modules and TypeScript declarations to Astro's cache with `--zod-out` and `--types-out`, and does not emit JSON Schema artifacts because Astro consumes Zod validators.
 
 ## Collections
 
@@ -328,7 +331,7 @@ For most implementors:
 ```json title="package.json"
 {
   "scripts": {
-    "wp:types": "fluent-wp-client schemas --url $PUBLIC_WORDPRESS_BASE_URL --format zod --zod-out src/generated/wp-schemas.ts"
+    "wp:types": "fluent-wp-client schemas --url $PUBLIC_WORDPRESS_BASE_URL --zod-out src/generated/wp-schemas.ts --types-out src/generated/wp-types.d.ts"
   }
 }
 ```

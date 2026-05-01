@@ -120,6 +120,34 @@ export const GET: APIRoute = async (context) => {
 
 For collections, the helper uses `getLiveCollection()`. Astro merges the collection-level hint plus all entry hints, so invalidating one returned entry will also invalidate the cached collection response.
 
+## Customize tool options
+
+Pass additional AI SDK tool configuration through `toolOptions`. This is useful for generative UI, custom titles, or model-specific behavior without adding UI abstractions to the library.
+
+```ts title="Tool with custom title and output mapping"
+import { getLiveContentTool } from 'wp-astrojs-integration/ai-sdk';
+
+const tool = getLiveContentTool(wp, context.cache, {
+  collection: 'posts',
+  contentType: 'posts',
+  toolOptions: {
+    title: 'Read blog post',
+    toModelOutput: (result) => ({
+      ...result,
+      display: 'card',
+    }),
+  },
+});
+```
+
+`toolOptions` accepts any AI SDK `Tool` property except the schema-driven ones the library already controls (`description`, `parameters`, `execute`). Common overrides:
+
+| Option | Use case |
+|---|---|
+| `title` | Human-readable tool name for generative UI labels |
+| `toModelOutput` | Transform the tool result before the model receives it |
+| `inputExamples` | Provide example inputs for few-shot prompting |
+
 ## Personalized reads
 
 If a request can return user-specific content, disable route caching for that request.

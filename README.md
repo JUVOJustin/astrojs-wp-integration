@@ -87,7 +87,7 @@ export const wp = createWordPressClient({
 
 ### 3) Define schema-backed collections
 
-Use `defineWordPressCollection()` to create Astro collections with the correct WordPress loader and a catalog-derived Zod schema.
+Use `defineWordPressCollection()` to create Astro collections with the correct WordPress loader and a catalog-derived Zod schema. When catalog discovery runs with `WP_CATALOG_URL`, the integration also writes typed Zod artifacts to Astro's cache using `fluent-wp-client schemas --zod-out ... --types-out ...` and uses those schemas automatically for stronger collection inference.
 
 ```ts title="src/content.config.ts"
 import { defineWordPressCollection } from 'virtual:wp-astrojs/collections';
@@ -101,6 +101,14 @@ export const collections = {
     client: wp,
   }),
 };
+```
+
+Generated schemas are also available from `virtual:wp-astrojs/generated-schemas` when you need to reuse the same real-instance validators directly.
+
+```ts title="src/actions/index.ts"
+import { wpBookSchema } from 'virtual:wp-astrojs/generated-schemas';
+
+type Book = import('virtual:wp-astrojs/generated-schemas').WPBook;
 ```
 
 ### 4) Use catalog schemas in actions

@@ -1,5 +1,10 @@
+import { execFile } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { promisify } from 'node:util';
 import type { AstroIntegration } from 'astro';
 import { uneval } from 'devalue';
 import type {
@@ -17,8 +22,13 @@ const SCHEMAS_VIRTUAL_MODULE_ID = 'virtual:wp-astrojs/schemas';
 const RESOLVED_SCHEMAS_VIRTUAL_MODULE_ID = `\0${SCHEMAS_VIRTUAL_MODULE_ID}`;
 const COLLECTIONS_VIRTUAL_MODULE_ID = 'virtual:wp-astrojs/collections';
 const RESOLVED_COLLECTIONS_VIRTUAL_MODULE_ID = `\0${COLLECTIONS_VIRTUAL_MODULE_ID}`;
+const GENERATED_SCHEMAS_VIRTUAL_MODULE_ID =
+  'virtual:wp-astrojs/generated-schemas';
+const RESOLVED_GENERATED_SCHEMAS_VIRTUAL_MODULE_ID = `\0${GENERATED_SCHEMAS_VIRTUAL_MODULE_ID}`;
+const execFileAsync = promisify(execFile);
+const require = createRequire(import.meta.url);
 // Keep this injected consumer declaration in sync with src/env.d.ts.
-const VIRTUAL_MODULE_TYPES = `declare module 'virtual:wp-astrojs/catalog' {
+const BASE_VIRTUAL_MODULE_TYPES = `declare module 'virtual:wp-astrojs/catalog' {
   import type {
     WordPressClient,
     WordPressClientConfig,
@@ -64,25 +74,48 @@ declare module 'virtual:wp-astrojs/schemas' {
 }
 
 declare module 'virtual:wp-astrojs/collections' {
+  import type { BaseSchema } from 'astro:content';
   import type { Loader } from 'astro/loaders';
   import type { LiveLoader } from 'astro/loaders';
   import type { WordPressClient, WordPressClientConfig } from 'wp-astrojs-integration';
+  import type { WordPressGeneratedResourceSchemas } from 'virtual:wp-astrojs/generated-schemas';
   import type { WordPressCatalogResourceKind } from 'virtual:wp-astrojs/schemas';
 
-  export interface DefineWordPressCollectionOptions {
+  export interface DefineWordPressCollectionOptions<TSchema extends BaseSchema = BaseSchema> {
     mode?: 'static' | 'live';
     kind?: WordPressCatalogResourceKind | 'media' | 'users';
     client?: WordPressClient;
     clientConfig?: WordPressClientConfig;
-    schema?: unknown;
+    schema?: TSchema;
     loader?: Loader | LiveLoader;
     loaderOptions?: Record<string, unknown>;
   }
 
-  export function defineWordPressCollection(
+  export type GeneratedWordPressSchema<TResource extends keyof WordPressGeneratedResourceSchemas> =
+    WordPressGeneratedResourceSchemas[TResource] extends BaseSchema
+      ? WordPressGeneratedResourceSchemas[TResource]
+      : BaseSchema;
+
+  export function defineWordPressCollection<
+    TResource extends keyof WordPressGeneratedResourceSchemas,
+    TSchema extends BaseSchema = GeneratedWordPressSchema<TResource>,
+  >(
+    resource: TResource,
+    options?: DefineWordPressCollectionOptions<TSchema>,
+  ): {
+    type: 'content_layer' | 'live';
+    schema: TSchema;
+    loader: Loader | LiveLoader;
+  };
+
+  export function defineWordPressCollection<TSchema extends BaseSchema = BaseSchema>(
     resource: string,
-    options?: DefineWordPressCollectionOptions,
-  ): unknown;
+    options?: DefineWordPressCollectionOptions<TSchema>,
+  ): {
+    type: 'content_layer' | 'live';
+    schema: TSchema;
+    loader: Loader | LiveLoader;
+  };
 }
 `;
 
@@ -119,6 +152,15 @@ interface ResolvedCatalogOptions extends WordPressCatalogIntegrationOptions {
 interface CatalogState {
   catalog?: WordPressDiscoveryCatalog;
   catalogPath?: string;
+  generatedSchemasPath?: string;
+  generatedSchemaTypes?: string;
+  generatedResources?: GeneratedSchemaResource[];
+}
+
+interface GeneratedSchemaResource {
+  resource: string;
+  schemaName: string;
+  typeName: string;
 }
 
 function resolveCatalogOptions(
@@ -236,6 +278,185 @@ function getCatalogSourceUrl(
   return typeof source?.baseUrl === 'string' ? source.baseUrl : undefined;
 }
 
+function toPascalCase(slug: string): string {
+  return slug
+    .split(/[-_]/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('');
+}
+
+function createGeneratedSchemaResource(
+  resource: string,
+  description: { resource?: string; restBase?: string; slug?: string },
+): GeneratedSchemaResource {
+  const slug = description.slug ?? description.resource ?? resource;
+  const pascal = toPascalCase(slug);
+
+  return {
+    resource: description.restBase ?? resource,
+    schemaName: `wp${pascal}Schema`,
+    typeName: `WP${pascal}`,
+  };
+}
+
+function getGeneratedSchemaResources(
+  catalog: WordPressDiscoveryCatalog | undefined,
+): GeneratedSchemaResource[] {
+  if (!catalog) return [];
+
+  return [
+    ...Object.entries(catalog.content ?? {}).map(([resource, description]) =>
+      createGeneratedSchemaResource(resource, description),
+    ),
+    ...Object.entries(catalog.terms ?? {}).map(([resource, description]) =>
+      createGeneratedSchemaResource(resource, description),
+    ),
+  ];
+}
+
+function getFluentWpClientCliPath(): string {
+  const packageRoot = resolve(
+    dirname(require.resolve('fluent-wp-client')),
+    '..',
+  );
+  const packageJson = JSON.parse(
+    readFileSync(join(packageRoot, 'package.json'), 'utf-8'),
+  ) as { bin?: { 'fluent-wp-client'?: string } };
+  const binPath = packageJson.bin?.['fluent-wp-client'];
+
+  if (!binPath) {
+    throw new Error('fluent-wp-client does not expose a CLI bin path.');
+  }
+
+  return resolve(packageRoot, binPath);
+}
+
+function createSchemaCliArgs(
+  options: ResolvedCatalogOptions,
+  baseUrl: string,
+  zodOut: string,
+  typesOut: string,
+): string[] {
+  const args = [
+    getFluentWpClientCliPath(),
+    'schemas',
+    '--url',
+    baseUrl,
+    '--zod-out',
+    zodOut,
+    '--types-out',
+    typesOut,
+  ];
+  const authHeader = readEnvValue(options.envPrefix, 'AUTH_HEADER');
+  const token = readEnvValue(options.envPrefix, 'TOKEN');
+  const username = readEnvValue(options.envPrefix, 'USERNAME');
+  const password = readEnvValue(options.envPrefix, 'PASSWORD');
+
+  if (authHeader) return [...args, '--auth-header', authHeader];
+  if (token) return [...args, '--token', token];
+  if (username && password) {
+    return [...args, '--username', username, '--password', password];
+  }
+
+  return args;
+}
+
+async function generateSchemaArtifacts(
+  options: ResolvedCatalogOptions,
+  baseUrl: string,
+  zodOut: string,
+  typesOut: string,
+): Promise<void> {
+  await execFileAsync(
+    process.execPath,
+    createSchemaCliArgs(options, baseUrl, zodOut, typesOut),
+  );
+}
+
+async function readGeneratedFile(
+  filePath: string,
+): Promise<string | undefined> {
+  try {
+    return await readFile(filePath, 'utf-8');
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+      return undefined;
+    }
+
+    throw error;
+  }
+}
+
+function filterGeneratedResources(
+  resources: GeneratedSchemaResource[],
+  zodModule: string | undefined,
+  typeDeclarations: string | undefined,
+): GeneratedSchemaResource[] {
+  if (!zodModule || !typeDeclarations) return [];
+
+  return resources.filter(
+    (resource) =>
+      zodModule.includes(`export const ${resource.schemaName} =`) &&
+      (typeDeclarations.includes(`interface ${resource.typeName} `) ||
+        typeDeclarations.includes(`type ${resource.typeName} =`)),
+  );
+}
+
+function createGeneratedSchemasModule(state: CatalogState): string {
+  const resources = state.generatedResources ?? [];
+
+  if (!state.generatedSchemasPath || resources.length === 0) {
+    return 'export const wordPressGeneratedSchemaMap = {};';
+  }
+
+  const moduleUrl = pathToFileURL(state.generatedSchemasPath).href;
+  const entries = resources.map(
+    (resource) =>
+      `${JSON.stringify(resource.resource)}: generated.${resource.schemaName}`,
+  );
+
+  return `
+    import * as generated from ${JSON.stringify(moduleUrl)};
+    export * from ${JSON.stringify(moduleUrl)};
+
+    export const wordPressGeneratedSchemaMap = Object.assign(Object.create(null), {
+      ${entries.join(',\n      ')}
+    });
+  `;
+}
+
+function createGeneratedSchemasTypes(state: CatalogState): string {
+  const resources = state.generatedResources ?? [];
+  const typeDeclarations = state.generatedSchemaTypes ?? '';
+  const schemaDeclarations = resources.map(
+    (resource) =>
+      `export const ${resource.schemaName}: ZodType<${resource.typeName}>;`,
+  );
+  const mapEntries = resources.map(
+    (resource) =>
+      `${JSON.stringify(resource.resource)}: typeof ${resource.schemaName};`,
+  );
+
+  return `declare module 'virtual:wp-astrojs/generated-schemas' {
+  import type { ZodType } from 'zod';
+
+  ${typeDeclarations}
+
+  ${schemaDeclarations.join('\n  ')}
+
+  export interface WordPressGeneratedResourceSchemas {
+    ${mapEntries.join('\n    ')}
+  }
+
+  export const wordPressGeneratedSchemaMap: WordPressGeneratedResourceSchemas;
+}
+`;
+}
+
+function createVirtualModuleTypes(state: CatalogState): string {
+  return `${BASE_VIRTUAL_MODULE_TYPES}\n${createGeneratedSchemasTypes(state)}`;
+}
+
 function createCatalogVirtualModule(state: CatalogState): Plugin {
   return {
     name: 'wp-astrojs-integration:catalog',
@@ -247,9 +468,16 @@ function createCatalogVirtualModule(state: CatalogState): Plugin {
       if (id === COLLECTIONS_VIRTUAL_MODULE_ID) {
         return RESOLVED_COLLECTIONS_VIRTUAL_MODULE_ID;
       }
+      if (id === GENERATED_SCHEMAS_VIRTUAL_MODULE_ID) {
+        return RESOLVED_GENERATED_SCHEMAS_VIRTUAL_MODULE_ID;
+      }
       return undefined;
     },
     load(id) {
+      if (id === RESOLVED_GENERATED_SCHEMAS_VIRTUAL_MODULE_ID) {
+        return createGeneratedSchemasModule(state);
+      }
+
       if (id === RESOLVED_SCHEMAS_VIRTUAL_MODULE_ID) {
         return `
           import { zodSchemasFromDescription } from 'wp-astrojs-integration';
@@ -341,6 +569,7 @@ function createCatalogVirtualModule(state: CatalogState): Plugin {
           } from 'wp-astrojs-integration';
           import { createWordPressClient } from 'virtual:wp-astrojs/catalog';
           import { getWordPressResourceSchemas } from 'virtual:wp-astrojs/schemas';
+          import { wordPressGeneratedSchemaMap } from 'virtual:wp-astrojs/generated-schemas';
 
           const CONTENT_LAYER_TYPE = 'content_layer';
           const LIVE_CONTENT_TYPE = 'live';
@@ -410,7 +639,10 @@ function createCatalogVirtualModule(state: CatalogState): Plugin {
             const loaderOptions = options.loaderOptions ?? {};
             const loader = options.loader ?? createLoader(resource, mode, kind, client, loaderOptions);
             const schemaKind = kind === 'media' || kind === 'users' ? 'resources' : kind;
-            const schema = options.schema ?? getWordPressResourceSchemas(resource, { kind: schemaKind }).item;
+            const generatedSchema = Object.hasOwn(wordPressGeneratedSchemaMap, resource)
+              ? wordPressGeneratedSchemaMap[resource]
+              : undefined;
+            const schema = options.schema ?? generatedSchema ?? getWordPressResourceSchemas(resource, { kind: schemaKind }).item;
 
             if (!schema) {
               throw new Error(\`WordPress catalog does not provide an item schema for resource "\${resource}". Pass options.schema explicitly.\`);
@@ -482,7 +714,19 @@ export default function wordpress(
         if (!catalogOptions.enabled) return;
 
         const catalogPath = new URL(catalogOptions.cacheFile, config.cacheDir);
+        const generatedSchemasPath = new URL(
+          'wp-astrojs/generated-schemas.mjs',
+          config.cacheDir,
+        );
+        const generatedSchemaTypesPath = new URL(
+          'wp-astrojs/generated-schemas.d.ts',
+          config.cacheDir,
+        );
         const catalogFilePath = fileURLToPath(catalogPath);
+        const generatedSchemasFilePath = fileURLToPath(generatedSchemasPath);
+        const generatedSchemaTypesFilePath = fileURLToPath(
+          generatedSchemaTypesPath,
+        );
         state.catalogPath = catalogFilePath;
 
         const storedCatalog = await readStoredCatalog(catalogPath);
@@ -559,11 +803,62 @@ export default function wordpress(
             `WordPress catalog written to ${catalogFilePath} (${formatCatalogSummary(catalog)})`,
           );
         }
+
+        const catalogGeneratedResources = getGeneratedSchemaResources(
+          state.catalog,
+        );
+
+        let generatedZodModule = await readGeneratedFile(
+          generatedSchemasFilePath,
+        );
+        let generatedTypes = await readGeneratedFile(
+          generatedSchemaTypesFilePath,
+        );
+
+        if (
+          (!generatedZodModule || !generatedTypes || shouldRefresh) &&
+          validatedBaseUrl
+        ) {
+          try {
+            await generateSchemaArtifacts(
+              catalogOptions,
+              validatedBaseUrl,
+              generatedSchemasFilePath,
+              generatedSchemaTypesFilePath,
+            );
+            generatedZodModule = await readGeneratedFile(
+              generatedSchemasFilePath,
+            );
+            generatedTypes = await readGeneratedFile(
+              generatedSchemaTypesFilePath,
+            );
+            logger.info(
+              `WordPress typed schemas written to ${generatedSchemasFilePath} and ${generatedSchemaTypesFilePath}`,
+            );
+          } catch (error) {
+            logger.warn(
+              `Failed to generate WordPress typed schema artifacts. Catalog runtime schemas remain available. ${error}`,
+            );
+          }
+        }
+
+        if (generatedZodModule && generatedTypes) {
+          state.generatedSchemasPath = generatedSchemasFilePath;
+          state.generatedResources = filterGeneratedResources(
+            catalogGeneratedResources,
+            generatedZodModule,
+            generatedTypes,
+          );
+          addWatchFile(generatedSchemasPath);
+          addWatchFile(generatedSchemaTypesPath);
+        }
+
+        state.generatedSchemaTypes = generatedTypes;
       },
       'astro:config:done': ({ injectTypes }) => {
         injectTypes({
           filename: 'wp-astrojs-catalog.d.ts',
-          content: VIRTUAL_MODULE_TYPES,
+          content: createVirtualModuleTypes(state),
         });
       },
     },
