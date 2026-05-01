@@ -1,4 +1,9 @@
-# Post Actions
+---
+title: Post Actions
+description: Create, update, and delete WordPress posts, pages, and custom post types from Astro server actions.
+---
+
+## Post Actions
 
 import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
@@ -18,11 +23,11 @@ Register the three action factories in your Astro project's `src/actions/index.t
 
 ```ts
 import {
-  WordPressClient,
   createCreatePostAction,
   createUpdatePostAction,
   createDeletePostAction,
 } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
 import { wordPressAuthBridge } from '../lib/auth/bridge';
 
 export const server = {
@@ -194,11 +199,11 @@ All action factories accept a `resource` parameter that controls which REST endp
 ```ts
 // src/actions/index.ts
 import {
-  WordPressClient,
   createCreatePostAction,
   createUpdatePostAction,
   createDeletePostAction,
 } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
@@ -233,8 +238,8 @@ export const server = {
 The `execute*` functions also accept `resource`. This is useful when building fully custom actions or calling from non-Astro contexts:
 
 ```ts
+import { WordPressClient } from 'fluent-wp-client';
 import {
-  WordPressClient,
   executeCreatePost,
   executeUpdatePost,
   executeDeletePost,
@@ -286,7 +291,8 @@ export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
 The `create*Action` factories accept both `schema` (for typed input) and `resource` (for the REST endpoint). Combine them to get end-to-end type safety for a custom post type:
 
 ```ts
-import { WordPressClient, createCreatePostAction, createUpdatePostAction } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
+import { createCreatePostAction, createUpdatePostAction } from 'wp-astrojs-integration';
 import { productCreateSchema, productUpdateSchema } from '../lib/product-schema';
 
 const wp = new WordPressClient({

@@ -7,7 +7,7 @@ const baseUrl = import.meta.env.WP_BASE_URL ?? 'http://localhost:8888';
  * User-profile endpoint that does NOT opt out of Astro route caching.
  *
  * This fixture intentionally demonstrates the leak risk: without
- * `context.cache.set(false)` (or our AI SDK `personalized` flag), Astro
+ * `context.cache.set(false)`, Astro
  * caches the first rendered response by URL and serves it to every
  * subsequent visitor regardless of auth state.
  */

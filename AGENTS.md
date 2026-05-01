@@ -4,7 +4,7 @@
 
 This repository ships one npm package:
 
-- **`wp-astrojs-integration`** (`src/`) — Astro loaders, Astro actions, Astro-aware AI SDK helpers, auth bridge, and components built on top of the published `fluent-wp-client` package
+- **`wp-astrojs-integration`** (`src/`) — Astro loaders, Astro actions, auth bridge, catalog virtual modules, and components built on top of the published `fluent-wp-client` package
 - The package also exposes `wp-astrojs-integration/integration`, an Astro integration that can fetch and cache a WordPress discovery catalog for catalog-aware helpers.
 
 ## Architecture Priorities
@@ -157,7 +157,7 @@ Reference suites:
 - Astro loaders are split into `src/loaders/static.ts` and `src/loaders/live.ts`.
 - Shared runtime helpers for Astro middleware, actions, and auth flows should prefer web-standard APIs so they work on Node and non-Node adapters.
 - All public API is re-exported from `src/index.ts`.
-- Astro-specific AI SDK helpers live under `src/ai-sdk/` and should stay request-scoped so they can safely use `getLiveEntry()` / `getLiveCollection()` plus `context.cache`.
+- AI SDK helpers are owned by `fluent-wp-client/ai-sdk`; this package should not add live-loader-backed AI wrappers because live loaders do not receive Astro request auth context.
 - New discovery features (CLI, runtime schema conversion, embed extraction helpers) are re-exported from `fluent-wp-client` and `fluent-wp-client/zod` subpackages.
 - Actions and loaders use the v3 client API: `client.content('posts').list()` instead of `client.getPosts()`, `client.users().me()` instead of `client.getCurrentUser()`.
 

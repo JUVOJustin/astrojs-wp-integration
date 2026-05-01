@@ -12,7 +12,7 @@ Use it when you want:
 - schema and resource metadata available during builds
 - generated Zod schemas and TypeScript resource types for your WordPress instance
 - discovery-aware helpers such as `describe()` to avoid extra network requests
-- AI SDK tools and mapping code to share one build-time catalog
+- direct `fluent-wp-client` tools and mapping code to share one build-time catalog
 - authenticated discovery for private resources, ACF fields, users, or abilities
 
 The catalog contains metadata. Normal content reads such as `client.content('posts').list()` still fetch live WordPress data.
@@ -84,7 +84,8 @@ Use the client with loaders and actions as usual.
 
 ```ts title="src/content.config.ts"
 import { defineCollection } from 'astro:content';
-import { postSchema, wordPressPostStaticLoader } from 'wp-astrojs-integration';
+import { postSchema } from 'fluent-wp-client/zod';
+import { wordPressPostStaticLoader } from 'wp-astrojs-integration';
 import { wp } from './lib/wp';
 
 export const collections = {

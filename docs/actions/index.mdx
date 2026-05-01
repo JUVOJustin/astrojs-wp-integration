@@ -59,7 +59,7 @@ export const server = {
 ### Static client (app password)
 
 ```ts
-import { WordPressClient } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
@@ -78,7 +78,7 @@ export const server = {
 ### Static client (JWT)
 
 ```ts
-import { WordPressClient } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
@@ -91,7 +91,7 @@ const wp = new WordPressClient({
 ### Static client with request-aware auth headers
 
 ```ts
-import { WordPressClient } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
@@ -124,9 +124,8 @@ import {
   createDeleteUserAction,
   createGetAbilityAction,
   createRunAbilityAction,
-  createDeleteAbilityAction,
-  WordPressClient,
 } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
@@ -269,7 +268,7 @@ Every action file exports two things:
 - **`execute*(client, input, options?)`** — the raw async helper, useful for testing or building custom actions that target a different REST resource (e.g. a custom post type).
 
 ```ts
-import { WordPressClient } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
 import { executeCreatePost } from 'wp-astrojs-integration/actions';
 
 const wp = new WordPressClient({

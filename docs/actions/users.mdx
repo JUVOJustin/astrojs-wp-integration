@@ -21,11 +21,11 @@ Register the three user action factories in your Astro project's `src/actions/in
 
 ```ts
 import {
-  WordPressClient,
   createCreateUserAction,
   createUpdateUserAction,
   createDeleteUserAction,
 } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
@@ -105,7 +105,8 @@ User actions expose base schemas for extension:
 You can extend input validation and response parsing:
 
 ```ts
-import { WordPressClient, createCreateUserAction, createUserInputSchema } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
+import { createCreateUserAction, createUserInputSchema } from 'wp-astrojs-integration';
 import { z } from 'astro/zod';
 
 const wp = new WordPressClient({

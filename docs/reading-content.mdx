@@ -13,7 +13,6 @@ Fetch posts, pages, custom post types, and taxonomy terms from WordPress into As
   <LinkCard title="Actions overview" href="./actions/index.mdx" description="Write operations: create, update, and delete content." />
   <LinkCard title="Mapping" href="./mapping.mdx" description="Normalize loader entries and action responses with reusable callbacks." />
   <LinkCard title="Caching" href="./caching.mdx" description="Route caching with live loaders, cache hints, and invalidation actions." />
-  <LinkCard title="AI SDK" href="./ai-sdk.mdx" description="Astro-aware AI SDK read tools backed by live collections." />
   <LinkCard title="Post actions" href="./actions/posts.mdx" description="Programmatically create and manage posts." />
   <LinkCard title="Auth bridge" href="./auth-action-bridge.mdx" description="Session-based authentication for middleware and actions." />
 </CardGrid>
@@ -25,7 +24,7 @@ Choose the loader type based on your deployment strategy and content freshness r
 | Feature | Static loaders | Live loaders |
 |---|---|---|
 | **When data loads** | Build time (`astro build`) | Request time (SSR) |
-| **Best for** | SSG sites, stable content | Dynamic content, user-specific data |
+| **Best for** | SSG sites, stable content | Dynamic public/shared content |
 | **Astro API** | `defineCollection` | `defineLiveCollection` |
 | **Fetch method** | `getEntry()`, `getCollection()` | `getLiveEntry()`, `getLiveCollection()` |
 | **Caching** | Built into Astro content store | Per-request fetch with optional Astro route caching |
@@ -39,11 +38,9 @@ Create `src/live.config.ts` for live collections and `src/content.config.ts` for
 ```ts
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
+import { WordPressClient } from 'fluent-wp-client';
+import { categorySchema, pageSchema, postSchema } from 'fluent-wp-client/zod';
 import {
-  WordPressClient,
-  postSchema,
-  pageSchema,
-  categorySchema,
   wordPressPostLoader,
   wordPressPageLoader,
   wordPressCategoryLoader,
@@ -297,11 +294,9 @@ WordPress custom post types use the `wordPressContentLoader` (aligned with fluen
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
 import { z } from 'astro/zod';
-import {
-  WordPressClient,
-  contentWordPressSchema,
-  wordPressContentLoader,
-} from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
+import { contentWordPressSchema } from 'fluent-wp-client/zod';
+import { wordPressContentLoader } from 'wp-astrojs-integration';
 
 const wp = new WordPressClient({
   baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
@@ -366,7 +361,7 @@ const posts = defineLiveCollection({
 ---
 // src/pages/products/[slug].astro
 import { getLiveEntry } from 'astro:content';
-import { WordPressClient } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
 import WPImage from 'wp-astrojs-integration/components/WPImage.astro';
 
 const { slug } = Astro.params;
@@ -406,9 +401,9 @@ const featuredMedia = embeddedProduct._embedded?.['wp:featuredmedia']?.[0];
 ```ts
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
+import { WordPressClient } from 'fluent-wp-client';
+import { categorySchema } from 'fluent-wp-client/zod';
 import {
-  WordPressClient,
-  categorySchema,
   wordPressCategoryLoader,
 } from 'wp-astrojs-integration';
 
@@ -450,9 +445,9 @@ const { entries: parentCategories } = await getLiveCollection('categories', { pa
 ```ts
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
+import { WordPressClient } from 'fluent-wp-client';
+import { categorySchema } from 'fluent-wp-client/zod';
 import {
-  WordPressClient,
-  categorySchema,
   wordPressTagLoader,
 } from 'wp-astrojs-integration';
 
@@ -491,9 +486,9 @@ Custom taxonomies work like built-in terms with the `wordPressTermLoader`. Ensur
 ```ts
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
+import { WordPressClient } from 'fluent-wp-client';
+import { categorySchema } from 'fluent-wp-client/zod';
 import {
-  WordPressClient,
-  categorySchema,
   wordPressTermLoader,
 } from 'wp-astrojs-integration';
 
@@ -539,16 +534,14 @@ Use static loaders for pre-built sites where content changes infrequently.
 ```ts
 // src/content.config.ts
 import { defineCollection } from 'astro:content';
+import { WordPressClient } from 'fluent-wp-client';
+import { categorySchema, pageSchema, postSchema } from 'fluent-wp-client/zod';
 import {
-  WordPressClient,
   wordPressPostStaticLoader,
   wordPressPageStaticLoader,
   wordPressCategoryStaticLoader,
   wordPressTermStaticLoader,
   wordPressContentStaticLoader,
-  postSchema,
-  pageSchema,
-  categorySchema,
 } from 'wp-astrojs-integration';
 
 const wp = new WordPressClient({
@@ -678,15 +671,16 @@ if (!post) {
 ## Authentication for private content
 
 Private posts, drafts, and password-protected content require authentication.
+Use live or static loaders only when one static/service credential is safe for every visitor who can reach the route. Use direct `fluent-wp-client` calls for per-user content.
 
 ### Basic auth (app passwords)
 
 ```ts
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
+import { WordPressClient } from 'fluent-wp-client';
+import { postSchema } from 'fluent-wp-client/zod';
 import {
-  WordPressClient,
-  postSchema,
   wordPressPostLoader,
 } from 'wp-astrojs-integration';
 
@@ -709,9 +703,9 @@ const posts = defineLiveCollection({
 ```ts
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
+import { WordPressClient } from 'fluent-wp-client';
+import { postSchema } from 'fluent-wp-client/zod';
 import {
-  WordPressClient,
-  postSchema,
   wordPressPostLoader,
 } from 'wp-astrojs-integration';
 
@@ -731,6 +725,21 @@ const posts = defineLiveCollection({
 ### Session-based auth (auth bridge)
 
 Live and static loaders do not receive one Astro request context, so session-based bridge auth is not available there. Use `createWordPressAuthBridge()` for middleware, routes, and action factories instead, and keep loaders on a public or statically authenticated `WordPressClient`.
+
+```astro title="src/pages/account.astro"
+---
+Astro.cache.set(false);
+
+const wp = Astro.locals.wp;
+const user = await wp.users().me();
+const drafts = await wp.content('posts').list({ status: 'draft' });
+---
+
+<h1>{user.name}</h1>
+<p>{drafts.length} drafts</p>
+```
+
+Do not pass request tokens through live-loader filters or store request clients in global state.
 
 See [Auth Action Bridge](./auth-action-bridge.mdx) for request-scoped auth patterns.
 
@@ -780,7 +789,7 @@ Post, page, and custom content live loaders also support an explicit `embed` opt
 
 ```astro
 ---
-import { WordPressClient } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
 import WPImage from 'wp-astrojs-integration/components/WPImage.astro';
 
 const wp = new WordPressClient({
