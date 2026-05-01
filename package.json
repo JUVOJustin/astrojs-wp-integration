@@ -1,6 +1,6 @@
 {
   "name": "wp-astrojs-integration",
-  "version": "0.6.0-rc.4",
+  "version": "0.6.0-rc.5",
   "description": "Fast and better WordPress integration for Astro.js with live loaders, client API, and Gutenberg block support",
   "type": "module",
   "main": "./dist/index.js",
