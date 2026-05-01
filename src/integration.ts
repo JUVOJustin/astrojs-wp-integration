@@ -1,7 +1,6 @@
 import { execFile } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
@@ -26,7 +25,6 @@ const GENERATED_SCHEMAS_VIRTUAL_MODULE_ID =
   'virtual:wp-astrojs/generated-schemas';
 const RESOLVED_GENERATED_SCHEMAS_VIRTUAL_MODULE_ID = `\0${GENERATED_SCHEMAS_VIRTUAL_MODULE_ID}`;
 const execFileAsync = promisify(execFile);
-const require = createRequire(import.meta.url);
 // Keep this injected consumer declaration in sync with src/env.d.ts.
 const BASE_VIRTUAL_MODULE_TYPES = `declare module 'virtual:wp-astrojs/catalog' {
   import type {
@@ -316,7 +314,7 @@ function getGeneratedSchemaResources(
 
 function getFluentWpClientCliPath(): string {
   const packageRoot = resolve(
-    dirname(require.resolve('fluent-wp-client')),
+    dirname(fileURLToPath(import.meta.resolve('fluent-wp-client'))),
     '..',
   );
   const packageJson = JSON.parse(
@@ -332,12 +330,11 @@ function getFluentWpClientCliPath(): string {
 }
 
 function createSchemaCliArgs(
-  options: ResolvedCatalogOptions,
   baseUrl: string,
   zodOut: string,
   typesOut: string,
 ): string[] {
-  const args = [
+  return [
     getFluentWpClientCliPath(),
     'schemas',
     '--url',
@@ -347,18 +344,28 @@ function createSchemaCliArgs(
     '--types-out',
     typesOut,
   ];
+}
+
+function createSchemaCliEnv(
+  options: ResolvedCatalogOptions,
+): NodeJS.ProcessEnv {
   const authHeader = readEnvValue(options.envPrefix, 'AUTH_HEADER');
   const token = readEnvValue(options.envPrefix, 'TOKEN');
   const username = readEnvValue(options.envPrefix, 'USERNAME');
   const password = readEnvValue(options.envPrefix, 'PASSWORD');
 
-  if (authHeader) return [...args, '--auth-header', authHeader];
-  if (token) return [...args, '--token', token];
-  if (username && password) {
-    return [...args, '--username', username, '--password', password];
+  const env: NodeJS.ProcessEnv = {};
+
+  if (authHeader) {
+    env.FLUENT_WP_AUTH_HEADER = authHeader;
+  } else if (token) {
+    env.FLUENT_WP_TOKEN = token;
+  } else if (username && password) {
+    env.FLUENT_WP_USERNAME = username;
+    env.FLUENT_WP_PASSWORD = password;
   }
 
-  return args;
+  return env;
 }
 
 async function generateSchemaArtifacts(
@@ -369,7 +376,13 @@ async function generateSchemaArtifacts(
 ): Promise<void> {
   await execFileAsync(
     process.execPath,
-    createSchemaCliArgs(options, baseUrl, zodOut, typesOut),
+    createSchemaCliArgs(baseUrl, zodOut, typesOut),
+    {
+      env: {
+        ...process.env,
+        ...createSchemaCliEnv(options),
+      },
+    },
   );
 }
 
