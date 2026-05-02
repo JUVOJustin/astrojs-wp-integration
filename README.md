@@ -11,6 +11,13 @@ It supports Astro `^6.0.0`.
 npm install wp-astrojs-integration fluent-wp-client
 ```
 
+If you use a coding agent, install both the fluent client and Astro integration skills:
+
+```bash
+npx skills https://github.com/JUVOJustin/fluent-wp-client
+npx skills https://github.com/JUVOJustin/astrojs-wp-integration
+```
+
 ## Feature overview
 
 | Feature | What you get in Astro | Main API |

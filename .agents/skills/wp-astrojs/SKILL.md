@@ -13,7 +13,7 @@ The library code is small and easy to grep when you need precise API details. Pr
 
 ### 1. Init a `WordPressClient`
 
-For projects that want build-time WordPress discovery, use the Astro catalog integration and keep detailed catalog setup in `docs/catalog.mdx`:
+For projects that want build-time WordPress discovery, use the Astro catalog integration and keep detailed catalog setup in `references/catalog.mdx`:
 
 ```js
 // astro.config.mjs
@@ -51,7 +51,7 @@ For authenticated requests, pass `auth` (basic, JWT, app password) or `authHeade
 
 ### 2. Define a live collection (SSR / runtime)
 
-Live collections fetch from WordPress per request. See the Astro [Content Loader reference](https://docs.astro.build/en/reference/content-loader-reference) for the underlying API.
+Live collections fetch from WordPress per request. Read `references/reading-content.mdx` for fuller live/static collection guidance.
 
 ```ts
 // src/live.config.ts
@@ -169,7 +169,7 @@ const drafts = await wp.content('posts').list({ status: 'draft' });
 
 ## Catalog and Discovery
 
-The catalog is for WordPress resource/schema metadata, generated collection schemas, and schema-aware action options. Prefer `wp-astrojs-integration/integration` plus `virtual:wp-astrojs/*` in Astro projects, and use `docs/catalog.mdx` as the source of truth for setup details.
+The catalog is for WordPress resource/schema metadata, generated collection schemas, and schema-aware action options. Prefer `wp-astrojs-integration/integration` plus `virtual:wp-astrojs/*` in Astro projects, and use `references/catalog.mdx` as the source of truth for setup details.
 
 Keep catalog usage server-only. Catalogs may be generated with admin credentials to discover private resources or fields, but runtime reads and writes still need the correct public, static-service, or request-scoped `WordPressClient` for the operation.
 
@@ -185,11 +185,10 @@ Keep catalog usage server-only. Catalogs may be generated with admin credentials
 
 ## References
 
-- Astro Content Loader reference: https://docs.astro.build/en/reference/content-loader-reference
 - Reading content: [references/reading-content.mdx](references/reading-content.mdx)
 - Mapping values across loaders/actions: [references/mapping.mdx](references/mapping.mdx)
 - Caching and route invalidation: [references/caching.mdx](references/caching.mdx)
 - Auth bridge for sessions/middleware: [references/auth-action-bridge.mdx](references/auth-action-bridge.mdx)
-- Catalog integration: [references/catalog.mdx](references/catalog.mdx) and `docs/catalog.mdx`
+- Catalog integration: [references/catalog.mdx](references/catalog.mdx)
 - Typesafe schema generation: [references/typesafe-integration.mdx](references/typesafe-integration.mdx)
 - Actions overview (incl. abilities): [references/actions.mdx](references/actions.mdx)
