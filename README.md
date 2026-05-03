@@ -14,8 +14,8 @@ npm install wp-astrojs-integration fluent-wp-client
 If you use a coding agent, install both the fluent client and Astro integration skills:
 
 ```bash
-npx skills https://github.com/JUVOJustin/fluent-wp-client
-npx skills https://github.com/JUVOJustin/astrojs-wp-integration
+npx skills add https://github.com/JUVOJustin/fluent-wp-client
+npx skills add https://github.com/JUVOJustin/astrojs-wp-integration
 ```
 
 ## Feature overview
@@ -252,6 +252,16 @@ Live loaders return Astro-compatible `cacheHint` values, and `createWpCacheInval
 ## AI SDK tools
 
 AI SDK tools live in `fluent-wp-client/ai-sdk`. This package does not wrap them with live-loader helpers because live loaders are for public/shared content, not per-user request auth.
+
+| Server-side tool group | Factories from `fluent-wp-client/ai-sdk` | Use for |
+|---|---|---|
+| Content | `getContentTool`, `getContentCollectionTool`, `saveContentTool`, `deleteContentTool` | Posts, pages, custom post types, and other post-like resources |
+| Terms | `getTermTool`, `getTermCollectionTool`, `saveTermTool`, `deleteTermTool` | Categories, tags, and custom taxonomies |
+| Generic resources | `getResourceTool`, `getResourceCollectionTool`, `saveResourceTool`, `deleteResourceTool` | Catalog-discovered or plugin REST resources |
+| Abilities | `getAbilitiesTool`, `getAbilityTool`, `executeGetAbilityTool`, `executeRunAbilityTool`, `executeDeleteAbilityTool`, `createAbilityTools` | WordPress abilities exposed through the REST API |
+| Blocks | `getBlocksTool`, `setBlocksTool` | Reading or writing parsed block content |
+| Settings | `getSettingsTool`, `updateSettingsTool` | WordPress site settings |
+| Discovery | `describeResourceTool` | Resource metadata and schema-aware descriptions |
 
 For public AI reads, use the fluent client tools directly and apply any Astro route cache policy in the endpoint:
 
