@@ -269,7 +269,9 @@ export const GET: APIRoute = async (context) => {
     contentType: 'posts',
   });
 
-  const result = await tool.execute?.({ slug: 'hello-world' }, {
+  if (!tool.execute) throw new Error('Content tool is not executable.');
+
+  const result = await tool.execute({ slug: 'hello-world' }, {
     toolCallId: 'read-post',
     messages: [],
   });
@@ -290,7 +292,11 @@ export const GET: APIRoute = async (context) => {
   const tool = getContentTool(wp, {
     contentType: 'posts',
     fetch: async (input) => {
-      const lookup = input.id ? { id: input.id } : { slug: input.slug ?? '' };
+      if (!input.id && !input.slug) {
+        throw new Error('Provide either id or slug to read a post.');
+      }
+
+      const lookup = input.id ? { id: input.id } : { slug: input.slug };
       const { entry, error, cacheHint } = await getLiveEntry('posts', lookup);
 
       if (error) throw error;
@@ -300,7 +306,9 @@ export const GET: APIRoute = async (context) => {
     },
   });
 
-  const result = await tool.execute?.({ slug: 'hello-world' }, {
+  if (!tool.execute) throw new Error('Content tool is not executable.');
+
+  const result = await tool.execute({ slug: 'hello-world' }, {
     toolCallId: 'read-post',
     messages: [],
   });
