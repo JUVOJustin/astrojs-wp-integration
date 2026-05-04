@@ -102,7 +102,7 @@ export const server = {
 If you prefer static credentials, build one client yourself and pass it directly:
 
 ```ts
-import { WordPressClient } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
@@ -122,7 +122,7 @@ export const server = {
 If you need to create the client yourself, the bridge can also return the resolved config.
 
 ```ts
-import { WordPressClient } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
 
 const clientConfig = await wordPressAuthBridge.getClientConfig(Astro);
 
@@ -153,7 +153,8 @@ if (!wp) {
 The bridge can also resolve auth from request headers or other request-scoped sources.
 
 ```ts
-import { createAuthResolver, createWordPressAuthBridge } from 'wp-astrojs-integration';
+import { createAuthResolver } from 'fluent-wp-client';
+import { createWordPressAuthBridge } from 'wp-astrojs-integration';
 import type { ActionAPIContext } from 'astro:actions';
 
 export const bridge = createWordPressAuthBridge({

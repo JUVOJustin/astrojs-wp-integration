@@ -80,7 +80,7 @@ Pass a `responseSchema` when you want the action result validated in Astro after
 Any Standard Schema-compatible validator works, including Zod.
 
 ```ts
-import { WordPressClient } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
 import { z } from 'astro/zod';
 
 const optionResultSchema = z.object({
@@ -106,8 +106,8 @@ export const server = {
 The raw `execute*` functions are useful in tests or custom wrappers.
 
 ```ts
+import { WordPressClient } from 'fluent-wp-client';
 import {
-  WordPressClient,
   executeDeleteAbility,
   executeGetAbility,
   executeRunAbility,

@@ -47,7 +47,7 @@ Use runtime discovery only when schemas are not known at build time, such as mul
 2. Create a shared WordPress client.
 
    ```ts title="src/lib/wp.ts"
-   import { WordPressClient } from 'wp-astrojs-integration';
+   import { WordPressClient } from 'fluent-wp-client';
 
    export const wp = new WordPressClient({
      baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
@@ -241,7 +241,7 @@ import {
   getEmbeddedAuthor,
   getEmbeddedFeaturedMedia,
   getEmbeddedTerms,
-} from 'wp-astrojs-integration';
+} from 'fluent-wp-client';
 
 const wp = new WordPressClient({
   baseUrl: 'https://example.com',
@@ -267,11 +267,8 @@ This is useful when:
 - you are building multi-site or SaaS tooling
 
 ```ts title="Discover schemas at runtime"
-import {
-  WordPressClient,
-  zodFromJsonSchema,
-  zodSchemasFromDescription,
-} from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
+import { zodFromJsonSchema, zodSchemasFromDescription } from 'fluent-wp-client/zod';
 
 const wp = new WordPressClient({
   baseUrl: 'https://example.com',

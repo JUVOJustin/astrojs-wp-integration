@@ -101,7 +101,7 @@ declare module 'virtual:wp-astrojs/catalog' {
     WordPressClient,
     WordPressClientConfig,
     WordPressDiscoveryCatalog,
-  } from 'wp-astrojs-integration';
+  } from 'fluent-wp-client';
 
   export const catalog: WordPressDiscoveryCatalog | undefined;
   export const catalogPath: string | undefined;
@@ -119,7 +119,7 @@ declare module 'virtual:wp-astrojs/catalog' {
 }
 
 declare module 'virtual:wp-astrojs/schemas' {
-  import type { ResourceZodSchemas } from 'wp-astrojs-integration';
+  import type { ResourceZodSchemas } from 'fluent-wp-client/zod';
 
   export type WordPressCatalogResourceKind =
     | 'auto'
@@ -158,7 +158,7 @@ declare module 'virtual:wp-astrojs/collections' {
   import type {
     WordPressClient,
     WordPressClientConfig,
-  } from 'wp-astrojs-integration';
+  } from 'fluent-wp-client';
 
   export interface DefineWordPressCollectionOptions<
     TSchema extends BaseSchema = BaseSchema,

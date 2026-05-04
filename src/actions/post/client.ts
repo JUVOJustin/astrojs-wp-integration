@@ -1,5 +1,5 @@
 import { type ActionAPIContext, ActionError } from 'astro:actions';
-import { WordPressClient, WordPressHttpError } from 'fluent-wp-client';
+import { type WordPressClient, WordPressHttpError } from 'fluent-wp-client';
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -35,11 +35,11 @@ export async function resolveActionClient(
   client: ResolvableActionClient,
   context: ActionAPIContext,
 ): Promise<WordPressClient | null> {
-  if (client instanceof WordPressClient) {
-    return client;
+  if (typeof client === 'function') {
+    return (await client(context)) ?? null;
   }
 
-  return (await client(context)) ?? null;
+  return client ?? null;
 }
 
 /**

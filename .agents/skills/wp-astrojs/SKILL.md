@@ -13,7 +13,7 @@ The library code is small and easy to grep when you need precise API details. Pr
 
 ### 1. Init a `WordPressClient`
 
-For projects that want build-time WordPress discovery, prefer the Astro catalog integration and virtual module:
+For projects that want build-time WordPress discovery, use the Astro catalog integration and keep detailed catalog setup in `references/catalog.mdx`:
 
 ```js
 // astro.config.mjs
@@ -34,42 +34,13 @@ export const wp = createWordPressClient({
 });
 ```
 
-Set `WP_CATALOG_URL` and optionally `WP_CATALOG_USERNAME` / `WP_CATALOG_PASSWORD`, `WP_CATALOG_TOKEN`, or `WP_CATALOG_AUTH_HEADER` in `.env`. See `docs/catalog.mdx` for the full setup.
-
-Use `required: false` when local dev should continue without a reachable WordPress backend. The virtual module remains importable, but `hasCatalog` is `false`.
-
-Catalog-derived schemas can simplify collections and actions:
-
-```ts
-// src/content.config.ts
-import { defineWordPressCollection } from 'virtual:wp-astrojs/collections';
-import { wp } from './lib/wp';
-
-export const collections = {
-  posts: defineWordPressCollection('posts', { client: wp }),
-  books: defineWordPressCollection('books', { client: wp }),
-};
-```
-
-```ts
-// src/actions/index.ts
-import { createCreatePostAction } from 'wp-astrojs-integration';
-import { withWordPressActionSchemas } from 'virtual:wp-astrojs/schemas';
-import { wp } from '../lib/wp';
-
-export const server = {
-  createBook: createCreatePostAction(
-    wp,
-    withWordPressActionSchemas('books', { resource: 'books' }),
-  ),
-};
-```
+Set `WP_CATALOG_URL` and optional catalog auth env vars in `.env`. Use the virtual modules for catalog-backed clients, generated schemas, and collection/action helpers when the project benefits from discovered resource metadata.
 
 For simple projects without catalog discovery, instantiate the client directly:
 
 ```ts
 // src/lib/wp.ts
-import { WordPressClient } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
 
 export const wp = new WordPressClient({
   baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
@@ -80,15 +51,13 @@ For authenticated requests, pass `auth` (basic, JWT, app password) or `authHeade
 
 ### 2. Define a live collection (SSR / runtime)
 
-Live collections fetch from WordPress per request. See the Astro [Content Loader reference](https://docs.astro.build/en/reference/content-loader-reference) for the underlying API.
+Live collections fetch from WordPress per request. Read `references/reading-content.mdx` for fuller live/static collection guidance.
 
 ```ts
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
-import {
-  postSchema,
-  wordPressPostLoader,
-} from 'wp-astrojs-integration';
+import { postSchema } from 'fluent-wp-client/zod';
+import { wordPressPostLoader } from 'wp-astrojs-integration';
 import { wp } from './lib/wp';
 
 const posts = defineLiveCollection({
@@ -116,10 +85,8 @@ Static collections fetch at build time and store entries in the Astro content st
 ```ts
 // src/content.config.ts
 import { defineCollection } from 'astro:content';
-import {
-  postSchema,
-  wordPressPostStaticLoader,
-} from 'wp-astrojs-integration';
+import { postSchema } from 'fluent-wp-client/zod';
+import { wordPressPostStaticLoader } from 'wp-astrojs-integration';
 import { wp } from './lib/wp';
 
 const posts = defineCollection({
@@ -170,52 +137,58 @@ const { data, error } = await Astro.callAction(actions.createPost, {
 
 `error` is an `ActionError` with HTTP-mapped codes (`UNAUTHORIZED`, `NOT_FOUND`, etc.).
 
-## Catalog and Discovery
-
-The client can introspect WordPress once and reuse the result everywhere through the `WordPressDiscoveryCatalog`.
-
-In Astro projects, the simplified path is `wp-astrojs-integration/integration` plus `virtual:wp-astrojs/catalog`. This fetches and stores the catalog in Astro's cache directory during setup/build, then seeds clients with `client.useCatalog(catalog)` automatically.
+Actions are per-user only when they receive a request-aware client resolver, such as `wordPressAuthBridge.getClient`. Passing a static admin/app-password client makes the action run as that service user for every caller.
 
 ```ts
-// One-time exploration
-const catalog = await wp.explore();
-await persistCatalog(JSON.stringify(catalog));
+// src/actions/index.ts
+import { createUpdatePostAction } from 'wp-astrojs-integration';
+import { wordPressAuthBridge } from '../lib/auth/bridge';
 
-// Later: avoid network discovery
-const stored = JSON.parse(await loadCatalog());
-if (stored) wp.useCatalog(stored);
-
-// Read schema metadata without another request
-const acfFields = await wp
-  .content('posts')
-  .getSchemaValue('properties.acf.properties');
+export const server = {
+  updatePost: createUpdatePostAction(wordPressAuthBridge.getClient),
+};
 ```
 
-Useful methods on `WordPressClient`:
+Catalog-derived `schema` and `responseSchema` values are validation metadata. They do not grant capabilities or change which WordPress user executes the action. It is safe to generate a catalog with admin credentials and use those schemas with request-scoped actions, as long as the action client itself is request-scoped and catalog metadata is not exposed to browser bundles.
 
-- `wp.explore()` — discover all resources/abilities.
-- `wp.useCatalog(catalog)` — seed a stored catalog.
-- `wp.getCachedCatalog()` — read the in-memory catalog snapshot.
-- `wp.content(resource).describe()` / `.getSchemaValue(path)` — typed schema lookups.
+## Per-User Data Reads
 
-Use the catalog to drive site-specific normalization (for example ACF choice → label maps) inside loader `mapEntry` and action `mapResponse` callbacks. The same callback can be shared across loaders and actions.
+Use `fluent-wp-client` directly for account pages, dashboards, drafts, `/users/me`, or any read whose result depends on the current visitor. Live and static loaders do not receive Astro `request`, `cookies`, or `locals`, so they should stay public/shared or statically authenticated.
+
+```astro
+---
+Astro.cache.set(false);
+
+const wp = await wordPressAuthBridge.getClient(Astro);
+if (!wp) return Astro.redirect('/login');
+
+const user = await wp.users().me();
+const drafts = await wp.content('posts').list({ status: 'draft' });
+---
+```
+
+## Catalog and Discovery
+
+The catalog is for WordPress resource/schema metadata, generated collection schemas, and schema-aware action options. Prefer `wp-astrojs-integration/integration` plus `virtual:wp-astrojs/*` in Astro projects, and use `references/catalog.mdx` as the source of truth for setup details.
+
+Keep catalog usage server-only. Catalogs may be generated with admin credentials to discover private resources or fields, but runtime reads and writes still need the correct public, static-service, or request-scoped `WordPressClient` for the operation.
 
 ## Conventions
 
 - Treat `WordPressClient` from `fluent-wp-client` as the integration core; build loaders/actions on top of it.
+- Use request-scoped `fluent-wp-client` instances for per-user data; do not route visitor-specific reads through live loaders.
 - Use `mapEntry` (loaders) and `mapResponse` (actions) for site-specific value normalization. Keep mapping rules in app code, not in the library.
 - Loader payloads must remain plain serializable objects — no helper methods on `entry.data`.
+- Use `fluent-wp-client/ai-sdk` directly for AI tools; do not route personalized AI reads through live loaders.
 - Use Standard Schema-compatible validators (Zod or otherwise) for response schemas.
 - Prefer reading the package source under `node_modules/wp-astrojs-integration/dist` instead of guessing API shapes.
 
 ## References
 
-- Astro Content Loader reference: https://docs.astro.build/en/reference/content-loader-reference
 - Reading content: [references/reading-content.mdx](references/reading-content.mdx)
 - Mapping values across loaders/actions: [references/mapping.mdx](references/mapping.mdx)
 - Caching and route invalidation: [references/caching.mdx](references/caching.mdx)
 - Auth bridge for sessions/middleware: [references/auth-action-bridge.mdx](references/auth-action-bridge.mdx)
-- AI SDK live-collection tools: [references/ai-sdk.mdx](references/ai-sdk.mdx)
-- Catalog integration: [references/catalog.mdx](references/catalog.mdx) and `docs/catalog.mdx`
+- Catalog integration: [references/catalog.mdx](references/catalog.mdx)
 - Typesafe schema generation: [references/typesafe-integration.mdx](references/typesafe-integration.mdx)
 - Actions overview (incl. abilities): [references/actions.mdx](references/actions.mdx)

@@ -7,17 +7,17 @@
  */
 import { z } from 'astro/zod';
 import {
+  categorySchema,
+  contentWordPressSchema,
+  pageSchema,
+  postSchema,
+} from 'fluent-wp-client/zod';
+import {
   createPostInputSchema,
   createTermInputSchema,
   updatePostInputSchema,
   updateTermInputSchema,
 } from '../../../../../src/actions';
-import {
-  categorySchema,
-  contentWordPressSchema,
-  pageSchema,
-  postSchema,
-} from '../../../../../src/index';
 
 export const postsItemSchema = postSchema;
 export const postsCreateSchema = createPostInputSchema;

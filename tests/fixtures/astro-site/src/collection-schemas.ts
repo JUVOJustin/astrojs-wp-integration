@@ -10,7 +10,7 @@ import {
   contentWordPressSchema,
   pageSchema,
   postSchema,
-} from '../../../../src/index';
+} from 'fluent-wp-client/zod';
 
 export { categorySchema, pageSchema, postSchema };
 

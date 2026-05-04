@@ -1,20 +1,21 @@
 # WordPress Astro.js Integration
 
-Astro-first integration for WordPress with content loaders, server actions, auth bridge helpers, and rendering components.
+Astro-first integration for WordPress with content loaders, server actions, auth bridge helpers, catalog virtual modules, and rendering components.
 
-This package is built against `fluent-wp-client` `^3.0.0`.
+This package is built against `fluent-wp-client` `^3.0.0` and expects your Astro project to use the same client package directly.
 It supports Astro `^6.0.0`.
 
 ## Install
 
 ```bash
-npm install wp-astrojs-integration
+npm install wp-astrojs-integration fluent-wp-client
 ```
 
-If you want the `./ai-sdk` subpath, install `ai` as well:
+If you use a coding agent, install both the fluent client and Astro integration skills:
 
 ```bash
-npm install wp-astrojs-integration ai
+npx skills add https://github.com/JUVOJustin/fluent-wp-client
+npx skills add https://github.com/JUVOJustin/astrojs-wp-integration
 ```
 
 ## Feature overview
@@ -24,16 +25,17 @@ npm install wp-astrojs-integration ai
 | Live content collections | Request-time WordPress data for SSR routes | `defineLiveCollection` + `wordPress*Loader` |
 | Route caching | Astro `cacheHint` metadata plus a targeted invalidation action for live routes | `Astro.cache.set()`, `createWpCacheInvalidateAction` |
 | Catalog integration | Build-time WordPress discovery cached in Astro and reused by catalog-aware helpers | `wp-astrojs-integration/integration`, `virtual:wp-astrojs/catalog` |
-| AI SDK live reads | Astro-aware AI SDK read tools backed by live collections and route caching | `wp-astrojs-integration/ai-sdk` |
 | Static content collections | Build-time WordPress snapshots for SSG | `defineCollection` + `wordPress*StaticLoader` |
 | Server actions | Typed create/update/delete actions for posts, pages, users, and abilities | `create*Action` factories |
 | Auth bridge | Login/session helpers for Astro server actions and middleware | `createWordPressAuthBridge` |
-| Discovery + typesafety | Re-exported discovery types, embed helpers, and Zod conversion utilities from `fluent-wp-client` v3 | `zodFromJsonSchema`, `zodSchemasFromDescription`, `getEmbedded*` |
+| Discovery + typesafety | Use `fluent-wp-client` discovery, embed helpers, and Zod conversion utilities with Astro catalog helpers | `fluent-wp-client`, `virtual:wp-astrojs/*` |
 | Rendering components | Gutenberg-friendly HTML and media rendering in Astro | `WPContent`, `WPImage` |
+
+Use `fluent-wp-client` as the WordPress client and schema source of truth. Use this package for the Astro-specific integration points.
 
 ## Available entities
 
-| Entity | Schema | Live loader | Static loader | Notes |
+| Entity | Schema from `fluent-wp-client/zod` | Live loader | Static loader | Notes |
 |---|---|---|---|---|
 | Posts | `postSchema` | `wordPressPostLoader` | `wordPressPostStaticLoader` | |
 | Pages | `pageSchema` | `wordPressPageLoader` | `wordPressPageStaticLoader` | |
@@ -154,7 +156,9 @@ You can still wire loaders and schemas manually when you want full control.
 ```ts
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
-import { WordPressClient, postSchema, wordPressPostLoader } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
+import { postSchema } from 'fluent-wp-client/zod';
+import { wordPressPostLoader } from 'wp-astrojs-integration';
 
 const wp = new WordPressClient({
   baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
@@ -189,7 +193,9 @@ const posts = defineLiveCollection({
 ```ts
 // src/content.config.ts
 import { defineCollection } from 'astro:content';
-import { WordPressClient, postSchema, wordPressPostStaticLoader } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
+import { postSchema } from 'fluent-wp-client/zod';
+import { wordPressPostStaticLoader } from 'wp-astrojs-integration';
 
 const wp = new WordPressClient({
   baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
@@ -243,28 +249,39 @@ const posts = defineLiveCollection({
 
 Live loaders return Astro-compatible `cacheHint` values, and `createWpCacheInvalidateAction()` invalidates changed post, term, or user routes. See `docs/caching.mdx` for setup details, examples, and Astro reference links.
 
-## AI SDK Tools
+## AI SDK tools
 
-The `wp-astrojs-integration/ai-sdk` subpath re-exports the base `fluent-wp-client` AI SDK tools and adds Astro-aware read helpers that fetch through live collections.
+AI SDK tools live in `fluent-wp-client/ai-sdk`. This package does not wrap them with live-loader helpers because live loaders are for public/shared content, not per-user request auth.
 
-Create these tools per request so they can use `context.cache` or `Astro.cache`:
+| Server-side tool group | Factories from `fluent-wp-client/ai-sdk` | Use for |
+|---|---|---|
+| Content | `getContentTool`, `getContentCollectionTool`, `saveContentTool`, `deleteContentTool` | Posts, pages, custom post types, and other post-like resources |
+| Terms | `getTermTool`, `getTermCollectionTool`, `saveTermTool`, `deleteTermTool` | Categories, tags, and custom taxonomies |
+| Generic resources | `getResourceTool`, `getResourceCollectionTool`, `saveResourceTool`, `deleteResourceTool` | Catalog-discovered or plugin REST resources |
+| Abilities | `getAbilitiesTool`, `getAbilityTool`, `executeGetAbilityTool`, `executeRunAbilityTool`, `executeDeleteAbilityTool`, `createAbilityTools` | WordPress abilities exposed through the REST API |
+| Blocks | `getBlocksTool`, `setBlocksTool` | Reading or writing parsed block content |
+| Settings | `getSettingsTool`, `updateSettingsTool` | WordPress site settings |
+| Discovery | `describeResourceTool` | Resource metadata and schema-aware descriptions |
+
+For public AI reads, use the fluent client tools directly and apply any Astro route cache policy in the endpoint:
 
 ```ts
 import type { APIRoute } from 'astro';
-import { WordPressClient } from 'wp-astrojs-integration';
-import { getLiveContentTool } from 'wp-astrojs-integration/ai-sdk';
+import { WordPressClient } from 'fluent-wp-client';
+import { getContentTool } from 'fluent-wp-client/ai-sdk';
 
 const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
 });
 
 export const GET: APIRoute = async (context) => {
-  const tool = getLiveContentTool(wp, context.cache, {
-    collection: 'posts',
+  const tool = getContentTool(wp, {
     contentType: 'posts',
   });
 
-  const result = await tool.execute?.({ slug: 'hello-world' }, {
+  if (!tool.execute) throw new Error('Content tool is not executable.');
+
+  const result = await tool.execute({ slug: 'hello-world' }, {
     toolCallId: 'read-post',
     messages: [],
   });
@@ -275,29 +292,55 @@ export const GET: APIRoute = async (context) => {
 };
 ```
 
-For collection reads, use `getLiveContentCollectionTool()`.
-
-Personalized reads should opt out of route caching. Pass `personalized` when request cookies, session state, or user-specific auth can change the result:
+For public/shared content, fluent AI tools can also fetch through an Astro live collection so the endpoint benefits from live-loader cache hints:
 
 ```ts
-const tool = getLiveContentTool(wp, context.cache, {
-  collection: 'posts',
-  contentType: 'posts',
-  personalized: () => Boolean(context.request.headers.get('cookie')),
-});
+import { getLiveEntry } from 'astro:content';
+import { getContentTool } from 'fluent-wp-client/ai-sdk';
+
+export const GET: APIRoute = async (context) => {
+  const tool = getContentTool(wp, {
+    contentType: 'posts',
+    fetch: async (input) => {
+      if (!input.id && !input.slug) {
+        throw new Error('Provide either id or slug to read a post.');
+      }
+
+      const lookup = input.id ? { id: input.id } : { slug: input.slug };
+      const { entry, error, cacheHint } = await getLiveEntry('posts', lookup);
+
+      if (error) throw error;
+      if (cacheHint) context.cache.set(cacheHint);
+
+      return { item: entry?.data };
+    },
+  });
+
+  if (!tool.execute) throw new Error('Content tool is not executable.');
+
+  const result = await tool.execute({ slug: 'hello-world' }, {
+    toolCallId: 'read-post',
+    messages: [],
+  });
+
+  context.cache.set({ maxAge: 300, swr: 60 });
+  return Response.json(result);
+};
 ```
 
-When `personalized` resolves to `true`, the helper calls `cache.set(false)` and skips route caching for that request.
+For user-specific AI endpoints, create or read a request-scoped client from middleware/auth bridge state and opt out of route caching:
 
-The wrapper forwards the live collection entry or collection hint only. Set `maxAge` and `swr` in the route itself when you want response caching.
+```ts
+context.cache.set(false);
+const wp = context.locals.wp;
+```
 
-These Astro-aware helpers are read-only and intentionally limited to live-collection reads. Writes should keep using the base `fluent-wp-client/ai-sdk` mutation tools.
+Do not route personalized AI reads through Astro live loaders. Live loaders do not receive `request`, `cookies`, or `locals`.
 
 ## Astro actions
 
 ```ts
 import {
-  WordPressClient,
   createCreatePostAction,
   createDeletePostAction,
   createUpdatePostAction,
@@ -305,6 +348,7 @@ import {
   createDeleteUserAction,
   createUpdateUserAction,
 } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
@@ -374,7 +418,7 @@ export const server = {
 You can also create one static client directly when you do not need request-scoped auth:
 
 ```ts
-import { WordPressClient } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
@@ -391,7 +435,7 @@ export const server = {
 
 ## Auth utility exports
 
-The package re-exports auth helpers from `fluent-wp-client`, including:
+Import auth helpers from `fluent-wp-client`, including:
 
 - `createAuthResolver`
 - `jwtAuthTokenResponseSchema`
@@ -404,11 +448,11 @@ Use these when building custom login/session flows so you can share the same run
 
 ```ts
 import {
-  WordPressClient,
   createCreateTermAction,
   createUpdateTermAction,
   createDeleteTermAction,
 } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
   baseUrl: import.meta.env.WP_URL,
@@ -428,7 +472,9 @@ export const server = {
 ## Extending schemas
 
 ```ts
-import { WordPressClient, postSchema, wordPressPostLoader } from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
+import { postSchema } from 'fluent-wp-client/zod';
+import { wordPressPostLoader } from 'wp-astrojs-integration';
 import { z } from 'astro/zod';
 
 const wp = new WordPressClient({
@@ -453,7 +499,7 @@ const posts = defineLiveCollection({
 | Feature | Live loaders | Static loaders |
 |---|---|---|
 | Freshness | Request-time | Build-time |
-| Best for | SSR and frequently changing content | SSG and stable content |
+| Best for | SSR and frequently changing public/shared content | SSG and stable content |
 | Astro API | `defineLiveCollection` | `defineCollection` |
 | Content APIs | `getLiveEntry`, `getLiveCollection` | `getEntry`, `getCollection` |
 | Post/page payload shape | Plain serializable objects | Plain serializable objects |

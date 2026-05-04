@@ -31,7 +31,7 @@ const BASE_VIRTUAL_MODULE_TYPES = `declare module 'virtual:wp-astrojs/catalog' {
     WordPressClient,
     WordPressClientConfig,
     WordPressDiscoveryCatalog,
-  } from 'wp-astrojs-integration';
+  } from 'fluent-wp-client';
 
   export const catalog: WordPressDiscoveryCatalog | undefined;
   export const catalogPath: string | undefined;
@@ -49,7 +49,7 @@ const BASE_VIRTUAL_MODULE_TYPES = `declare module 'virtual:wp-astrojs/catalog' {
 }
 
 declare module 'virtual:wp-astrojs/schemas' {
-  import type { ResourceZodSchemas } from 'wp-astrojs-integration';
+  import type { ResourceZodSchemas } from 'fluent-wp-client/zod';
 
   export type WordPressCatalogResourceKind = 'auto' | 'content' | 'terms' | 'resources';
 
@@ -75,7 +75,7 @@ declare module 'virtual:wp-astrojs/collections' {
   import type { BaseSchema } from 'astro:content';
   import type { Loader } from 'astro/loaders';
   import type { LiveLoader } from 'astro/loaders';
-  import type { WordPressClient, WordPressClientConfig } from 'wp-astrojs-integration';
+  import type { WordPressClient, WordPressClientConfig } from 'fluent-wp-client';
   import type { WordPressGeneratedResourceSchemas } from 'virtual:wp-astrojs/generated-schemas';
   import type { WordPressCatalogResourceKind } from 'virtual:wp-astrojs/schemas';
 
@@ -493,7 +493,7 @@ function createCatalogVirtualModule(state: CatalogState): Plugin {
 
       if (id === RESOLVED_SCHEMAS_VIRTUAL_MODULE_ID) {
         return `
-          import { zodSchemasFromDescription } from 'wp-astrojs-integration';
+          import { zodSchemasFromDescription } from 'fluent-wp-client/zod';
           import { catalog } from 'virtual:wp-astrojs/catalog';
 
           function getCatalog() {
@@ -678,7 +678,7 @@ function createCatalogVirtualModule(state: CatalogState): Plugin {
         : 'undefined';
 
       return `
-        import { WordPressClient } from 'wp-astrojs-integration';
+        import { WordPressClient } from 'fluent-wp-client';
 
         export const catalog = ${catalogCode};
         export const catalogPath = ${catalogPathCode};

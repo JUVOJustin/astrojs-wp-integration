@@ -67,6 +67,49 @@ Astro.cache.set({ maxAge: 300 });
 <h1>{entry.data.title.rendered}</h1>
 ```
 
+## Fluent AI Tool Reads
+
+For public/shared AI endpoints, `fluent-wp-client/ai-sdk` tool factories can use a `fetch` override that delegates reads to a live collection. This keeps AI tooling owned by `fluent-wp-client` while still letting the Astro endpoint consume live-loader cache hints.
+
+```ts title="src/pages/api/ai/post.json.ts"
+import { getLiveEntry } from 'astro:content';
+import type { APIRoute } from 'astro';
+import { getContentTool } from 'fluent-wp-client/ai-sdk';
+import { wp } from '../../lib/wp';
+
+export const GET: APIRoute = async (context) => {
+  const tool = getContentTool(wp, {
+    contentType: 'posts',
+    fetch: async (input) => {
+      if (!input.id && !input.slug) {
+        throw new Error('Provide either id or slug to read a post.');
+      }
+
+      const lookup = input.id ? { id: input.id } : { slug: input.slug };
+      const { entry, error, cacheHint } = await getLiveEntry('posts', lookup);
+
+      if (error) throw error;
+      if (cacheHint) context.cache.set(cacheHint);
+
+      return { item: entry?.data };
+    },
+  });
+
+  if (!tool.execute) throw new Error('Content tool is not executable.');
+
+  const result = await tool.execute({ slug: 'hello-world' }, {
+    toolCallId: 'read-post',
+    messages: [],
+  });
+
+  context.cache.set({ maxAge: 300, swr: 60 });
+
+  return Response.json(result);
+};
+```
+
+Do not use this pattern for per-user reads. Live collections do not receive `request`, `cookies`, or `locals`; use a request-scoped `WordPressClient` and `context.cache.set(false)` for user-specific content.
+
 ## Filtered Collections
 
 Filtered live collections can use collection-level cache hints when the result set has stable membership, such as `include`, `exclude`, taxonomy filters, author filters, or explicit ordering.
@@ -152,10 +195,10 @@ await actions.wpCacheInvalidate({
 });
 ```
 
-## Personalized Routes
+## User-Specific Routes
 
-For user-specific pages, opt out per route instead of caching everything globally:
+For user-specific pages, use a request-scoped `fluent-wp-client` instance from middleware or the auth bridge and opt out per route instead of caching everything globally:
 
 - [Opting out of caching](https://docs.astro.build/en/reference/experimental-flags/route-caching/#opting-out-of-caching)
 
-That is the right default for dashboards, account pages, or any route where request cookies or user identity affect the HTML.
+That is the right default for dashboards, account pages, or any route where request cookies or user identity affect the HTML. Do not route per-user reads through live loaders; live loaders do not receive `request`, `cookies`, or `locals`.
