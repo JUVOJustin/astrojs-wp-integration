@@ -7,12 +7,19 @@
  */
 
 import node from '@astrojs/node';
-import { defineConfig, memoryCache } from 'astro/config';
+import react from '@astrojs/react';
+import {
+  defineConfig,
+  memoryCache,
+  passthroughImageService,
+} from 'astro/config';
 import wordpress from '../../../src/integration';
 
 const isStaticBuild = process.env.ASTRO_TEST_MODE === 'build';
 const isRouteCacheTest = process.env.ASTRO_TEST_ROUTE_CACHE === '1';
 const isCatalogTest = process.env.ASTRO_TEST_CATALOG === '1';
+const usesPassthroughImages =
+  process.env.ASTRO_TEST_IMAGE_SERVICE === 'passthrough';
 
 export default defineConfig({
   output: isStaticBuild ? 'static' : 'server',
@@ -27,7 +34,12 @@ export default defineConfig({
         },
       }
     : undefined,
+  image: {
+    remotePatterns: [{ protocol: 'http', hostname: 'localhost' }],
+    service: usesPassthroughImages ? passthroughImageService() : undefined,
+  },
   integrations: [
+    react(),
     wordpress({
       catalog: isCatalogTest
         ? {

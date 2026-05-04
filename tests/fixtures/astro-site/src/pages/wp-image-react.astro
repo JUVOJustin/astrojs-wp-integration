@@ -1,0 +1,35 @@
+---
+import { resolveWpBaseUrl } from '../../../../helpers/wp-env';
+import ReactImage from '../components/ReactImage.jsx';
+
+const baseUrl = resolveWpBaseUrl();
+const response = await fetch(
+  `${baseUrl}/wp-json/wp/v2/media?slug=wpimage-test-media`,
+);
+const mediaItems = response.ok ? await response.json() : [];
+const media = Array.isArray(mediaItems) ? mediaItems[0] : undefined;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>React Image Test</title>
+  </head>
+  <body>
+    <h1>React Image Test</h1>
+    {
+      media ? (
+        <section id="react-image-test">
+          <ReactImage
+            media={media}
+            size="medium"
+            className="react-wp-image"
+            client:load
+          />
+        </section>
+      ) : (
+        <p id="react-image-error">Seeded media not found</p>
+      )
+    }
+  </body>
+</html>

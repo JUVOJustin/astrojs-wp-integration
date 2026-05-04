@@ -6,9 +6,11 @@
 import { defineCollection } from 'astro:content';
 import { defineWordPressCollection } from 'virtual:wp-astrojs/collections';
 import { WordPressClient } from 'fluent-wp-client';
+import { mediaSchema } from 'fluent-wp-client/zod';
 import {
   wordPressCategoryStaticLoader,
   wordPressContentStaticLoader,
+  wordPressMediaStaticLoader,
   wordPressPageStaticLoader,
   wordPressPostStaticLoader,
 } from '../../../../src/loaders/static';
@@ -62,6 +64,14 @@ const books = defineCollection({
   schema: booksItemSchema,
 });
 
+/** Static media collection used by WPImage application tests. */
+const media = defineCollection({
+  loader: wordPressMediaStaticLoader(wp, {
+    filter: { slug: 'wpimage-test-media' },
+  }),
+  schema: mediaSchema,
+});
+
 const catalogPosts =
   process.env.ASTRO_TEST_CATALOG === '1'
     ? defineWordPressCollection('posts', { client: wp })
@@ -73,5 +83,6 @@ export const collections = {
   pages,
   categories,
   books,
+  media,
   catalogPosts,
 };

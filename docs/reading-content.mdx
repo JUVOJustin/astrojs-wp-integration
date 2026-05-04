@@ -787,31 +787,7 @@ Live loader entries do not include `_embedded` data automatically. Use the stand
 
 Post, page, and custom content live loaders also support an explicit `embed` option when you want `_embedded` data through Astro collections.
 
-```astro
----
-import { WordPressClient } from 'fluent-wp-client';
-import WPImage from 'wp-astrojs-integration/components/WPImage.astro';
-
-const wp = new WordPressClient({
-  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
-});
-
-const post = await wp.content('posts').item(slug, { embed: ['wp:featuredmedia'] });
-const featuredMedia = post._embedded?.['wp:featuredmedia']?.[0];
----
-
-<article>
-  {featuredMedia && (
-    <WPImage 
-      media={featuredMedia} 
-      size="large"
-      loading="eager"
-      alt={featuredMedia.alt_text}
-    />
-  )}
-  <h1 set:html={post.data.title.rendered} />
-</article>
-```
+For image rendering, see the [Image component guide](../components/image.mdx).
 
 ---
 

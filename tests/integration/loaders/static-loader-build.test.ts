@@ -27,6 +27,18 @@ const astroBin = fileURLToPath(
   new URL('../../../node_modules/astro/bin/astro.mjs', import.meta.url),
 );
 
+function extractImageTag(html: string, className: string): string {
+  const match = html.match(
+    new RegExp(`<img(?=[^>]*class="${className}")[^>]*>`, 's'),
+  );
+
+  if (!match) {
+    throw new Error(`Missing image tag for class ${className}.`);
+  }
+
+  return match[0];
+}
+
 describe('Static Loaders: Astro build integration', () => {
   it('syncs when live config imports catalog-backed collection helpers', async () => {
     const buildRoot = await mkdtemp(
@@ -177,6 +189,94 @@ describe('Static Loaders: Astro build integration', () => {
 
       expect(catalog.content?.posts).toBeDefined();
       expect(catalog.content?.books).toBeDefined();
+
+      const wpImageHtml = await readFile(
+        path.join(buildRoot, 'dist', 'wp-image-static', 'index.html'),
+        'utf-8',
+      );
+
+      expect(wpImageHtml).toContain('<h1>WPImage Static Test</h1>');
+      expect(wpImageHtml).not.toContain('id="wp-image-static-error"');
+      expect(wpImageHtml).toContain('type="image/avif"');
+      expect(wpImageHtml).toContain('type="image/webp"');
+
+      const optimizedImageTag = extractImageTag(wpImageHtml, 'static-wp-image');
+      expect(optimizedImageTag).toContain('src="/_astro/');
+      expect(optimizedImageTag).toContain('.png"');
+      expect(optimizedImageTag).toContain('alt="WPImage seeded alt text"');
+      expect(optimizedImageTag).not.toContain('/wp-content/uploads/');
+
+      const wordpressImageTag = extractImageTag(
+        wpImageHtml,
+        'wordpress-wp-image',
+      );
+      expect(wordpressImageTag).toContain('/wp-content/uploads/');
+      expect(wordpressImageTag).toContain('srcset=');
+    } finally {
+      await rm(buildRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('renders WordPress media URLs when explicitly requested', async () => {
+    const buildRoot = await mkdtemp(
+      path.join(path.dirname(fixtureRoot), '.tmp-passthrough-fixture-'),
+    );
+
+    try {
+      await cp(fixtureRoot, buildRoot, { recursive: true });
+      await rm(path.join(buildRoot, 'src', 'actions'), {
+        recursive: true,
+        force: true,
+      });
+
+      const previousMode = process.env.ASTRO_TEST_MODE;
+      const previousImageService = process.env.ASTRO_TEST_IMAGE_SERVICE;
+      const previousCatalogFlag = process.env.ASTRO_TEST_CATALOG;
+      const previousCatalogUrl = process.env.WP_CATALOG_URL;
+      process.env.ASTRO_TEST_MODE = 'build';
+      process.env.ASTRO_TEST_IMAGE_SERVICE = 'passthrough';
+      process.env.ASTRO_TEST_CATALOG = '1';
+      process.env.WP_CATALOG_URL = resolveWpBaseUrl();
+      try {
+        await build({ root: buildRoot, logLevel: 'silent' });
+      } finally {
+        if (previousMode === undefined) {
+          delete process.env.ASTRO_TEST_MODE;
+        } else {
+          process.env.ASTRO_TEST_MODE = previousMode;
+        }
+
+        if (previousImageService === undefined) {
+          delete process.env.ASTRO_TEST_IMAGE_SERVICE;
+        } else {
+          process.env.ASTRO_TEST_IMAGE_SERVICE = previousImageService;
+        }
+
+        if (previousCatalogFlag === undefined) {
+          delete process.env.ASTRO_TEST_CATALOG;
+        } else {
+          process.env.ASTRO_TEST_CATALOG = previousCatalogFlag;
+        }
+
+        if (previousCatalogUrl === undefined) {
+          delete process.env.WP_CATALOG_URL;
+        } else {
+          process.env.WP_CATALOG_URL = previousCatalogUrl;
+        }
+      }
+
+      const wpImageHtml = await readFile(
+        path.join(buildRoot, 'dist', 'wp-image-static', 'index.html'),
+        'utf-8',
+      );
+
+      const wordpressImageTag = extractImageTag(
+        wpImageHtml,
+        'wordpress-wp-image',
+      );
+      expect(wordpressImageTag).toContain('/wp-content/uploads/');
+      expect(wordpressImageTag).toContain('srcset=');
+      expect(wordpressImageTag).not.toContain('/_astro/');
     } finally {
       await rm(buildRoot, { recursive: true, force: true });
     }

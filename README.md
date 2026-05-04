@@ -2,7 +2,7 @@
 
 Astro-first integration for WordPress with content loaders, server actions, auth bridge helpers, catalog virtual modules, and rendering components.
 
-This package is built against `fluent-wp-client` `^3.0.0` and expects your Astro project to use the same client package directly.
+This package is built against `fluent-wp-client` `^3.0.0-rc.7` and expects your Astro project to use the same client package directly.
 It supports Astro `^6.0.0`.
 
 ## Install
@@ -136,15 +136,61 @@ export const server = {
 ---
 import { getLiveEntry } from 'astro:content';
 import WPContent from 'wp-astrojs-integration/components/WPContent.astro';
+import WPImage from 'wp-astrojs-integration/components/WPImage.astro';
 
 const { slug } = Astro.params;
 const { entry: post } = await getLiveEntry('livePosts', { slug });
+const featuredMedia = post.data._embedded?.['wp:featuredmedia']?.[0];
 ---
 
 <article>
+  {featuredMedia && <WPImage media={featuredMedia} size="large" />}
   <h1 set:html={post.data.title.rendered} />
   <WPContent content={post.data.content.rendered} baseUrl={import.meta.env.WP_CATALOG_URL} />
 </article>
+```
+
+`WPImage` requires a loaded WordPress media object. Fetch media through a static loader, live loader embed option, or `WordPressClient` call so Astro and your application own caching and request behavior. The component does not fetch media by ID.
+
+`WPImage` is a small wrapper around Astro's `<Picture>` component with WordPress media defaults. Astro decides whether a remote image is optimized, passed through, generated at build time, or served through a runtime image endpoint based on your Astro image and adapter configuration. Use `optimize="never"` when you specifically want WordPress' own `srcset` instead of Astro-generated image markup.
+
+For UI framework components, Astro's `<Picture>` and `.astro` components are not available inside client islands. Use `resolveWordPressImage()` from `wp-astrojs-integration/components/image` to derive `src`, `srcset`, dimensions, and alt text for framework-native `<img>` markup.
+
+```tsx title="src/components/PostImage.tsx"
+import { resolveWordPressImage } from 'wp-astrojs-integration/components/image';
+
+export function PostImage({ media }) {
+  const image = resolveWordPressImage(media, { size: 'large' });
+  return <img src={image.src} srcSet={image.srcset} width={image.width} height={image.height} alt={image.alt} />;
+}
+```
+
+To pass Astro-optimized images (with AVIF/WebP) into framework components, use `resolveWordPressImageForAstro()` in your Astro page and pass the generated props:
+
+```astro title="src/pages/post/[slug].astro"
+---
+import { resolveWordPressImageForAstro } from 'wp-astrojs-integration/components/astro-image';
+import PostImage from '../../components/PostImage.jsx';
+
+const imageProps = await resolveWordPressImageForAstro(Astro, featuredMedia, {
+  size: 'large',
+  formats: ['avif', 'webp'],
+});
+---
+
+<PostImage image={imageProps} client:load />
+```
+
+Allow your WordPress media host in Astro when you want optimized static image output:
+
+```js title="astro.config.mjs"
+import { defineConfig } from 'astro/config';
+
+export default defineConfig({
+  image: {
+    domains: ['cms.example.com'],
+  },
+});
 ```
 
 ## Manual Loader Setup

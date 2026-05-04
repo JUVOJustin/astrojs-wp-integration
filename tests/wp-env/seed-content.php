@@ -11,6 +11,7 @@
  *  - 150 posts ("Test Post 001" – "Test Post 150"), 30 per category
  *  - 10 pages (About, Contact, Services, FAQ, Team, Blog, Portfolio, Testimonials, Privacy Policy, Terms of Service)
  *  - 10 books ("Test Book 001" – "Test Book 010") — custom post type registered by mu-plugin
+ *  - 1 media attachment for image component integration tests
  *
  * Deletes the default "Hello world!" post, "Sample Page", and auto-draft
  * content so the DB starts clean.
@@ -286,6 +287,59 @@ for ( $i = 1; $i <= 10; $i++ ) {
 }
 
 WP_CLI::success( "Books created/verified: $book_count" );
+
+/* ------------------------------------------------------------------ */
+/* Media attachment                                                    */
+/* ------------------------------------------------------------------ */
+
+$media_slug = 'wpimage-test-media';
+$media_post = get_page_by_path( $media_slug, OBJECT, 'attachment' );
+$media_id = $media_post ? $media_post->ID : null;
+
+$upload_dir = wp_upload_dir();
+$media_filename = 'wpimage-test-media.png';
+$media_path = trailingslashit( $upload_dir['path'] ) . $media_filename;
+
+if ( ! file_exists( $media_path ) ) {
+	if ( ! function_exists( 'imagecreatetruecolor' ) ) {
+		WP_CLI::error( 'GD is required to generate the WPImage integration test attachment.' );
+	}
+
+	$image = imagecreatetruecolor( 1200, 800 );
+	$background = imagecolorallocate( $image, 22, 34, 54 );
+	$accent = imagecolorallocate( $image, 82, 168, 255 );
+	$highlight = imagecolorallocate( $image, 255, 255, 255 );
+	imagefilledrectangle( $image, 0, 0, 1200, 800, $background );
+	imagefilledrectangle( $image, 120, 120, 1080, 680, $accent );
+	imagefilledellipse( $image, 600, 400, 360, 360, $highlight );
+	imagepng( $image, $media_path );
+	imagedestroy( $image );
+}
+
+if ( ! $media_id ) {
+	$media_id = wp_insert_attachment([
+		'post_mime_type' => 'image/png',
+		'post_title'     => 'WPImage Test Media',
+		'post_name'      => $media_slug,
+		'post_status'    => 'inherit',
+	], $media_path );
+
+	if ( is_wp_error( $media_id ) ) {
+		WP_CLI::error( 'Failed to create WPImage test media: ' . $media_id->get_error_message() );
+	}
+}
+
+require_once ABSPATH . 'wp-admin/includes/image.php';
+$media_metadata = wp_generate_attachment_metadata( $media_id, $media_path );
+wp_update_attachment_metadata( $media_id, $media_metadata );
+update_post_meta( $media_id, '_wp_attachment_image_alt', 'WPImage seeded alt text' );
+
+$featured_post = get_page_by_path( 'test-post-001', OBJECT, 'post' );
+if ( $featured_post ) {
+	set_post_thumbnail( $featured_post->ID, $media_id );
+}
+
+WP_CLI::success( "Media attachment created/verified: $media_id" );
 
 /* ------------------------------------------------------------------ */
 /* Native WordPress Meta Fields                                       */

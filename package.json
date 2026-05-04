@@ -28,6 +28,10 @@
     "./components/WPImage.astro": {
       "import": "./src/components/WPImage.astro"
     },
+    "./components/image": {
+      "types": "./dist/components/image.d.ts",
+      "import": "./dist/components/image.js"
+    },
     "./components/WPContent.astro": {
       "import": "./src/components/WPContent.astro"
     }
@@ -75,14 +79,17 @@
   },
   "peerDependencies": {
     "astro": "^6.0.0",
-    "fluent-wp-client": "^3.0.0-rc.6"
+    "fluent-wp-client": "^3.0.0-rc.7"
   },
   "devDependencies": {
     "@astrojs/node": "^10.0.5",
+    "@astrojs/react": "^5.0.4",
     "@biomejs/biome": "^2.4.12",
     "@wordpress/env": "^11.4.0",
     "astro": "^6.1.8",
-    "fluent-wp-client": "^3.0.0-rc.6",
+    "fluent-wp-client": "^3.0.0-rc.7",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
     "typescript": "^5.7.2",
     "vitest": "^4.0.18"
   }

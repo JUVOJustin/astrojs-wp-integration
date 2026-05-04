@@ -1,0 +1,36 @@
+---
+import WPImage from '../../../../../src/components/WPImage.astro';
+import { resolveWpBaseUrl } from '../../../../helpers/wp-env';
+
+const baseUrl = resolveWpBaseUrl();
+const response = await fetch(
+  `${baseUrl}/wp-json/wp/v2/media?slug=wpimage-test-media`,
+);
+const mediaItems = response.ok ? await response.json() : [];
+const media = Array.isArray(mediaItems) ? mediaItems[0] : undefined;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>WPImage Live Test</title>
+  </head>
+  <body>
+    <h1>WPImage Live Test</h1>
+    {
+      media ? (
+        <section id="wp-image-live">
+          <WPImage media={media} size="medium" class="live-astro-wp-image" />
+          <WPImage
+            media={media}
+            size="medium"
+            optimize="never"
+            class="live-wordpress-wp-image"
+          />
+        </section>
+      ) : (
+        <p id="wp-image-live-error">Seeded media not found</p>
+      )
+    }
+  </body>
+</html>

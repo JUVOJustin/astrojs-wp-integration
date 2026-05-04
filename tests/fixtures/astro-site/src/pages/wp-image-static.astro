@@ -1,0 +1,39 @@
+---
+import { getCollection } from 'astro:content';
+import WPImage from '../../../../../src/components/WPImage.astro';
+
+const mediaEntries = await getCollection('media');
+const media = mediaEntries.find(
+  (entry) => entry.data.slug === 'wpimage-test-media',
+)?.data;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>WPImage Static Test</title>
+  </head>
+  <body>
+    <h1>WPImage Static Test</h1>
+    {
+      media ? (
+        <section id="wp-image-static">
+          <WPImage
+            media={media}
+            size="large"
+            class="static-wp-image"
+            loading="eager"
+          />
+          <WPImage
+            media={media}
+            size="large"
+            optimize="never"
+            class="wordpress-wp-image"
+          />
+        </section>
+      ) : (
+        <p id="wp-image-static-error">Seeded media not found</p>
+      )
+    }
+  </body>
+</html>

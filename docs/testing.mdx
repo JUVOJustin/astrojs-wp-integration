@@ -18,8 +18,8 @@ This package uses integration-first testing against a real local WordPress insta
 
 ## Test Projects
 
-- `integration`: Loader runtime, action RPC, auth bridge, meta, ACF, ability coverage, and route-caching coverage through the shared Astro fixture.
-- `static-build`: Real `astro build` validation for static loader content collections.
+- `integration`: Loader runtime, WPImage live rendering, action RPC, auth bridge, meta, ACF, ability coverage, and route-caching coverage through the shared Astro fixture.
+- `static-build`: Real `astro build` validation for static loader content collections and WPImage static optimization behavior.
 
 The shared Astro fixture in `tests/fixtures/astro-site/` includes both:
 
@@ -60,4 +60,5 @@ Auth bridge behavior is covered by the `integration` project against `wp-env`.
 - Action integration tests call real `/_actions/*` endpoints from the shared fixture in `tests/fixtures/astro-site/`.
 - `tests/setup/global-setup.ts` provisions auth fixtures (application password, JWT, cookie+nonce) before integration suites run.
 - Live loader runtime tests call real Astro pages in the same fixture to verify `defineLiveCollection()` wiring, schema validation, and SSR rendering for posts, pages, categories, and CPT content.
+- WPImage tests use the seeded `wpimage-test-media` attachment to verify Astro `<Picture>` output and explicit WordPress `src`/`srcset` fallback output against real WordPress media metadata.
 - Route-caching tests build the same fixture with `@astrojs/node`, start the standalone server entry, and verify cache hints plus the packaged invalidation actions end to end.

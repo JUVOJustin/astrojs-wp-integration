@@ -100,6 +100,21 @@ export {
   wpCacheInvalidateInputSchema,
 } from './actions';
 export type {
+  OptimizeMode,
+  ResolveWordPressImageForAstroOptions,
+  WPImageImgProps,
+  WPImageRenderProps,
+  WPImageSource,
+} from './components/astro-image';
+export { resolveWordPressImageForAstro } from './components/astro-image';
+export type {
+  ResolvedWordPressImage,
+  ResolveWordPressImageOptions,
+  WPImageFrameworkProps,
+  WPImageOutputFormat,
+} from './components/image';
+export { resolveWordPressImage } from './components/image';
+export type {
   CategoryFilter,
   ContentFilter,
   MediaFilter,
