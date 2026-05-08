@@ -222,6 +222,7 @@ async function loadCatalogEnv(
     '..',
   );
   const envLoaderModule = (await import(
+    /* @vite-ignore */
     pathToFileURL(join(packageRoot, 'dist/env/env-loader.js')).href
   )) as AstroEnvLoaderModule;
 
