@@ -42,7 +42,6 @@ function createCatalogEnv(
   delete env.WP_CATALOG_URL;
   delete env.WP_CATALOG_USERNAME;
   delete env.WP_CATALOG_PASSWORD;
-  delete env.WP_CATALOG_TOKEN;
   delete env.WP_CATALOG_AUTH_HEADER;
 
   Object.assign(env, extra);
@@ -88,7 +87,7 @@ describe('Static Loaders: Astro build integration', () => {
     }
   });
 
-  it('loads catalog URL from Astro env files with minimal config', async () => {
+  it('loads catalog URL from process env with minimal config', async () => {
     const buildRoot = await mkdtemp(
       path.join(path.dirname(fixtureRoot), '.tmp-env-catalog-fixture-'),
     );
@@ -99,10 +98,6 @@ describe('Static Loaders: Astro build integration', () => {
         recursive: true,
         force: true,
       });
-      await writeFile(
-        path.join(buildRoot, '.env'),
-        `WP_CATALOG_URL=${resolveWpBaseUrl()}\n`,
-      );
       await writeFile(
         path.join(buildRoot, 'astro.config.mjs'),
         `import { defineConfig } from 'astro/config';
@@ -125,7 +120,7 @@ export default defineConfig({
 
       await execFileAsync(process.execPath, [astroBin, 'sync'], {
         cwd: buildRoot,
-        env: createCatalogEnv(),
+        env: createCatalogEnv({ WP_CATALOG_URL: resolveWpBaseUrl() }),
       });
 
       const catalogJson = await readFile(
@@ -149,7 +144,7 @@ export default defineConfig({
     }
   });
 
-  it('uses real WordPress JWT auth from Astro env files', async () => {
+  it('uses real WordPress JWT auth from process env', async () => {
     const buildRoot = await mkdtemp(
       path.join(path.dirname(fixtureRoot), '.tmp-auth-catalog-fixture-'),
     );
@@ -161,15 +156,6 @@ export default defineConfig({
         force: true,
       });
       await resetCatalogAdminPassword();
-      await writeFile(
-        path.join(buildRoot, '.env'),
-        [
-          `WP_CATALOG_URL=${resolveWpBaseUrl()}`,
-          `WP_CATALOG_USERNAME=${catalogAdminUsername}`,
-          `WP_CATALOG_PASSWORD=${catalogAdminPassword}`,
-          '',
-        ].join('\n'),
-      );
       await writeFile(
         path.join(buildRoot, 'astro.config.mjs'),
         `import { defineConfig } from 'astro/config';
@@ -192,7 +178,11 @@ export default defineConfig({
 
       await execFileAsync(process.execPath, [astroBin, 'sync'], {
         cwd: buildRoot,
-        env: createCatalogEnv(),
+        env: createCatalogEnv({
+          WP_CATALOG_URL: resolveWpBaseUrl(),
+          WP_CATALOG_USERNAME: catalogAdminUsername,
+          WP_CATALOG_PASSWORD: catalogAdminPassword,
+        }),
       });
 
       const catalogJson = await readFile(
