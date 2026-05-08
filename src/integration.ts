@@ -4,7 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
-import type { AstroIntegration } from 'astro';
+import type { AstroConfig, AstroIntegration } from 'astro';
 import { uneval } from 'devalue';
 import type {
   WordPressClientConfig,
@@ -12,7 +12,7 @@ import type {
   WordPressDiscoveryOptions,
 } from 'fluent-wp-client';
 import { WordPressClient } from 'fluent-wp-client';
-import type { Plugin } from 'vite';
+import { loadEnv, type Plugin } from 'vite';
 
 const DEFAULT_ENV_PREFIX = 'WP_CATALOG_';
 const VIRTUAL_MODULE_ID = 'virtual:wp-astrojs/catalog';
@@ -161,6 +161,8 @@ interface GeneratedSchemaResource {
   typeName: string;
 }
 
+type CatalogEnv = Record<string, string | undefined>;
+
 interface WordPressRestIndex {
   routes?: Record<string, unknown>;
 }
@@ -203,13 +205,31 @@ function shouldRefreshCatalog(
   return !hasStoredCatalog;
 }
 
-function readEnvValue(envPrefix: string, key: string): string | undefined {
-  const value = process.env[`${envPrefix}${key}`];
+function loadCatalogEnv(
+  config: AstroConfig,
+  command: 'dev' | 'build' | 'preview' | 'sync',
+): CatalogEnv {
+  const mode =
+    process.env.NODE_ENV ?? (command === 'dev' ? 'development' : 'production');
+  const envDir = config.vite.envDir ?? fileURLToPath(config.root);
+
+  return loadEnv(mode, envDir, '');
+}
+
+function readEnvValue(
+  env: CatalogEnv,
+  envPrefix: string,
+  key: string,
+): string | undefined {
+  const value = env[`${envPrefix}${key}`];
   return value && value.length > 0 ? value : undefined;
 }
 
-function resolveBaseUrl(options: ResolvedCatalogOptions): string | undefined {
-  return options.url ?? readEnvValue(options.envPrefix, 'URL');
+function resolveBaseUrl(
+  options: ResolvedCatalogOptions,
+  env: CatalogEnv,
+): string | undefined {
+  return options.url ?? readEnvValue(env, options.envPrefix, 'URL');
 }
 
 function validateBaseUrl(baseUrl: string, envPrefix: string): string {
@@ -238,14 +258,15 @@ async function hasJwtAuthTokenEndpoint(
 }
 
 async function resolveClientAuthConfig(
+  env: CatalogEnv,
   envPrefix: string,
   baseUrl: string,
 ): Promise<Pick<WordPressClientConfig, 'auth' | 'authHeader'>> {
-  const authHeader = readEnvValue(envPrefix, 'AUTH_HEADER');
+  const authHeader = readEnvValue(env, envPrefix, 'AUTH_HEADER');
   if (authHeader) return { authHeader };
 
-  const username = readEnvValue(envPrefix, 'USERNAME');
-  const password = readEnvValue(envPrefix, 'PASSWORD');
+  const username = readEnvValue(env, envPrefix, 'USERNAME');
+  const password = readEnvValue(env, envPrefix, 'PASSWORD');
   if (username && password) {
     const jwtClient = new WordPressClient({ baseUrl });
 
@@ -764,7 +785,8 @@ export default function wordpress(
         state.catalogPath = catalogFilePath;
 
         const storedCatalog = await readStoredCatalog(catalogPath);
-        const baseUrl = resolveBaseUrl(catalogOptions);
+        const catalogEnv = loadCatalogEnv(config, command);
+        const baseUrl = resolveBaseUrl(catalogOptions, catalogEnv);
         const validatedBaseUrl = baseUrl
           ? validateBaseUrl(baseUrl, catalogOptions.envPrefix)
           : undefined;
@@ -780,6 +802,7 @@ export default function wordpress(
           if (!validatedBaseUrl) return {};
 
           resolvedAuthConfig ??= await resolveClientAuthConfig(
+            catalogEnv,
             catalogOptions.envPrefix,
             validatedBaseUrl,
           );

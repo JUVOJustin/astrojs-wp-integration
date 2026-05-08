@@ -69,13 +69,13 @@ export default defineConfig({
 });
 ```
 
-Set the WordPress URL in the environment that runs Astro.
+Set the WordPress URL in `.env` or in the environment that runs Astro.
 
-```bash title="Shell or CI environment"
+```bash title=".env"
 WP_CATALOG_URL=https://cms.example.com
 ```
 
-Catalog setup reads `process.env` during Astro setup. Authenticated discovery can use `WP_CATALOG_AUTH_HEADER` or `WP_CATALOG_USERNAME` plus `WP_CATALOG_PASSWORD`; username/password credentials use JWT when WordPress exposes the `/jwt-auth/v1/token` REST route and otherwise use application-password basic auth.
+Catalog setup uses Vite's supported `loadEnv()` helper during Astro setup, so `.env` files and shell or CI variables are available. Authenticated discovery can use `WP_CATALOG_AUTH_HEADER` or `WP_CATALOG_USERNAME` plus `WP_CATALOG_PASSWORD`; username/password credentials use JWT when WordPress exposes the `/jwt-auth/v1/token` REST route and otherwise use application-password basic auth.
 
 ### 2) Create a catalog-backed client
 

@@ -45,13 +45,13 @@ export default defineConfig({
 
 ## Environment Variables
 
-Set at least `WP_CATALOG_URL` in the environment that runs `astro sync` or `astro build`.
+Set at least `WP_CATALOG_URL` in `.env` or in the environment that runs `astro sync` or `astro build`.
 
-```bash title="Shell or CI environment"
+```bash title=".env"
 WP_CATALOG_URL=https://cms.example.com
 ```
 
-The integration reads catalog variables from `process.env` during Astro setup. Astro does not expose `.env` files to `astro.config.mjs` or integration setup automatically.
+The integration uses Vite's supported `loadEnv()` helper during Astro setup, so `.env` files and shell or CI variables are available. Shell and CI variables take precedence over `.env` values, matching Vite's behavior.
 
 Authenticated discovery supports JWT username/password login, application passwords, or a prebuilt Authorization header.
 
