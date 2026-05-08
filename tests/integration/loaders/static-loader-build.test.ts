@@ -95,6 +95,10 @@ describe('Static Loaders: Astro build integration', () => {
 
     try {
       await cp(fixtureRoot, buildRoot, { recursive: true });
+      await rm(path.join(buildRoot, 'src', 'actions'), {
+        recursive: true,
+        force: true,
+      });
       await writeFile(
         path.join(buildRoot, '.env'),
         `WP_CATALOG_URL=${resolveWpBaseUrl()}\n`,
@@ -152,6 +156,10 @@ export default defineConfig({
 
     try {
       await cp(fixtureRoot, buildRoot, { recursive: true });
+      await rm(path.join(buildRoot, 'src', 'actions'), {
+        recursive: true,
+        force: true,
+      });
       await resetCatalogAdminPassword();
       await writeFile(
         path.join(buildRoot, '.env'),
@@ -198,11 +206,13 @@ export default defineConfig({
         'utf-8',
       );
       const catalog = JSON.parse(catalogJson) as {
+        abilities?: Record<string, unknown>;
         content?: Record<string, unknown>;
       };
 
       expect(catalog.content?.posts).toBeDefined();
       expect(catalog.content?.books).toBeDefined();
+      expect(Object.keys(catalog.abilities ?? {})).not.toHaveLength(0);
     } finally {
       await rm(buildRoot, { recursive: true, force: true });
     }

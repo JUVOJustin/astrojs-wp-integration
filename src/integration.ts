@@ -223,9 +223,10 @@ async function loadCatalogEnv(
   );
   // Load Astro's internal env loader with native import so Vite does not try to
   // route this setup-time dependency through the module runner.
-  const nativeImport = new Function('specifier', 'return import(specifier)') as (
-    specifier: string,
-  ) => Promise<unknown>;
+  const nativeImport = new Function(
+    'specifier',
+    'return import(specifier)',
+  ) as (specifier: string) => Promise<unknown>;
   const envLoaderModule = (await nativeImport(
     pathToFileURL(join(packageRoot, 'dist/env/env-loader.js')).href,
   )) as AstroEnvLoaderModule;
