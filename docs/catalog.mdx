@@ -45,18 +45,20 @@ export default defineConfig({
 
 ## Environment Variables
 
-Set at least `WP_CATALOG_URL` in `.env`.
+Set at least `WP_CATALOG_URL` in `.env`. The integration uses Astro's env loader during setup, so catalog variables do not need to be copied into `process.env` manually.
 
 ```bash title=".env"
 WP_CATALOG_URL=https://cms.example.com
 ```
 
-Authenticated discovery supports application passwords, JWT tokens, or a prebuilt Authorization header.
+Authenticated discovery supports JWT username/password login, application passwords, JWT tokens, or a prebuilt Authorization header.
 
-```bash title="Application password"
+```bash title="JWT login or application password"
 WP_CATALOG_USERNAME=admin
-WP_CATALOG_PASSWORD="xxxx xxxx xxxx xxxx"
+WP_CATALOG_PASSWORD="your-password"
 ```
+
+When `WP_CATALOG_USERNAME` and `WP_CATALOG_PASSWORD` are present, the integration checks the WordPress REST index for `/jwt-auth/v1/token`. If the route exists, it exchanges the credentials for a JWT token. If the route does not exist, it uses application-password basic auth with the same values.
 
 ```bash title="JWT token"
 WP_CATALOG_TOKEN=eyJhbGciOi...
@@ -65,6 +67,18 @@ WP_CATALOG_TOKEN=eyJhbGciOi...
 ```bash title="Prebuilt Authorization header"
 WP_CATALOG_AUTH_HEADER="Basic base64-value"
 ```
+
+If your project already uses a shared public URL variable, pass it explicitly from `astro.config.mjs` or set `catalog.envPrefix` to match your variable prefix.
+
+```js title="astro.config.mjs"
+wordpress({
+  catalog: {
+    envPrefix: 'PUBLIC_WORDPRESS_BASE_',
+  },
+});
+```
+
+With that prefix, the integration reads `PUBLIC_WORDPRESS_BASE_URL` as the catalog URL.
 
 ## Use the Catalog-Backed Client
 
