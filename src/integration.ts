@@ -4,7 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
-import type { AstroIntegration } from 'astro';
+import type { AstroConfig, AstroIntegration } from 'astro';
 import { uneval } from 'devalue';
 import type {
   WordPressClientConfig,
@@ -12,7 +12,7 @@ import type {
   WordPressDiscoveryOptions,
 } from 'fluent-wp-client';
 import { WordPressClient } from 'fluent-wp-client';
-import type { Plugin } from 'vite';
+import { loadEnv, type Plugin } from 'vite';
 
 const DEFAULT_ENV_PREFIX = 'WP_CATALOG_';
 const VIRTUAL_MODULE_ID = 'virtual:wp-astrojs/catalog';
@@ -161,6 +161,12 @@ interface GeneratedSchemaResource {
   typeName: string;
 }
 
+type CatalogEnv = Record<string, string | undefined>;
+
+interface WordPressRestIndex {
+  routes?: Record<string, unknown>;
+}
+
 function resolveCatalogOptions(
   catalog: WordPressAstroIntegrationOptions['catalog'],
 ): ResolvedCatalogOptions {
@@ -199,13 +205,31 @@ function shouldRefreshCatalog(
   return !hasStoredCatalog;
 }
 
-function readEnvValue(envPrefix: string, key: string): string | undefined {
-  const value = process.env[`${envPrefix}${key}`];
+function loadCatalogEnv(
+  config: AstroConfig,
+  command: 'dev' | 'build' | 'preview' | 'sync',
+): CatalogEnv {
+  const mode =
+    process.env.NODE_ENV ?? (command === 'dev' ? 'development' : 'production');
+  const envDir = config.vite.envDir ?? fileURLToPath(config.root);
+
+  return loadEnv(mode, envDir, '');
+}
+
+function readEnvValue(
+  env: CatalogEnv,
+  envPrefix: string,
+  key: string,
+): string | undefined {
+  const value = env[`${envPrefix}${key}`];
   return value && value.length > 0 ? value : undefined;
 }
 
-function resolveBaseUrl(options: ResolvedCatalogOptions): string | undefined {
-  return options.url ?? readEnvValue(options.envPrefix, 'URL');
+function resolveBaseUrl(
+  options: ResolvedCatalogOptions,
+  env: CatalogEnv,
+): string | undefined {
+  return options.url ?? readEnvValue(env, options.envPrefix, 'URL');
 }
 
 function validateBaseUrl(baseUrl: string, envPrefix: string): string {
@@ -218,18 +242,39 @@ function validateBaseUrl(baseUrl: string, envPrefix: string): string {
   }
 }
 
-function resolveClientAuthConfig(
+async function hasJwtAuthTokenEndpoint(
+  client: WordPressClient,
+): Promise<boolean> {
+  try {
+    const { data } = await client.request<WordPressRestIndex>({
+      endpoint: '/wp-json/',
+      method: 'GET',
+    });
+
+    return Boolean(data.routes?.['/jwt-auth/v1/token']);
+  } catch {
+    return false;
+  }
+}
+
+async function resolveClientAuthConfig(
+  env: CatalogEnv,
   envPrefix: string,
-): Pick<WordPressClientConfig, 'auth' | 'authHeader'> {
-  const authHeader = readEnvValue(envPrefix, 'AUTH_HEADER');
+  baseUrl: string,
+): Promise<Pick<WordPressClientConfig, 'auth' | 'authHeader'>> {
+  const authHeader = readEnvValue(env, envPrefix, 'AUTH_HEADER');
   if (authHeader) return { authHeader };
 
-  const token = readEnvValue(envPrefix, 'TOKEN');
-  if (token) return { auth: { token } };
-
-  const username = readEnvValue(envPrefix, 'USERNAME');
-  const password = readEnvValue(envPrefix, 'PASSWORD');
+  const username = readEnvValue(env, envPrefix, 'USERNAME');
+  const password = readEnvValue(env, envPrefix, 'PASSWORD');
   if (username && password) {
+    const jwtClient = new WordPressClient({ baseUrl });
+
+    if (await hasJwtAuthTokenEndpoint(jwtClient)) {
+      const jwt = await jwtClient.loginWithJwt({ username, password });
+      return { auth: { token: jwt.token } };
+    }
+
     return { auth: { username, password } };
   }
 
@@ -347,40 +392,37 @@ function createSchemaCliArgs(
 }
 
 function createSchemaCliEnv(
-  options: ResolvedCatalogOptions,
+  authConfig: Pick<WordPressClientConfig, 'auth' | 'authHeader'>,
 ): NodeJS.ProcessEnv {
-  const authHeader = readEnvValue(options.envPrefix, 'AUTH_HEADER');
-  const token = readEnvValue(options.envPrefix, 'TOKEN');
-  const username = readEnvValue(options.envPrefix, 'USERNAME');
-  const password = readEnvValue(options.envPrefix, 'PASSWORD');
+  const cliEnv: NodeJS.ProcessEnv = {};
 
-  const env: NodeJS.ProcessEnv = {};
-
-  if (authHeader) {
-    env.FLUENT_WP_AUTH_HEADER = authHeader;
-  } else if (token) {
-    env.FLUENT_WP_TOKEN = token;
-  } else if (username && password) {
-    env.FLUENT_WP_USERNAME = username;
-    env.FLUENT_WP_PASSWORD = password;
+  if (authConfig.authHeader) {
+    cliEnv.FLUENT_WP_AUTH_HEADER = authConfig.authHeader;
+  } else if (authConfig.auth && 'token' in authConfig.auth) {
+    cliEnv.FLUENT_WP_TOKEN = authConfig.auth.token;
+  } else if (authConfig.auth && 'username' in authConfig.auth) {
+    cliEnv.FLUENT_WP_USERNAME = authConfig.auth.username;
+    cliEnv.FLUENT_WP_PASSWORD = authConfig.auth.password;
   }
 
-  return env;
+  return cliEnv;
 }
 
 async function generateSchemaArtifacts(
-  options: ResolvedCatalogOptions,
+  authConfig: Pick<WordPressClientConfig, 'auth' | 'authHeader'>,
   baseUrl: string,
   zodOut: string,
   typesOut: string,
 ): Promise<void> {
+  const schemaCliEnv = createSchemaCliEnv(authConfig);
+
   await execFileAsync(
     process.execPath,
     createSchemaCliArgs(baseUrl, zodOut, typesOut),
     {
       env: {
         ...process.env,
-        ...createSchemaCliEnv(options),
+        ...schemaCliEnv,
       },
     },
   );
@@ -743,7 +785,8 @@ export default function wordpress(
         state.catalogPath = catalogFilePath;
 
         const storedCatalog = await readStoredCatalog(catalogPath);
-        const baseUrl = resolveBaseUrl(catalogOptions);
+        const catalogEnv = loadCatalogEnv(config, command);
+        const baseUrl = resolveBaseUrl(catalogOptions, catalogEnv);
         const validatedBaseUrl = baseUrl
           ? validateBaseUrl(baseUrl, catalogOptions.envPrefix)
           : undefined;
@@ -752,6 +795,20 @@ export default function wordpress(
           command,
           Boolean(storedCatalog),
         );
+        let resolvedAuthConfig:
+          | Pick<WordPressClientConfig, 'auth' | 'authHeader'>
+          | undefined;
+        const getResolvedAuthConfig = async () => {
+          if (!validatedBaseUrl) return {};
+
+          resolvedAuthConfig ??= await resolveClientAuthConfig(
+            catalogEnv,
+            catalogOptions.envPrefix,
+            validatedBaseUrl,
+          );
+
+          return resolvedAuthConfig;
+        };
 
         if (!shouldRefresh && !storedCatalog) {
           const message = `WordPress catalog refresh is set to '${catalogOptions.refresh}', but no stored catalog exists at ${catalogFilePath}.`;
@@ -790,7 +847,7 @@ export default function wordpress(
 
           const clientConfig: WordPressClientConfig = {
             baseUrl: validatedBaseUrl,
-            ...resolveClientAuthConfig(catalogOptions.envPrefix),
+            ...(await getResolvedAuthConfig()),
           };
           let catalog: WordPressDiscoveryCatalog;
 
@@ -834,7 +891,7 @@ export default function wordpress(
         ) {
           try {
             await generateSchemaArtifacts(
-              catalogOptions,
+              await getResolvedAuthConfig(),
               validatedBaseUrl,
               generatedSchemasFilePath,
               generatedSchemaTypesFilePath,

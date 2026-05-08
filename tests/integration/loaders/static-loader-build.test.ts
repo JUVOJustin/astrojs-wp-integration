@@ -10,7 +10,7 @@
  */
 
 import { execFile } from 'node:child_process';
-import { cp, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
@@ -26,6 +26,42 @@ const fixtureRoot = fileURLToPath(
 const astroBin = fileURLToPath(
   new URL('../../../node_modules/astro/bin/astro.mjs', import.meta.url),
 );
+const catalogAdminUsername = 'admin';
+const catalogAdminPassword = 'password';
+
+function createCatalogEnv(
+  extra: Record<string, string> = {},
+): NodeJS.ProcessEnv {
+  const env = {
+    ...process.env,
+    ASTRO_TEST_CATALOG: '1',
+    ASTRO_TEST_LIVE_CATALOG: '1',
+    WP_BASE_URL: resolveWpBaseUrl(),
+  };
+
+  delete env.WP_CATALOG_URL;
+  delete env.WP_CATALOG_USERNAME;
+  delete env.WP_CATALOG_PASSWORD;
+  delete env.WP_CATALOG_AUTH_HEADER;
+
+  Object.assign(env, extra);
+
+  return env;
+}
+
+async function resetCatalogAdminPassword(): Promise<void> {
+  await execFileAsync('npx', [
+    'wp-env',
+    'run',
+    'cli',
+    '--',
+    'wp',
+    'user',
+    'update',
+    catalogAdminUsername,
+    `--user_pass=${catalogAdminPassword}`,
+  ]);
+}
 
 describe('Static Loaders: Astro build integration', () => {
   it('syncs when live config imports catalog-backed collection helpers', async () => {
@@ -46,6 +82,136 @@ describe('Static Loaders: Astro build integration', () => {
           WP_CATALOG_URL: resolveWpBaseUrl(),
         },
       });
+    } finally {
+      await rm(buildRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('loads catalog URL from Astro env files with minimal config', async () => {
+    const buildRoot = await mkdtemp(
+      path.join(path.dirname(fixtureRoot), '.tmp-env-catalog-fixture-'),
+    );
+
+    try {
+      await cp(fixtureRoot, buildRoot, { recursive: true });
+      await rm(path.join(buildRoot, 'src', 'actions'), {
+        recursive: true,
+        force: true,
+      });
+      await writeFile(
+        path.join(buildRoot, '.env'),
+        `WP_CATALOG_URL=${resolveWpBaseUrl()}\n`,
+      );
+      await writeFile(
+        path.join(buildRoot, 'astro.config.mjs'),
+        `import { defineConfig } from 'astro/config';
+import wordpress from '../../../src/integration';
+
+export default defineConfig({
+  output: 'static',
+  integrations: [
+    wordpress({
+      catalog: {
+        enabled: true,
+        refresh: 'always',
+        cacheFile: 'wp-astrojs-env/catalog.json',
+      },
+    }),
+  ],
+});
+`,
+      );
+
+      await execFileAsync(process.execPath, [astroBin, 'sync'], {
+        cwd: buildRoot,
+        env: createCatalogEnv(),
+      });
+
+      const catalogJson = await readFile(
+        path.join(
+          buildRoot,
+          'node_modules',
+          '.astro',
+          'wp-astrojs-env',
+          'catalog.json',
+        ),
+        'utf-8',
+      );
+      const catalog = JSON.parse(catalogJson) as {
+        content?: Record<string, unknown>;
+      };
+
+      expect(catalog.content?.posts).toBeDefined();
+      expect(catalog.content?.books).toBeDefined();
+    } finally {
+      await rm(buildRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('uses real WordPress JWT auth from Astro env files', async () => {
+    const buildRoot = await mkdtemp(
+      path.join(path.dirname(fixtureRoot), '.tmp-auth-catalog-fixture-'),
+    );
+
+    try {
+      await cp(fixtureRoot, buildRoot, { recursive: true });
+      await rm(path.join(buildRoot, 'src', 'actions'), {
+        recursive: true,
+        force: true,
+      });
+      await resetCatalogAdminPassword();
+      await writeFile(
+        path.join(buildRoot, '.env'),
+        [
+          `WP_CATALOG_URL=${resolveWpBaseUrl()}`,
+          `WP_CATALOG_USERNAME=${catalogAdminUsername}`,
+          `WP_CATALOG_PASSWORD=${catalogAdminPassword}`,
+          '',
+        ].join('\n'),
+      );
+      await writeFile(
+        path.join(buildRoot, 'astro.config.mjs'),
+        `import { defineConfig } from 'astro/config';
+import wordpress from '../../../src/integration';
+
+export default defineConfig({
+  output: 'static',
+  integrations: [
+    wordpress({
+      catalog: {
+        enabled: true,
+        refresh: 'always',
+        cacheFile: 'wp-astrojs-auth/catalog.json',
+      },
+    }),
+  ],
+});
+`,
+      );
+
+      await execFileAsync(process.execPath, [astroBin, 'sync'], {
+        cwd: buildRoot,
+        env: createCatalogEnv(),
+      });
+
+      const catalogJson = await readFile(
+        path.join(
+          buildRoot,
+          'node_modules',
+          '.astro',
+          'wp-astrojs-auth',
+          'catalog.json',
+        ),
+        'utf-8',
+      );
+      const catalog = JSON.parse(catalogJson) as {
+        abilities?: Record<string, unknown>;
+        content?: Record<string, unknown>;
+      };
+
+      expect(catalog.content?.posts).toBeDefined();
+      expect(catalog.content?.books).toBeDefined();
+      expect(Object.keys(catalog.abilities ?? {})).not.toHaveLength(0);
     } finally {
       await rm(buildRoot, { recursive: true, force: true });
     }

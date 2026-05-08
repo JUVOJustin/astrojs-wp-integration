@@ -45,26 +45,40 @@ export default defineConfig({
 
 ## Environment Variables
 
-Set at least `WP_CATALOG_URL` in `.env`.
+Set at least `WP_CATALOG_URL` in `.env` or in the environment that runs `astro sync` or `astro build`.
 
 ```bash title=".env"
 WP_CATALOG_URL=https://cms.example.com
 ```
 
-Authenticated discovery supports application passwords, JWT tokens, or a prebuilt Authorization header.
+The integration uses Vite's supported `loadEnv()` helper during Astro setup, so `.env` files and shell or CI variables are available. Shell and CI variables take precedence over `.env` values, matching Vite's behavior.
 
-```bash title="Application password"
+Authenticated discovery supports JWT username/password login, application passwords, or a prebuilt Authorization header.
+
+```bash title="JWT login or application password"
 WP_CATALOG_USERNAME=admin
-WP_CATALOG_PASSWORD="xxxx xxxx xxxx xxxx"
+WP_CATALOG_PASSWORD="your-password"
 ```
 
-```bash title="JWT token"
-WP_CATALOG_TOKEN=eyJhbGciOi...
-```
+When `WP_CATALOG_USERNAME` and `WP_CATALOG_PASSWORD` are present, the integration checks the WordPress REST index for the `/jwt-auth/v1/token` route key. If the route exists, it exchanges the credentials through the `/wp-json/jwt-auth/v1/token` endpoint. If the route does not exist, it uses application-password basic auth with the same values.
 
 ```bash title="Prebuilt Authorization header"
 WP_CATALOG_AUTH_HEADER="Basic base64-value"
 ```
+
+Use `WP_CATALOG_AUTH_HEADER` for custom auth flows such as CI-generated Bearer tokens, OAuth, or reverse proxies.
+
+If your project already uses a shared public URL variable, pass it explicitly from `astro.config.mjs` or set `catalog.envPrefix` to match your variable prefix.
+
+```js title="astro.config.mjs"
+wordpress({
+  catalog: {
+    envPrefix: 'PUBLIC_WORDPRESS_BASE_',
+  },
+});
+```
+
+With that prefix, the integration reads `PUBLIC_WORDPRESS_BASE_URL` as the catalog URL.
 
 ## Use the Catalog-Backed Client
 
