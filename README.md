@@ -2,7 +2,7 @@
 
 Astro-first integration for WordPress with content loaders, server actions, auth bridge helpers, catalog virtual modules, and rendering components.
 
-This package is built against `fluent-wp-client` `^3.0.0` and expects your Astro project to use the same client package directly.
+This package is built against `fluent-wp-client` `^3.0.1` and expects your Astro project to use the same client package directly.
 It supports Astro `^6.0.0`.
 
 ## Install

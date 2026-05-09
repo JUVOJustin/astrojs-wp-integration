@@ -76,14 +76,14 @@
   },
   "peerDependencies": {
     "astro": "^6.0.0",
-    "fluent-wp-client": "^3.0.0"
+    "fluent-wp-client": "^3.0.1"
   },
   "devDependencies": {
     "@astrojs/node": "^10.0.5",
     "@biomejs/biome": "^2.4.12",
     "@wordpress/env": "^11.4.0",
     "astro": "^6.1.8",
-    "fluent-wp-client": "^3.0.0",
+    "fluent-wp-client": "^3.0.1",
     "typescript": "^5.7.2",
     "vitest": "^4.0.18"
   }
