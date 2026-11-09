@@ -47,10 +47,11 @@ Use runtime discovery only when schemas are not known at build time, such as mul
 2. Create a shared WordPress client.
 
    ```ts title="src/lib/wp.ts"
+   import { WORDPRESS_URL } from 'astro:env/server';
    import { WordPressClient } from 'fluent-wp-client';
 
    export const wp = new WordPressClient({
-     baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+     baseUrl: WORDPRESS_URL,
    });
    ```
 
@@ -61,12 +62,9 @@ Use runtime discovery only when schemas are not known at build time, such as mul
    import {
      wordPressPostStaticLoader,
      wordPressContentLoader,
-   } from 'wp-astrojs-integration';
+   } from 'wp-astrojs-integration/loaders';
    import { wp } from './lib/wp';
-   import {
-     postsItemSchema,
-     booksItemSchema,
-   } from './generated/wp-schemas';
+   import { postsItemSchema, booksItemSchema } from './generated/wp-schemas';
 
    export const collections = {
      posts: defineCollection({
@@ -129,7 +127,7 @@ import {
   wordPressPostStaticLoader,
   wordPressPageLoader,
   wordPressContentLoader,
-} from 'wp-astrojs-integration';
+} from 'wp-astrojs-integration/loaders';
 import { wp } from './lib/wp';
 import {
   postsItemSchema,
@@ -155,8 +153,7 @@ export const collections = {
 
 ## Actions
 
-Use generated `*CreateSchema` or `*UpdateSchema` values as the Astro action input schema.
-Use generated `*ItemSchema` as `responseSchema` when you want the action result validated in Astro too.
+Use generated `*CreateSchema` or `*UpdateSchema` values as the Astro action input schema. Use generated `*ItemSchema` as `responseSchema` when you want the action result validated in Astro too.
 
 ```ts title="Typed WordPress actions"
 import {
@@ -187,11 +184,11 @@ export const server = {
 This pattern becomes especially useful for custom resources.
 
 ```ts title="Typed custom resources"
+import { createCreatePostAction } from 'wp-astrojs-integration';
 import {
-  createCreatePostAction,
   wordPressContentLoader,
   wordPressTermLoader,
-} from 'wp-astrojs-integration';
+} from 'wp-astrojs-integration/loaders';
 import { wp } from './lib/wp';
 import {
   booksCreateSchema,
@@ -223,7 +220,7 @@ If you need embeds, either enable the loader `embed` option for post, page, and 
 
 ```ts title="Opt into embeds on a live loader"
 import { defineLiveCollection } from 'astro:content';
-import { wordPressPostLoader } from 'wp-astrojs-integration';
+import { wordPressPostLoader } from 'wp-astrojs-integration/loaders';
 import { wp } from './lib/wp';
 
 const posts = defineLiveCollection({
@@ -268,7 +265,10 @@ This is useful when:
 
 ```ts title="Discover schemas at runtime"
 import { WordPressClient } from 'fluent-wp-client';
-import { zodFromJsonSchema, zodSchemasFromDescription } from 'fluent-wp-client/zod';
+import {
+  zodFromJsonSchema,
+  zodSchemasFromDescription,
+} from 'fluent-wp-client/zod';
 
 const wp = new WordPressClient({
   baseUrl: 'https://example.com',
@@ -308,7 +308,7 @@ That avoids repeated discovery requests and makes builds or server startup more 
 ## Which Approach Should I Pick?
 
 | Approach | Best for | Recommendation |
-|---|---|---|
+| --- | --- | --- |
 | CLI-generated schemas | Normal Astro sites with one known WordPress backend | Start here |
 | Runtime discovery | Multi-tenant or per-site dynamic WordPress setups | Use only when needed |
 | Hybrid | Mostly known schemas plus runtime validation for drift | Good advanced option |
@@ -338,7 +338,19 @@ Run that script whenever your WordPress resources or fields change.
 ## Next Steps
 
 <CardGrid>
-  <LinkCard title="Reading Content" href="./reading-content" description="Use loaders to read posts, pages, terms, and custom resources in Astro." />
-  <LinkCard title="Auth Bridge" href="./auth-action-bridge" description="Use request-aware authenticated clients in middleware and actions." />
-  <LinkCard title="Actions" href="./actions/posts" description="Create, update, and delete WordPress resources through Astro action factories." />
+  <LinkCard
+    title="Reading Content"
+    href="./reading-content"
+    description="Use loaders to read posts, pages, terms, and custom resources in Astro."
+  />
+  <LinkCard
+    title="Auth Bridge"
+    href="./auth-action-bridge"
+    description="Use request-aware authenticated clients in middleware and actions."
+  />
+  <LinkCard
+    title="Actions"
+    href="./actions/posts"
+    description="Create, update, and delete WordPress resources through Astro action factories."
+  />
 </CardGrid>

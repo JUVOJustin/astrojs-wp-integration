@@ -1,18 +1,18 @@
 import http from 'node:http';
 import https from 'node:https';
 
-type RequestOptions = {
+interface RequestOptions {
   method?: string;
   headers?: Record<string, string>;
   body?: string;
-};
+}
 
 /**
  * Performs one HTTP request through Node's core clients and normalizes the result into a Response.
  */
 export async function request(
   url: string,
-  options: RequestOptions = {},
+  options: RequestOptions = {}
 ): Promise<Response> {
   const target = new URL(url);
   const transport = target.protocol === 'https:' ? https : http;
@@ -21,8 +21,8 @@ export async function request(
     const req = transport.request(
       target,
       {
-        method: options.method ?? 'GET',
         headers: options.headers,
+        method: options.method ?? 'GET',
       },
       (res) => {
         const chunks: Buffer[] = [];
@@ -40,9 +40,11 @@ export async function request(
               for (const entry of value) {
                 headers.append(name, entry);
               }
+
               continue;
             }
 
+            // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Node HTTP headers may be strings or arrays; the adapter must preserve both forms.
             if (typeof value === 'string') {
               headers.set(name, value);
             }
@@ -50,12 +52,12 @@ export async function request(
 
           resolve(
             new Response(body, {
-              status: res.statusCode ?? 500,
               headers,
-            }),
+              status: res.statusCode ?? 500,
+            })
           );
         });
-      },
+      }
     );
 
     req.on('error', reject);

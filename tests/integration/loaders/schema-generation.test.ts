@@ -6,7 +6,7 @@
  * artifacts. This guards against ESM-only package resolution failures such
  * as ERR_PACKAGE_PATH_NOT_EXPORTED.
  *
- * Requires `wp-env` to be running (`npm run wp:start`).
+ * Requires `wp-env` to be running (`pnpm run wp:start`).
  */
 
 import { execFile } from 'node:child_process';
@@ -14,7 +14,9 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+
 import { describe, expect, it } from 'vitest';
+
 import { resolveWpBaseUrl } from '../../helpers/wp-env';
 
 const execFileAsync = promisify(execFile);
@@ -24,9 +26,12 @@ describe('Schema generation', () => {
     // This is the exact resolution pattern used by src/integration.ts.
     const resolved = import.meta.resolve('fluent-wp-client');
     const packageRoot = resolve(dirname(fileURLToPath(resolved)), '..');
+
+    // SAFETY: Read the installed SDK manifest only to locate its published CLI executable.
     const packageJson = JSON.parse(
-      await readFile(join(packageRoot, 'package.json'), 'utf-8'),
+      await readFile(join(packageRoot, 'package.json'), 'utf-8')
     ) as { bin?: { 'fluent-wp-client'?: string } };
+
     const binPath = packageJson.bin?.['fluent-wp-client'];
 
     expect(binPath).toBeDefined();
@@ -45,12 +50,15 @@ describe('Schema generation', () => {
     try {
       const resolved = import.meta.resolve('fluent-wp-client');
       const packageRoot = resolve(dirname(fileURLToPath(resolved)), '..');
+
+      // SAFETY: Read the installed SDK manifest only to locate its published CLI executable.
       const packageJson = JSON.parse(
-        await readFile(join(packageRoot, 'package.json'), 'utf-8'),
+        await readFile(join(packageRoot, 'package.json'), 'utf-8')
       ) as { bin?: { 'fluent-wp-client'?: string } };
+
       const cliPath = resolve(
         packageRoot,
-        packageJson.bin!['fluent-wp-client']!,
+        packageJson.bin!['fluent-wp-client']!
       );
 
       await execFileAsync(process.execPath, [
@@ -72,7 +80,7 @@ describe('Schema generation', () => {
       expect(typesModule).toContain('interface WPPost ');
       expect(typesModule).toContain('interface WPPage ');
     } finally {
-      await rm(tmpDir, { recursive: true, force: true });
+      await rm(tmpDir, { force: true, recursive: true });
     }
   });
 });

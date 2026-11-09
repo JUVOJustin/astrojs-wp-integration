@@ -10,9 +10,21 @@ import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 Ability actions let you execute WordPress abilities from Astro server-side code.
 
 <CardGrid>
-  <LinkCard title="Actions overview" href="./index.mdx" description="Shared auth strategies, error mapping, and factory patterns." />
-  <LinkCard title="User actions" href="./users.mdx" description="User-focused action patterns with typed schemas." />
-  <LinkCard title="Post actions" href="./posts.mdx" description="Content write flows for posts, pages, and custom post types." />
+  <LinkCard
+    title="Actions overview"
+    href="./index.mdx"
+    description="Shared auth strategies, error mapping, and factory patterns."
+  />
+  <LinkCard
+    title="User actions"
+    href="./users.mdx"
+    description="User-focused action patterns with typed schemas."
+  />
+  <LinkCard
+    title="Post actions"
+    href="./posts.mdx"
+    description="Content write flows for posts, pages, and custom post types."
+  />
 </CardGrid>
 
 WordPress abilities expose executable server-side primitives through the REST API at `/wp-json/wp-abilities/v1`.
@@ -20,7 +32,7 @@ WordPress abilities expose executable server-side primitives through the REST AP
 Each ability declares annotations that determine which HTTP method you must use:
 
 | Annotation | HTTP method | Action factory | Execute function |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `readonly: true` | GET | `createGetAbilityAction` | `executeGetAbility` |
 | `readonly: false, destructive: false` | POST | `createRunAbilityAction` | `executeRunAbility` |
 | `destructive: true` | DELETE | `createDeleteAbilityAction` | `executeDeleteAbility` |
@@ -76,10 +88,10 @@ const { data, error } = await Astro.callAction(actions.deleteAbility, {
 
 ## Typed responses
 
-Pass a `responseSchema` when you want the action result validated in Astro after the WordPress ability runs.
-Any Standard Schema-compatible validator works, including Zod.
+Pass a `responseSchema` when you want the action result validated in Astro after the WordPress ability runs. Any Standard Schema-compatible validator works, including Zod.
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 import { WordPressClient } from 'fluent-wp-client';
 import { z } from 'astro/zod';
 
@@ -89,15 +101,18 @@ const optionResultSchema = z.object({
 });
 
 export const server = {
-  runAbility: createRunAbilityAction(new WordPressClient({
-    baseUrl: import.meta.env.WP_URL,
-    auth: {
-      username: import.meta.env.WP_USERNAME,
-      password: import.meta.env.WP_APP_PASSWORD,
-    },
-  }), {
-    responseSchema: optionResultSchema,
-  }),
+  runAbility: createRunAbilityAction(
+    new WordPressClient({
+      baseUrl: WORDPRESS_URL,
+      auth: {
+        username: import.meta.env.WP_USERNAME,
+        password: import.meta.env.WP_APP_PASSWORD,
+      },
+    }),
+    {
+      responseSchema: optionResultSchema,
+    }
+  ),
 };
 ```
 
@@ -119,7 +134,10 @@ const wp = new WordPressClient({
 });
 
 await executeGetAbility(wp, { name: 'my-plugin/get-site-info' });
-await executeRunAbility(wp, { name: 'my-plugin/update-option', input: { value: 'hello' } });
+await executeRunAbility(wp, {
+  name: 'my-plugin/update-option',
+  input: { value: 'hello' },
+});
 await executeDeleteAbility(wp, { name: 'my-plugin/delete-cache' });
 ```
 

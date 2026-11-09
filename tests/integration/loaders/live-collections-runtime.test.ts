@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { getAstroDevUrl } from '../../helpers/action-client';
 
 /**
@@ -14,7 +15,7 @@ describe('Live Collections: Astro runtime', () => {
 
     if (response.status !== 200) {
       throw new Error(
-        `Expected status 200 but got ${response.status}: ${html}`,
+        `Expected status 200 but got ${response.status}: ${html}`
       );
     }
 
@@ -33,10 +34,10 @@ describe('Live Collections: Astro runtime', () => {
     expect(categoriesCount).not.toBeNull();
     expect(booksCount).not.toBeNull();
 
-    expect(parseInt(postsCount![1], 10)).toBe(100);
-    expect(parseInt(pagesCount![1], 10)).toBe(10);
-    expect(parseInt(categoriesCount![1], 10)).toBeGreaterThanOrEqual(6);
-    expect(parseInt(booksCount![1], 10)).toBe(10);
+    expect(Number.parseInt(postsCount![1], 10)).toBe(100);
+    expect(Number.parseInt(pagesCount![1], 10)).toBe(10);
+    expect(Number.parseInt(categoriesCount![1], 10)).toBeGreaterThanOrEqual(6);
+    expect(Number.parseInt(booksCount![1], 10)).toBe(10);
 
     expect(html).toContain('data-type="post"');
     expect(html).toContain('data-type="page"');
@@ -59,7 +60,7 @@ describe('Live Collections: Astro runtime', () => {
 
     if (response.status !== 200) {
       throw new Error(
-        `Expected status 200 but got ${response.status}: ${html}`,
+        `Expected status 200 but got ${response.status}: ${html}`
       );
     }
 
@@ -67,7 +68,7 @@ describe('Live Collections: Astro runtime', () => {
 
     const usersCount = html.match(/Live Users \((\d+)\)/);
     expect(usersCount).not.toBeNull();
-    expect(parseInt(usersCount![1], 10)).toBeGreaterThanOrEqual(1);
+    expect(Number.parseInt(usersCount![1], 10)).toBeGreaterThanOrEqual(1);
 
     // Emails must not leak because the fixture client is unauthenticated
     expect(html).not.toContain('alice@example.com');
@@ -83,7 +84,7 @@ describe('Live Entry: Astro runtime', () => {
 
     if (response.status !== 200) {
       throw new Error(
-        `Expected status 200 but got ${response.status}: ${html}`,
+        `Expected status 200 but got ${response.status}: ${html}`
       );
     }
 
@@ -97,7 +98,7 @@ describe('Live Entry: Astro runtime', () => {
     expect(html).toContain('id="live-entry-category"');
     expect(html).toContain('id="live-entry-book"');
 
-    expect((html.match(/data-found="true"/g) ?? []).length).toBe(4);
+    expect(html.match(/data-found="true"/g) ?? []).toHaveLength(4);
     expect(html).toContain('Slug: test-post-001');
     expect(html).toContain('Slug: about');
     expect(html).toContain('Slug: technology');

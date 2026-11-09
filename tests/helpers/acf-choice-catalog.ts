@@ -1,7 +1,7 @@
-type AcfChoice = {
+interface AcfChoice {
   label: string;
   value: string;
-};
+}
 
 /**
  * Builds a field-label lookup from the live WordPress REST API.
@@ -12,25 +12,28 @@ type AcfChoice = {
  * field definitions in WordPress.
  */
 export async function getAcfChoiceLabels(
-  baseUrl: string,
+  baseUrl: string
 ): Promise<Map<string, Map<string, string>>> {
   const response = await fetch(
-    `${baseUrl.replace(/\/$/, '')}/wp-json/wp-astrojs-integration/v1/acf-choices`,
+    `${baseUrl.replace(/\/$/, '')}/wp-json/wp-astrojs-integration/v1/acf-choices`
   );
 
   if (!response.ok) {
     return new Map();
   }
 
+  // SAFETY: The test ACF catalog endpoint returns registered field keys and their choice arrays.
   const data = (await response.json()) as Record<string, AcfChoice[]>;
   const choiceLabels = new Map<string, Map<string, string>>();
 
   for (const [fieldName, choices] of Object.entries(data)) {
-    if (!Array.isArray(choices)) continue;
+    if (!Array.isArray(choices)) {
+      continue;
+    }
 
     choiceLabels.set(
       fieldName,
-      new Map(choices.map((choice) => [choice.value, choice.label])),
+      new Map(choices.map((choice) => [choice.value, choice.label]))
     );
   }
 

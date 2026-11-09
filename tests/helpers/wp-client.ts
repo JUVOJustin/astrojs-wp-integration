@@ -1,4 +1,5 @@
 import { WordPressClient } from 'fluent-wp-client';
+
 import { resolveWpBaseUrl } from './wp-env';
 
 /**
@@ -20,13 +21,14 @@ export function createPublicClient(): WordPressClient {
  */
 export function createAuthClient(): WordPressClient {
   const password = process.env.WP_APP_PASSWORD;
+
   if (!password) {
     throw new Error('WP_APP_PASSWORD not set — did global-setup run?');
   }
 
   return new WordPressClient({
+    auth: { password, username: 'admin' },
     baseUrl: getBaseUrl(),
-    auth: { username: 'admin', password },
   });
 }
 
@@ -41,8 +43,8 @@ export function createJwtAuthClient(): WordPressClient {
   }
 
   return new WordPressClient({
-    baseUrl: getBaseUrl(),
     auth: { token },
+    baseUrl: getBaseUrl(),
   });
 }
 
@@ -62,10 +64,10 @@ export function createCookieAuthClient(): WordPressClient {
   }
 
   return new WordPressClient({
+    auth: { credentials: 'include', nonce },
     baseUrl: getBaseUrl(),
-    auth: { nonce, credentials: 'include' },
-    credentials: 'include',
     cookies: cookieHeader,
+    credentials: 'include',
   });
 }
 
@@ -80,8 +82,8 @@ export function createAliceAuthClient(): WordPressClient {
   }
 
   return new WordPressClient({
-    baseUrl: getBaseUrl(),
     auth: { token },
+    baseUrl: getBaseUrl(),
   });
 }
 
@@ -96,15 +98,15 @@ export function createBobAuthClient(): WordPressClient {
   }
 
   return new WordPressClient({
-    baseUrl: getBaseUrl(),
     auth: { token },
+    baseUrl: getBaseUrl(),
   });
 }
 
 /**
  * Creates the shared execute-action config used by Astro action integration tests.
  */
-export function createActionBaseConfig(): { baseUrl: string } {
+export function createActionBaseConfig() {
   return {
     baseUrl: getBaseUrl(),
   };

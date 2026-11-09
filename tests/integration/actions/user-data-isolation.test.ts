@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { ActionError, callAction } from '../../helpers/action-client';
 
 /**
@@ -76,7 +77,7 @@ describe('Actions: User Data Isolation', () => {
 
   it('rejects unauthenticated requests for user profile', async () => {
     await expect(callAction('getCurrentUserProfile', {})).rejects.toThrow(
-      ActionError,
+      ActionError
     );
   });
 
@@ -85,8 +86,8 @@ describe('Actions: User Data Isolation', () => {
       callAction(
         'getCurrentUserProfile',
         {},
-        { authHeader: 'Bearer invalid-token-12345' },
-      ),
+        { authHeader: 'Bearer invalid-token-12345' }
+      )
     ).rejects.toThrow(ActionError);
   });
 
@@ -96,19 +97,19 @@ describe('Actions: User Data Isolation', () => {
     const first = await callAction<{ id: number; slug: string }>(
       'getCurrentUserProfile',
       {},
-      { authHeader: aliceAuth },
+      { authHeader: aliceAuth }
     );
 
     const second = await callAction<{ id: number; slug: string }>(
       'getCurrentUserProfile',
       {},
-      { authHeader: bobAuth },
+      { authHeader: bobAuth }
     );
 
     const third = await callAction<{ id: number; slug: string }>(
       'getCurrentUserProfile',
       {},
-      { authHeader: aliceAuth },
+      { authHeader: aliceAuth }
     );
 
     expect(first.slug).toBe('alice');

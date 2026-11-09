@@ -2,7 +2,7 @@
 /**
  * Generates deterministic seed data for integration tests.
  *
- * Run via: npx wp-env run cli -- wp eval-file wp-content/seed-content.php
+ * Run via: pnpm exec wp-env run cli -- wp eval-file wp-content/seed-content.php
  *
  * Creates:
  *  - 5 categories (Technology, Science, Travel, Food, Health)

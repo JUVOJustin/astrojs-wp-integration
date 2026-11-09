@@ -23,9 +23,7 @@ type AcfChoice = {
 };
 
 async function loadChoiceLabels(baseUrl: string) {
-  const response = await fetch(
-    `${baseUrl}/wp-json/my-plugin/v1/field-choices`,
-  );
+  const response = await fetch(`${baseUrl}/wp-json/my-plugin/v1/field-choices`);
   const data = (await response.json()) as Record<string, AcfChoice[]>;
   const choiceLabels = new Map<string, Map<string, string>>();
 
@@ -34,7 +32,7 @@ async function loadChoiceLabels(baseUrl: string) {
 
     choiceLabels.set(
       fieldName,
-      new Map(choices.map((choice) => [choice.value, choice.label])),
+      new Map(choices.map((choice) => [choice.value, choice.label]))
     );
   }
 
@@ -54,7 +52,7 @@ export function createAcfChoiceLabelMapper(baseUrl: string) {
 
   return async function mapAcfChoiceLabels<TEntry extends EntryWithAcf>(
     entry: TEntry,
-    _context: { resource: string },
+    _context: { resource: string }
   ): Promise<TEntry> {
     if (!entry.acf) return entry;
 
@@ -70,7 +68,7 @@ export function createAcfChoiceLabelMapper(baseUrl: string) {
         Object.entries(entry.acf).map(([fieldName, value]) => [
           fieldName,
           choiceLabels.get(fieldName)?.get(String(value)) ?? value,
-        ]),
+        ])
       ),
     };
   };
@@ -80,15 +78,14 @@ export function createAcfChoiceLabelMapper(baseUrl: string) {
 Use the mapper in live or static loaders:
 
 ```ts title="src/live.config.ts"
+import { WORDPRESS_URL } from 'astro:env/server';
 import { defineLiveCollection } from 'astro:content';
-import {
-  WordPressClient,
-  postSchema,
-  wordPressPostLoader,
-} from 'wp-astrojs-integration';
+import { WordPressClient } from 'fluent-wp-client';
+import { postSchema } from 'fluent-wp-client/zod';
+import { wordPressPostLoader } from 'wp-astrojs-integration/loaders';
 import { createAcfChoiceLabelMapper } from './lib/acf-choice-label-mapper';
 
-const baseUrl = import.meta.env.PUBLIC_WORDPRESS_BASE_URL;
+const baseUrl = WORDPRESS_URL;
 const wp = new WordPressClient({ baseUrl });
 const mapAcfChoiceLabels = createAcfChoiceLabelMapper(baseUrl);
 
@@ -105,6 +102,7 @@ export const collections = { posts };
 Use the same mapper in create/update actions:
 
 ```ts title="src/actions/index.ts"
+import { WORDPRESS_URL } from 'astro:env/server';
 import {
   WordPressClient,
   createUpdatePostAction,
@@ -113,7 +111,7 @@ import {
 import { z } from 'astro/zod';
 import { createAcfChoiceLabelMapper } from '../lib/acf-choice-label-mapper';
 
-const baseUrl = import.meta.env.WP_URL;
+const baseUrl = WORDPRESS_URL;
 const wp = new WordPressClient({
   baseUrl,
   auth: {
@@ -126,9 +124,11 @@ const mapAcfChoiceLabels = createAcfChoiceLabelMapper(baseUrl);
 export const server = {
   updatePost: createUpdatePostAction(wp, {
     schema: updatePostInputSchema.extend({
-      acf: z.object({
-        acf_project_status: z.string().optional(),
-      }).optional(),
+      acf: z
+        .object({
+          acf_project_status: z.string().optional(),
+        })
+        .optional(),
     }),
     mapResponse: mapAcfChoiceLabels,
   }),

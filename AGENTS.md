@@ -11,7 +11,7 @@ This repository ships one npm package:
 
 - Treat `WordPressClient` from `fluent-wp-client` as the core integration layer. Add or harden client-backed behavior before introducing higher-level loaders, bridges, or actions that depend on it.
 - Build loaders, actions, and helpers on top of proven published client primitives.
-- The package is aligned to `fluent-wp-client` `^3.0.1`; loader payloads for post/page resources must remain plain serializable objects (no legacy helper methods on `entry.data`).
+- The package is aligned to `fluent-wp-client` `^3.1.0`; loader payloads for post/page resources must remain plain serializable objects (no legacy helper methods on `entry.data`).
 - Keep the package aligned with WordPress' extensibility model. Default to generic resource-oriented patterns that work for core entities, custom post types, custom taxonomies, plugin endpoints, and custom auth flows.
 - Prefer Standard Schema-compatible validators for client response validation interfaces so consumers can use Zod or any other compliant schema library.
 - Validate and require only the minimum data needed for a feature to work.
@@ -83,19 +83,19 @@ ACF fields are registered by `tests/wp-env/mu-plugins/register-acf-fields.php` w
 
 ### Plugin requirements
 
-- The test environment installs or activates the free ACF plugin during `npm run wp:start`.
-- The test environment also installs `jwt-authentication-for-wp-rest-api` during `npm run wp:start` and sets `JWT_AUTH_SECRET_KEY` in `.wp-env.json`.
+- The test environment installs or activates the free ACF plugin during `pnpm run wp:start`.
+- The test environment also installs `jwt-authentication-for-wp-rest-api` during `pnpm run wp:start` and sets `JWT_AUTH_SECRET_KEY` in `.wp-env.json`.
 - WordPress ability integration tests rely on the core `wp_register_ability()` API when available. Test abilities are registered by `tests/wp-env/mu-plugins/register-test-abilities.php`.
 
 ### Running tests
 
 ```bash
-npm run wp:start
-npm test                    # All test projects (integration + static-build)
-npm run test:integration    # Integration project only (loaders, actions, auth)
-npm run test:build          # Static build project only
-npm run wp:stop
-npm run wp:clean
+pnpm run wp:start
+pnpm test                    # All test projects (integration + static-build)
+pnpm run test:integration    # Integration project only (loaders, actions, auth)
+pnpm run test:build          # Static build project only
+pnpm run wp:stop
+pnpm run wp:clean
 ```
 
 ### Astro build integration test
@@ -153,7 +153,7 @@ Reference suites:
 
 ## Code Style
 
-- After making code changes, run `npm run format:check` and ensure Biome reports no formatting issues before finalizing.
+- After making code changes, run `pnpm run check`, `pnpm run format:check`, and `pnpm run check:astro` and resolve all issues before finalizing.
 - Astro loaders are split into `src/loaders/static.ts` and `src/loaders/live.ts`.
 - Shared runtime helpers for Astro middleware, actions, and auth flows should prefer web-standard APIs so they work on Node and non-Node adapters.
 - All public API is re-exported from `src/index.ts`.
@@ -167,4 +167,133 @@ Reference suites:
 
 The repository consumes `fluent-wp-client` from npm, so local package mirrors should not be reintroduced.
 
-When package structure changes, verify published contents with `npm pack --dry-run`.
+When package structure changes, verify published contents with `pnpm pack --out /tmp/wp-astrojs-integration.tgz`.
+
+# Ultracite Code Standards
+
+This project uses **Ultracite**, a zero-config preset that enforces strict code quality standards through automated formatting and linting.
+
+## Quick Reference
+
+- **Format code**: `pnpm exec ultracite fix`
+- **Check for issues**: `pnpm exec ultracite check`
+- **Diagnose setup**: `pnpm exec ultracite doctor`
+
+Oxlint + Oxfmt (the underlying engine) provides robust linting and formatting. Most issues are automatically fixable.
+
+---
+
+## Core Principles
+
+Write code that is **accessible, performant, type-safe, and maintainable**. Focus on clarity and explicit intent over brevity.
+
+### Type Safety & Explicitness
+
+- Use explicit types for function parameters and return values when they enhance clarity
+- Prefer `unknown` over `any` when the type is genuinely unknown
+- Use const assertions (`as const`) for immutable values and literal types
+- Leverage TypeScript's type narrowing instead of type assertions
+- Use meaningful variable names instead of magic numbers - extract constants with descriptive names
+
+### Modern JavaScript/TypeScript
+
+- Use arrow functions for callbacks and short functions
+- Prefer `for...of` loops over `.forEach()` and indexed `for` loops
+- Use optional chaining (`?.`) and nullish coalescing (`??`) for safer property access
+- Prefer template literals over string concatenation
+- Use destructuring for object and array assignments
+- Use `const` by default, `let` only when reassignment is needed, never `var`
+
+### Async & Promises
+
+- Always `await` promises in async functions - don't forget to use the return value
+- Use `async/await` syntax instead of promise chains for better readability
+- Handle errors appropriately in async code with try-catch blocks
+- Don't use async functions as Promise executors
+
+### React & JSX
+
+- Use function components over class components
+- Call hooks at the top level only, never conditionally
+- Specify all dependencies in hook dependency arrays correctly
+- Use the `key` prop for elements in iterables (prefer unique IDs over array indices)
+- Nest children between opening and closing tags instead of passing as props
+- Don't define components inside other components
+- Use semantic HTML and ARIA attributes for accessibility:
+  - Provide meaningful alt text for images
+  - Use proper heading hierarchy
+  - Add labels for form inputs
+  - Include keyboard event handlers alongside mouse events
+  - Use semantic elements (`<button>`, `<nav>`, etc.) instead of divs with roles
+
+### Error Handling & Debugging
+
+- Remove `console.log`, `debugger`, and `alert` statements from production code
+- Throw `Error` objects with descriptive messages, not strings or other values
+- Use `try-catch` blocks meaningfully - don't catch errors just to rethrow them
+- Prefer early returns over nested conditionals for error cases
+
+### Code Organization
+
+- Keep functions focused and under reasonable cognitive complexity limits
+- Extract complex conditions into well-named boolean variables
+- Use early returns to reduce nesting
+- Prefer simple conditionals over nested ternary operators
+- Group related code together and separate concerns
+- Avoid import cycles; move shared code into a module both sides import
+
+### Security
+
+- Add `rel="noopener noreferrer"` when using `target="_blank"` on links
+- Avoid `dangerouslySetInnerHTML` unless absolutely necessary
+- Don't use `eval()` or assign directly to `document.cookie`
+- Validate and sanitize user input
+
+### Performance
+
+- Avoid spread syntax in accumulators within loops
+- Use top-level regex literals instead of creating them in loops
+- Prefer specific imports over namespace imports
+- Avoid barrel files (index files that re-export everything)
+- Use proper image components (e.g., Next.js `<Image>`) over `<img>` tags
+
+### Framework-Specific Guidance
+
+**Next.js:**
+- Use Next.js `<Image>` component for images
+- Use `next/head` or App Router metadata API for head elements
+- Use Server Components for async data fetching instead of async Client Components
+
+**React 19+:**
+- Use ref as a prop instead of `React.forwardRef`
+
+**Solid/Svelte/Vue/Qwik:**
+- Use `class` and `for` attributes (not `className` or `htmlFor`)
+
+---
+
+## Testing
+
+- Write assertions inside `it()` or `test()` blocks
+- Avoid done callbacks in async tests - use async/await instead
+- Don't use `.only` or `.skip` in committed code
+- Keep test suites reasonably flat - avoid excessive `describe` nesting
+
+## When Oxlint + Oxfmt Can't Help
+
+Oxlint + Oxfmt will catch most mechanical issues automatically. Focus your attention on:
+
+1. **Business logic correctness** - Oxlint + Oxfmt can't validate your algorithms
+2. **Meaningful naming** - Use descriptive names for functions, variables, and types
+3. **Architecture decisions** - Component structure, data flow, and API design
+4. **Edge cases** - Handle boundary conditions and error states
+5. **User experience** - Accessibility, performance, and usability considerations
+6. **Documentation** - Add comments for complex logic, but prefer self-documenting code
+
+---
+
+Most formatting and common issues are automatically fixed by Oxlint + Oxfmt. Run `pnpm exec ultracite fix` before committing to ensure compliance.
+
+## Maintenance and releases
+
+See README.md sections Development and compatibility and Releases for tool ownership, supported versions, validation, and release mechanics. Update package.json in a reviewed PR before creating the matching GitHub release; publish automation verifies it and never rewrites the branch. Use the /loaders subpath from content configuration. Route caching uses Astro 7's top-level cache configuration. Keep skill references linked to docs so published and agent guidance agree.

@@ -2,26 +2,47 @@
 
 Astro-first integration for WordPress with content loaders, server actions, auth bridge helpers, catalog virtual modules, and rendering components.
 
-This package is built against `fluent-wp-client` `^3.0.1` and expects your Astro project to use the same client package directly.
-It supports Astro `^6.0.0`.
+This package is built against `fluent-wp-client` `^3.1.0` and expects your Astro project to use the same client package directly. It supports Astro `^7.4.7`.
 
 ## Install
 
 ```bash
-npm install wp-astrojs-integration fluent-wp-client
+pnpm add wp-astrojs-integration fluent-wp-client
 ```
 
 If you use a coding agent, install both the fluent client and Astro integration skills:
 
 ```bash
-npx skills add https://github.com/JUVOJustin/fluent-wp-client
-npx skills add https://github.com/JUVOJustin/astrojs-wp-integration
+pnpm dlx skills add https://github.com/JUVOJustin/fluent-wp-client
+pnpm dlx skills add https://github.com/JUVOJustin/astrojs-wp-integration
 ```
+
+## Runtime environment
+
+The examples use a server-side WordPress URL declared in the consuming Astro application. Add it to the existing config and set `WORDPRESS_URL` through your hosting environment or local environment file:
+
+```js title="astro.config.mjs"
+import { defineConfig, envField } from 'astro/config';
+
+export default defineConfig({
+  env: {
+    schema: {
+      WORDPRESS_URL: envField.string({
+        context: 'server',
+        access: 'public',
+        url: true,
+      }),
+    },
+  },
+});
+```
+
+Read it with `import { WORDPRESS_URL } from 'astro:env/server'`. Declare credentials with server context and secret access, or use `getSecret()` for dynamically named secrets. Build-time catalog configuration still uses the documented `WP_CATALOG_*` variables; it runs outside Astro's request runtime.
 
 ## Feature overview
 
 | Feature | What you get in Astro | Main API |
-|---|---|---|
+| --- | --- | --- |
 | Live content collections | Request-time WordPress data for SSR routes | `defineLiveCollection` + `wordPress*Loader` |
 | Route caching | Astro `cacheHint` metadata plus a targeted invalidation action for live routes | `Astro.cache.set()`, `createWpCacheInvalidateAction` |
 | Catalog integration | Build-time WordPress discovery cached in Astro and reused by catalog-aware helpers | `wp-astrojs-integration/integration`, `virtual:wp-astrojs/catalog` |
@@ -36,15 +57,15 @@ Use `fluent-wp-client` as the WordPress client and schema source of truth. Use t
 ## Available entities
 
 | Entity | Schema from `fluent-wp-client/zod` | Live loader | Static loader | Notes |
-|---|---|---|---|---|
-| Posts | `postSchema` | `wordPressPostLoader` | `wordPressPostStaticLoader` | |
-| Pages | `pageSchema` | `wordPressPageLoader` | `wordPressPageStaticLoader` | |
-| Media | `mediaSchema` | `wordPressMediaLoader` | `wordPressMediaStaticLoader` | |
-| Categories | `categorySchema` | `wordPressCategoryLoader` | `wordPressCategoryStaticLoader` | |
-| Tags | `categorySchema` | `wordPressTagLoader` | `wordPressTagStaticLoader` | |
+| --- | --- | --- | --- | --- |
+| Posts | `postSchema` | `wordPressPostLoader` | `wordPressPostStaticLoader` |  |
+| Pages | `pageSchema` | `wordPressPageLoader` | `wordPressPageStaticLoader` |  |
+| Media | `mediaSchema` | `wordPressMediaLoader` | `wordPressMediaStaticLoader` |  |
+| Categories | `categorySchema` | `wordPressCategoryLoader` | `wordPressCategoryStaticLoader` |  |
+| Tags | `categorySchema` | `wordPressTagLoader` | `wordPressTagStaticLoader` |  |
 | Custom taxonomies | `categorySchema` | `wordPressTermLoader` | `wordPressTermStaticLoader` | Pass custom REST `resource` |
 | Custom Post Types | `contentWordPressSchema` (extend) | `wordPressContentLoader` | `wordPressContentStaticLoader` | Pass custom REST `resource` |
-| Users | `WordPressAuthor` | `wordPressUserLoader` | `wordPressUserStaticLoader` | |
+| Users | `WordPressAuthor` | `wordPressUserLoader` | `wordPressUserStaticLoader` |  |
 
 ## Quick start
 
@@ -95,6 +116,7 @@ Use `defineWordPressCollection()` to create Astro collections with the correct W
 
 ```ts title="src/content.config.ts"
 import { defineWordPressCollection } from 'virtual:wp-astrojs/collections';
+
 import { wp } from './lib/wp';
 
 export const collections = {
@@ -120,14 +142,15 @@ type Book = import('virtual:wp-astrojs/generated-schemas').WPBook;
 Use `withWordPressActionSchemas()` to add catalog-derived input and response schemas to action factories. Explicit `schema` and `responseSchema` options still win when you pass them.
 
 ```ts title="src/actions/index.ts"
-import { createCreatePostAction } from 'wp-astrojs-integration';
 import { withWordPressActionSchemas } from 'virtual:wp-astrojs/schemas';
+import { createCreatePostAction } from 'wp-astrojs-integration';
+
 import { wp } from '../lib/wp';
 
 export const server = {
   createBook: createCreatePostAction(
     wp,
-    withWordPressActionSchemas('books', { resource: 'books' }),
+    withWordPressActionSchemas('books', { resource: 'books' })
   ),
 };
 ```
@@ -158,12 +181,13 @@ You can still wire loaders and schemas manually when you want full control.
 ```ts
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
+import { WORDPRESS_URL } from 'astro:env/server';
 import { WordPressClient } from 'fluent-wp-client';
 import { postSchema } from 'fluent-wp-client/zod';
-import { wordPressPostLoader } from 'wp-astrojs-integration';
+import { wordPressPostLoader } from 'wp-astrojs-integration/loaders';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  baseUrl: WORDPRESS_URL,
 });
 
 const posts = defineLiveCollection({
@@ -177,8 +201,9 @@ export const collections = { posts };
 If you need request instrumentation, a cache layer, or a proxy, pass a custom `fetch` to `WordPressClient` and then reuse that client with the live loader:
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  baseUrl: WORDPRESS_URL,
   fetch: async (input, init) => {
     return fetch(input, init);
   },
@@ -195,12 +220,13 @@ const posts = defineLiveCollection({
 ```ts
 // src/content.config.ts
 import { defineCollection } from 'astro:content';
+import { WORDPRESS_URL } from 'astro:env/server';
 import { WordPressClient } from 'fluent-wp-client';
 import { postSchema } from 'fluent-wp-client/zod';
-import { wordPressPostStaticLoader } from 'wp-astrojs-integration';
+import { wordPressPostStaticLoader } from 'wp-astrojs-integration/loaders';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  baseUrl: WORDPRESS_URL,
 });
 
 const posts = defineCollection({
@@ -216,9 +242,11 @@ Live loaders return the base resource payload by default. If you need embedded r
 Use `mapEntry` when a site needs to normalize fields before Astro receives loader data. For example, build an ACF choice-label lookup from WordPress discovery metadata and plug that lookup into the mapper:
 
 ```ts
-const acfFields = await wp.content('posts').getSchemaValue<
-  Record<string, { choices?: Array<{ value: string; label: string }> }>
->('properties.acf.properties');
+const acfFields = await wp
+  .content('posts')
+  .getSchemaValue<
+    Record<string, { choices?: Array<{ value: string; label: string }> }>
+  >('properties.acf.properties');
 
 const choiceLabels = new Map(
   Object.entries(acfFields ?? {})
@@ -226,7 +254,7 @@ const choiceLabels = new Map(
     .map(([fieldName, field]) => [
       fieldName,
       new Map(field.choices!.map((choice) => [choice.value, choice.label])),
-    ]),
+    ])
 );
 
 const posts = defineLiveCollection({
@@ -237,7 +265,7 @@ const posts = defineLiveCollection({
         Object.entries(post.acf ?? {}).map(([fieldName, value]) => [
           fieldName,
           choiceLabels.get(fieldName)?.get(String(value)) ?? value,
-        ]),
+        ])
       ),
     }),
   }),
@@ -256,7 +284,7 @@ Live loaders return Astro-compatible `cacheHint` values, and `createWpCacheInval
 AI SDK tools live in `fluent-wp-client/ai-sdk`. This package does not wrap them with live-loader helpers because live loaders are for public/shared content, not per-user request auth.
 
 | Server-side tool group | Factories from `fluent-wp-client/ai-sdk` | Use for |
-|---|---|---|
+| --- | --- | --- |
 | Content | `getContentTool`, `getContentCollectionTool`, `saveContentTool`, `deleteContentTool` | Posts, pages, custom post types, and other post-like resources |
 | Terms | `getTermTool`, `getTermCollectionTool`, `saveTermTool`, `deleteTermTool` | Categories, tags, and custom taxonomies |
 | Generic resources | `getResourceTool`, `getResourceCollectionTool`, `saveResourceTool`, `deleteResourceTool` | Catalog-discovered or plugin REST resources |
@@ -269,11 +297,12 @@ For public AI reads, use the fluent client tools directly and apply any Astro ro
 
 ```ts
 import type { APIRoute } from 'astro';
+import { WORDPRESS_URL } from 'astro:env/server';
 import { WordPressClient } from 'fluent-wp-client';
 import { getContentTool } from 'fluent-wp-client/ai-sdk';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
 });
 
 export const GET: APIRoute = async (context) => {
@@ -283,10 +312,13 @@ export const GET: APIRoute = async (context) => {
 
   if (!tool.execute) throw new Error('Content tool is not executable.');
 
-  const result = await tool.execute({ slug: 'hello-world' }, {
-    toolCallId: 'read-post',
-    messages: [],
-  });
+  const result = await tool.execute(
+    { slug: 'hello-world' },
+    {
+      toolCallId: 'read-post',
+      messages: [],
+    }
+  );
 
   context.cache.set({ maxAge: 300, swr: 60 });
 
@@ -320,10 +352,13 @@ export const GET: APIRoute = async (context) => {
 
   if (!tool.execute) throw new Error('Content tool is not executable.');
 
-  const result = await tool.execute({ slug: 'hello-world' }, {
-    toolCallId: 'read-post',
-    messages: [],
-  });
+  const result = await tool.execute(
+    { slug: 'hello-world' },
+    {
+      toolCallId: 'read-post',
+      messages: [],
+    }
+  );
 
   context.cache.set({ maxAge: 300, swr: 60 });
   return Response.json(result);
@@ -342,6 +377,8 @@ Do not route personalized AI reads through Astro live loaders. Live loaders do n
 ## Astro actions
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
+import { WordPressClient } from 'fluent-wp-client';
 import {
   createCreatePostAction,
   createDeletePostAction,
@@ -350,10 +387,9 @@ import {
   createDeleteUserAction,
   createUpdateUserAction,
 } from 'wp-astrojs-integration';
-import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
@@ -376,11 +412,10 @@ For a schema-generation and discovery-based workflow, see `docs/typesafe-integra
 
 ## Auth bridge
 
-The auth bridge is the central client-first request-auth layer for Astro middleware and actions.
-Helpers like `resolveUser()` and `isAuthenticated()` only reflect end-user request auth.
-`getClient()` and `getClientConfig()` can opt into bridge-level static credentials with `{ allowStaticAuthFallback: true }` when you explicitly want a service-client fallback.
+The auth bridge is the central client-first request-auth layer for Astro middleware and actions. Helpers like `resolveUser()` and `isAuthenticated()` only reflect end-user request auth. `getClient()` and `getClientConfig()` can opt into bridge-level static credentials with `{ allowStaticAuthFallback: true }` when you explicitly want a service-client fallback.
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 import { defineMiddleware } from 'astro:middleware';
 import {
   createCreatePostAction,
@@ -390,7 +425,7 @@ import {
 } from 'wp-astrojs-integration';
 
 export const wordPressAuthBridge = createWordPressAuthBridge({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
   cookieName: 'wp_user_session',
 });
 
@@ -420,10 +455,11 @@ export const server = {
 You can also create one static client directly when you do not need request-scoped auth:
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
@@ -449,15 +485,16 @@ Use these when building custom login/session flows so you can share the same run
 ## Term actions (categories, tags, custom taxonomies)
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
+import { WordPressClient } from 'fluent-wp-client';
 import {
   createCreateTermAction,
   createUpdateTermAction,
   createDeleteTermAction,
 } from 'wp-astrojs-integration';
-import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
@@ -474,20 +511,23 @@ export const server = {
 ## Extending schemas
 
 ```ts
+import { z } from 'astro/zod';
+import { WORDPRESS_URL } from 'astro:env/server';
 import { WordPressClient } from 'fluent-wp-client';
 import { postSchema } from 'fluent-wp-client/zod';
-import { wordPressPostLoader } from 'wp-astrojs-integration';
-import { z } from 'astro/zod';
+import { wordPressPostLoader } from 'wp-astrojs-integration/loaders';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  baseUrl: WORDPRESS_URL,
 });
 
 const customPostSchema = postSchema.extend({
-  acf: z.object({
-    video_url: z.string().optional(),
-    featured_color: z.string().optional(),
-  }).optional(),
+  acf: z
+    .object({
+      video_url: z.string().optional(),
+      featured_color: z.string().optional(),
+    })
+    .optional(),
 });
 
 const posts = defineLiveCollection({
@@ -499,7 +539,7 @@ const posts = defineLiveCollection({
 ## Live vs static loaders
 
 | Feature | Live loaders | Static loaders |
-|---|---|---|
+| --- | --- | --- |
 | Freshness | Request-time | Build-time |
 | Best for | SSR and frequently changing public/shared content | SSG and stable content |
 | Astro API | `defineLiveCollection` | `defineCollection` |
@@ -511,23 +551,23 @@ Live loaders accept fluent-wp-client collection filters through `getLiveCollecti
 ## Development and testing
 
 ```bash
-npm run wp:start
-npm run wp:status
-npm test                    # Run all test projects
-npm run test:integration    # Integration project (actions/loaders/auth)
-npm run test:build          # Static build project
-npm run wp:stop
+pnpm run wp:start
+pnpm run wp:status
+pnpm test                    # Run all test projects
+pnpm run test:integration    # Integration project (actions/loaders/auth)
+pnpm run test:build          # Static build project
+pnpm run wp:stop
 ```
 
-`wp-env` uses automatic port selection in this repository. If `8888` is unavailable, run `npm run wp:status` to see the active local WordPress URL and ports.
+`wp-env` uses automatic port selection in this repository. If `8888` is unavailable, run `pnpm run wp:status` to see the active local WordPress URL and ports.
 
 Other useful commands:
 
 ```bash
-npm run test:watch
-npm run wp:clean
-npm run wp:status
-npm run build
+pnpm run test:watch
+pnpm run wp:clean
+pnpm run wp:status
+pnpm run build
 ```
 
 Local integration test environment:
@@ -554,3 +594,38 @@ Local integration test environment:
 ## License
 
 MIT
+
+## Development and compatibility
+
+Use Node.js 24 LTS and the pnpm version pinned in `package.json`. Version 0.6 targets Astro 7 and `fluent-wp-client` 3.1; Astro 6 applications must upgrade before adopting it. TypeScript stays on 6 because the current Astro checker and TypeScript ESLint parser do not support TypeScript 7.
+
+```sh
+pnpm install --frozen-lockfile
+pnpm run check
+pnpm run format:check
+pnpm run check:types
+pnpm run check:astro
+pnpm run build
+pnpm run wp:start
+pnpm test
+pnpm run wp:stop
+pnpm pack --out /tmp/wp-astrojs-integration.tgz
+```
+
+Oxlint/Oxfmt use Ultracite core, Astro, Vitest and Anti-Slop presets. Astro templates have separate ESLint/Prettier commands, and PHP test fixtures are excluded from shared formatting. Existing declaration style and full-stack assertion patterns have explicit rule overrides; boundary casts and open WordPress metadata have local explanations. See the config files for exact coverage. Lefthook fixes staged files before commits and runs checks, build and integration tests before pushes. Docker and a started WordPress test environment are required for the latter.
+
+This is a library, not a hosted application. Consumers choose their adapter, runtime, cache lifetime and persistence. The catalog integration owns build-time filesystem access; runtime loaders and auth helpers use the published WordPress client and web APIs. No Effect boundary or application database is introduced. Prefer `wp-astrojs-integration/loaders` in content configuration to avoid loading server actions during content sync.
+
+Catalog environment variables are documented in `.env.schema`. Use local environment values with Varlock; no private password-manager account or company tooling is required for contributors. Test credentials are created only for the local disposable WordPress environment. Do not use the public fixture JWT secret in production.
+
+## Releases
+
+Maintainers update `package.json` in a reviewed pull request before releasing. Commit any resulting `pnpm-lock.yaml` change and pass all CI checks. Then publish a GitHub release with a tag matching that version (optional `v` prefix). The Publish workflow verifies the version, runs checks/build/tests and publishes through npm trusted publishing with provenance. The workflow rejects a mismatch between the version and GitHub prerelease flag. The npm dist-tag is derived from the version: prereleases use `next`, stable releases use `latest`. Only the publish job receives OIDC permission; WordPress tests run in a separate job.
+
+Configure npm trusted publishing for this repository's `deploy.yml` workflow before the first publication. The workflow does not commit version changes back to the default branch.
+
+The Astro checker uses the stable `@emnapi/runtime` 1.x peer because its WASM compiler is incompatible with the automatically selected 2.x beta. The explicit esbuild development dependency keeps Vite on the patched 0.28 release line. Recheck both compatibility pins when upgrading the tools.
+
+Packages must be packed and published with pnpm: `.pnpmfile.mjs` strips contributor scripts from the published manifest, so installing the package does not run the repository’s pnpm guard or Git hooks.
+
+Dependabot automatically merges qualifying npm/pnpm updates only after the PR checks pass. GitHub Actions updates require maintainer review and merge. Merges made with `GITHUB_TOKEN` do not trigger another `push` workflow on `main`; use the workflows’ manual dispatch when an additional run is needed.

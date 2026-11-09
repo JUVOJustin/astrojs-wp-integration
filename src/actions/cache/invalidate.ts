@@ -1,33 +1,23 @@
-import {
-  type ActionAPIContext,
-  type ActionClient,
-  ActionError,
-  defineAction,
-} from 'astro:actions';
 import { z } from 'astro/zod';
-import type {
-  WordPressCategory,
-  WordPressClient,
-  WordPressPost,
-} from 'fluent-wp-client';
+import { ActionError, defineAction } from 'astro:actions';
+import type { ActionAPIContext, ActionClient } from 'astro:actions';
+import type { WordPressClient } from 'fluent-wp-client';
+
 import {
   createContentInvalidationTags,
   createTermInvalidationTags,
   createUserInvalidationTags,
 } from '../../cache/hints';
-import {
-  type ResolvableActionClient,
-  resolveRequiredActionClient,
-  withActionClient,
-} from '../post/client';
+import { resolveRequiredActionClient, withActionClient } from '../post/client';
+import type { ResolvableActionClient } from '../post/client';
 import {
   assertCacheEnabled,
-  type CacheInvalidationResult,
   invalidateCacheBaseSchema,
   invalidateCacheTags,
   resolveContentResource,
   resolveTermResource,
 } from './shared';
+import type { CacheInvalidationResult } from './shared';
 
 /**
  * Input schema for invalidating one cached WordPress entity.
@@ -35,6 +25,7 @@ import {
 export const wpCacheInvalidateInputSchema = invalidateCacheBaseSchema
   .extend({
     entity: z.enum(['post', 'term', 'user']),
+    scope: z.enum(['entry', 'resource']).default('entry'),
     post_type: z.string().min(1).optional(),
     taxonomy: z.string().min(1).optional(),
   })
@@ -43,32 +34,32 @@ export const wpCacheInvalidateInputSchema = invalidateCacheBaseSchema
     if (input.entity === 'post' && !input.post_type) {
       context.addIssue({
         code: 'custom',
-        path: ['post_type'],
         message: '`post_type` is required when `entity` is `post`.',
+        path: ['post_type'],
       });
     }
 
     if (input.entity === 'term' && !input.taxonomy) {
       context.addIssue({
         code: 'custom',
-        path: ['taxonomy'],
         message: '`taxonomy` is required when `entity` is `term`.',
+        path: ['taxonomy'],
       });
     }
 
     if (input.entity !== 'post' && input.post_type) {
       context.addIssue({
         code: 'custom',
-        path: ['post_type'],
         message: '`post_type` is only valid when `entity` is `post`.',
+        path: ['post_type'],
       });
     }
 
     if (input.entity !== 'term' && input.taxonomy) {
       context.addIssue({
         code: 'custom',
-        path: ['taxonomy'],
         message: '`taxonomy` is only valid when `entity` is `term`.',
+        path: ['taxonomy'],
       });
     }
   });
@@ -83,18 +74,31 @@ export type WpCacheInvalidateInput = z.infer<
 export async function executeWpCacheInvalidate(
   client: WordPressClient,
   input: WpCacheInvalidateInput,
-  context: ActionAPIContext,
+  context: ActionAPIContext
 ): Promise<CacheInvalidationResult> {
   assertCacheEnabled(context);
 
   if (input.entity === 'post') {
+    // SAFETY: superRefine requires post_type for post inputs before Astro invokes this action.
     const postType = input.post_type as string;
     const resource = await resolveContentResource(client, postType);
 
+    if (input.scope === 'resource') {
+      return invalidateCacheTags(context, resource, [
+        `wp:resource:${resource}`,
+      ]);
+    }
+
     return withActionClient(client, async (resolvedClient) => {
-      const entry = (await resolvedClient
-        .content(resource)
-        .item(input.id)) as WordPressPost;
+      const entry = await resolvedClient.content(resource).item(input.id);
+
+      if (!entry) {
+        throw new ActionError({
+          code: 'NOT_FOUND',
+          message: `WordPress ${resource} '${input.id}' was not found.`,
+        });
+      }
+
       const tags = createContentInvalidationTags(resource, entry.id);
 
       return invalidateCacheTags(context, resource, tags);
@@ -102,17 +106,34 @@ export async function executeWpCacheInvalidate(
   }
 
   if (input.entity === 'term') {
+    // SAFETY: superRefine requires taxonomy for term inputs before Astro invokes this action.
     const taxonomy = input.taxonomy as string;
     const resource = await resolveTermResource(client, taxonomy);
 
+    if (input.scope === 'resource') {
+      return invalidateCacheTags(context, resource, [
+        `wp:resource:${resource}`,
+      ]);
+    }
+
     return withActionClient(client, async (resolvedClient) => {
-      const entry = (await resolvedClient
-        .terms(resource)
-        .item(input.id)) as WordPressCategory;
+      const entry = await resolvedClient.terms(resource).item(input.id);
+
+      if (!entry) {
+        throw new ActionError({
+          code: 'NOT_FOUND',
+          message: `WordPress ${resource} '${input.id}' was not found.`,
+        });
+      }
+
       const tags = createTermInvalidationTags(resource, entry);
 
       return invalidateCacheTags(context, resource, tags);
     });
+  }
+
+  if (input.scope === 'resource') {
+    return invalidateCacheTags(context, 'users', ['wp:resource:users']);
   }
 
   return withActionClient(client, async (resolvedClient) => {
@@ -135,20 +156,22 @@ export async function executeWpCacheInvalidate(
  * Creates one Astro action that invalidates the cache for a single WordPress entity.
  */
 export function createWpCacheInvalidateAction(
-  client: ResolvableActionClient,
+  client: ResolvableActionClient
 ): ActionClient<
   CacheInvalidationResult,
   undefined,
   typeof wpCacheInvalidateInputSchema
 > &
   string {
+  // SAFETY: Astro's generated action proxy supplies the callable and string-coercion API.
   return defineAction({
     input: wpCacheInvalidateInputSchema,
     handler: async (
       input: WpCacheInvalidateInput,
-      context: ActionAPIContext,
+      context: ActionAPIContext
     ) => {
       const resolvedClient = await resolveRequiredActionClient(client, context);
+
       return executeWpCacheInvalidate(resolvedClient, input, context);
     },
   }) as ActionClient<

@@ -10,11 +10,31 @@ import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 Fetch posts, pages, custom post types, and taxonomy terms from WordPress into Astro content collections. This guide covers static (build-time) and live (request-time) data fetching patterns.
 
 <CardGrid>
-  <LinkCard title="Actions overview" href="./actions/index.mdx" description="Write operations: create, update, and delete content." />
-  <LinkCard title="Mapping" href="./mapping.mdx" description="Normalize loader entries and action responses with reusable callbacks." />
-  <LinkCard title="Caching" href="./caching.mdx" description="Route caching with live loaders, cache hints, and invalidation actions." />
-  <LinkCard title="Post actions" href="./actions/posts.mdx" description="Programmatically create and manage posts." />
-  <LinkCard title="Auth bridge" href="./auth-action-bridge.mdx" description="Session-based authentication for middleware and actions." />
+  <LinkCard
+    title="Actions overview"
+    href="./actions/index.mdx"
+    description="Write operations: create, update, and delete content."
+  />
+  <LinkCard
+    title="Mapping"
+    href="./mapping.mdx"
+    description="Normalize loader entries and action responses with reusable callbacks."
+  />
+  <LinkCard
+    title="Caching"
+    href="./caching.mdx"
+    description="Route caching with live loaders, cache hints, and invalidation actions."
+  />
+  <LinkCard
+    title="Post actions"
+    href="./actions/posts.mdx"
+    description="Programmatically create and manage posts."
+  />
+  <LinkCard
+    title="Auth bridge"
+    href="./auth-action-bridge.mdx"
+    description="Session-based authentication for middleware and actions."
+  />
 </CardGrid>
 
 ## Static vs Live loaders
@@ -22,7 +42,7 @@ Fetch posts, pages, custom post types, and taxonomy terms from WordPress into As
 Choose the loader type based on your deployment strategy and content freshness requirements.
 
 | Feature | Static loaders | Live loaders |
-|---|---|---|
+| --- | --- | --- |
 | **When data loads** | Build time (`astro build`) | Request time (SSR) |
 | **Best for** | SSG sites, stable content | Dynamic public/shared content |
 | **Astro API** | `defineCollection` | `defineLiveCollection` |
@@ -36,6 +56,7 @@ Choose the loader type based on your deployment strategy and content freshness r
 Create `src/live.config.ts` for live collections and `src/content.config.ts` for static collections:
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
 import { WordPressClient } from 'fluent-wp-client';
@@ -44,10 +65,10 @@ import {
   wordPressPostLoader,
   wordPressPageLoader,
   wordPressCategoryLoader,
-} from 'wp-astrojs-integration';
+} from 'wp-astrojs-integration/loaders';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  baseUrl: WORDPRESS_URL,
 });
 
 // Live collections (SSR) - fetch on every request
@@ -72,8 +93,9 @@ export const collections = { posts, pages, categories };
 If you need request instrumentation, a custom cache layer, or a proxy, attach it to the client instead of the loader:
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  baseUrl: WORDPRESS_URL,
   fetch: async (input, init) => {
     return fetch(input, init);
   },
@@ -103,9 +125,9 @@ type AcfSchemaField = {
   choices?: AcfChoice[];
 };
 
-const acfFields = await wp.content('posts').getSchemaValue<
-  Record<string, AcfSchemaField>
->('properties.acf.properties');
+const acfFields = await wp
+  .content('posts')
+  .getSchemaValue<Record<string, AcfSchemaField>>('properties.acf.properties');
 
 const choiceLabels = new Map<string, Map<string, string>>();
 
@@ -114,7 +136,7 @@ for (const [fieldName, fieldSchema] of Object.entries(acfFields ?? {})) {
 
   choiceLabels.set(
     fieldName,
-    new Map(fieldSchema.choices.map((choice) => [choice.value, choice.label])),
+    new Map(fieldSchema.choices.map((choice) => [choice.value, choice.label]))
   );
 }
 ```
@@ -130,7 +152,7 @@ const posts = defineLiveCollection({
         Object.entries(post.acf ?? {}).map(([fieldName, value]) => [
           fieldName,
           choiceLabels.get(fieldName)?.get(String(value)) ?? value,
-        ]),
+        ])
       ),
     }),
   }),
@@ -143,10 +165,8 @@ For example, a stored value like `in_progress` becomes `In progress` when that m
 ```ts
 // src/content.config.ts
 import { defineCollection } from 'astro:content';
-import {
-  postSchema,
-  wordPressPostStaticLoader,
-} from 'wp-astrojs-integration';
+import { postSchema } from 'fluent-wp-client/zod';
+import { wordPressPostStaticLoader } from 'wp-astrojs-integration/loaders';
 
 // Static collections (SSG) - fetch at build time
 const staticPosts = defineCollection({
@@ -192,6 +212,7 @@ const { entries: posts } = await getLiveCollection('posts');
 
 ```astro
 ---
+import { WORDPRESS_URL } from 'astro:env/server';
 // src/pages/blog/[slug].astro
 import { getLiveEntry } from 'astro:content';
 import WPContent from 'wp-astrojs-integration/components/WPContent.astro';
@@ -206,9 +227,9 @@ if (!post) {
 
 <article>
   <h1 set:html={post.data.title.rendered} />
-  <WPContent 
-    content={post.data.content.rendered} 
-    baseUrl={import.meta.env.PUBLIC_WORDPRESS_BASE_URL} 
+  <WPContent
+    content={post.data.content.rendered}
+    baseUrl={WORDPRESS_URL}
   />
 </article>
 ```
@@ -225,28 +246,43 @@ const { entry: post } = await getLiveEntry('posts', { id: 42 });
 
 ```ts
 // Posts in specific categories
-const { entries: techPosts } = await getLiveCollection('posts', { categories: [3, 7] });
+const { entries: techPosts } = await getLiveCollection('posts', {
+  categories: [3, 7],
+});
 
 // Posts with specific tags
-const { entries: featuredPosts } = await getLiveCollection('posts', { tags: [12, 15] });
+const { entries: featuredPosts } = await getLiveCollection('posts', {
+  tags: [12, 15],
+});
 
 // Search posts by keyword
-const { entries: results } = await getLiveCollection('posts', { search: 'headless WordPress' });
+const { entries: results } = await getLiveCollection('posts', {
+  search: 'headless WordPress',
+});
 
 // Fetch specific posts by ID
-const { entries: selected } = await getLiveCollection('posts', { include: [1, 5, 9] });
+const { entries: selected } = await getLiveCollection('posts', {
+  include: [1, 5, 9],
+});
 
 // Exclude specific posts
 const { entries: others } = await getLiveCollection('posts', { exclude: [42] });
 
 // Posts by a specific author
-const { entries: authorPosts } = await getLiveCollection('posts', { author: 3 });
+const { entries: authorPosts } = await getLiveCollection('posts', {
+  author: 3,
+});
 
 // Draft posts (requires auth)
-const { entries: drafts } = await getLiveCollection('posts', { status: 'draft' });
+const { entries: drafts } = await getLiveCollection('posts', {
+  status: 'draft',
+});
 
 // Ordered posts
-const { entries: recentPosts } = await getLiveCollection('posts', { orderby: 'date', order: 'desc' });
+const { entries: recentPosts } = await getLiveCollection('posts', {
+  orderby: 'date',
+  order: 'desc',
+});
 ```
 
 ## Fetching pages
@@ -291,23 +327,26 @@ WordPress custom post types use the `wordPressContentLoader` (aligned with fluen
 ### Configure the collection
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
 import { z } from 'astro/zod';
 import { WordPressClient } from 'fluent-wp-client';
 import { contentWordPressSchema } from 'fluent-wp-client/zod';
-import { wordPressContentLoader } from 'wp-astrojs-integration';
+import { wordPressContentLoader } from 'wp-astrojs-integration/loaders';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  baseUrl: WORDPRESS_URL,
 });
 
 // Extend schema for CPT-specific fields
 const productSchema = contentWordPressSchema.extend({
-  acf: z.object({
-    price: z.number().optional(),
-    sku: z.string().optional(),
-  }).optional(),
+  acf: z
+    .object({
+      price: z.number().optional(),
+      sku: z.string().optional(),
+    })
+    .optional(),
 });
 
 const products = defineLiveCollection({
@@ -359,6 +398,7 @@ const posts = defineLiveCollection({
 
 ```astro
 ---
+import { WORDPRESS_URL } from 'astro:env/server';
 // src/pages/products/[slug].astro
 import { getLiveEntry } from 'astro:content';
 import { WordPressClient } from 'fluent-wp-client';
@@ -368,7 +408,7 @@ const { slug } = Astro.params;
 const { entry: product } = await getLiveEntry('products', { slug });
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  baseUrl: WORDPRESS_URL,
 });
 
 if (!product) {
@@ -399,16 +439,15 @@ const featuredMedia = embeddedProduct._embedded?.['wp:featuredmedia']?.[0];
 ### Categories
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
 import { WordPressClient } from 'fluent-wp-client';
 import { categorySchema } from 'fluent-wp-client/zod';
-import {
-  wordPressCategoryLoader,
-} from 'wp-astrojs-integration';
+import { wordPressCategoryLoader } from 'wp-astrojs-integration/loaders';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  baseUrl: WORDPRESS_URL,
 });
 
 const categories = defineLiveCollection({
@@ -443,16 +482,15 @@ const { entries: parentCategories } = await getLiveCollection('categories', { pa
 ### Tags
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
 import { WordPressClient } from 'fluent-wp-client';
 import { categorySchema } from 'fluent-wp-client/zod';
-import {
-  wordPressTagLoader,
-} from 'wp-astrojs-integration';
+import { wordPressTagLoader } from 'wp-astrojs-integration/loaders';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  baseUrl: WORDPRESS_URL,
 });
 
 const tags = defineLiveCollection({
@@ -469,8 +507,8 @@ const { entries: tags } = await getLiveCollection('tags', { orderby: 'count', or
 
 <div class="tag-cloud">
   {tags.map((tag) => (
-    <a 
-      href={`/tag/${tag.data.slug}`} 
+    <a
+      href={`/tag/${tag.data.slug}`}
       style={`font-size: ${Math.max(0.8, tag.data.count / 10)}rem`}
     >
       {tag.data.name}
@@ -484,16 +522,15 @@ const { entries: tags } = await getLiveCollection('tags', { orderby: 'count', or
 Custom taxonomies work like built-in terms with the `wordPressTermLoader`. Ensure your taxonomy is registered in WordPress with `show_in_rest => true` and a `rest_base` (e.g., `genres`).
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
 import { WordPressClient } from 'fluent-wp-client';
 import { categorySchema } from 'fluent-wp-client/zod';
-import {
-  wordPressTermLoader,
-} from 'wp-astrojs-integration';
+import { wordPressTermLoader } from 'wp-astrojs-integration/loaders';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  baseUrl: WORDPRESS_URL,
 });
 
 const genres = defineLiveCollection({
@@ -532,6 +569,7 @@ Use static loaders for pre-built sites where content changes infrequently.
 ### Configure static collections
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 // src/content.config.ts
 import { defineCollection } from 'astro:content';
 import { WordPressClient } from 'fluent-wp-client';
@@ -542,10 +580,10 @@ import {
   wordPressCategoryStaticLoader,
   wordPressTermStaticLoader,
   wordPressContentStaticLoader,
-} from 'wp-astrojs-integration';
+} from 'wp-astrojs-integration/loaders';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  baseUrl: WORDPRESS_URL,
 });
 
 const posts = defineCollection({
@@ -641,9 +679,7 @@ const featuredBooks = defineCollection({
 });
 ```
 
-:::note
-Build-time filters do not affect runtime reads. Use live loaders and pass filters to `getLiveCollection()` when you need per-request scoping.
-:::
+:::note Build-time filters do not affect runtime reads. Use live loaders and pass filters to `getLiveCollection()` when you need per-request scoping. :::
 
 ### Static single entry
 
@@ -670,22 +706,20 @@ if (!post) {
 
 ## Authentication for private content
 
-Private posts, drafts, and password-protected content require authentication.
-Use live or static loaders only when one static/service credential is safe for every visitor who can reach the route. Use direct `fluent-wp-client` calls for per-user content.
+Private posts, drafts, and password-protected content require authentication. Use live or static loaders only when one static/service credential is safe for every visitor who can reach the route. Use direct `fluent-wp-client` calls for per-user content.
 
 ### Basic auth (app passwords)
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
 import { WordPressClient } from 'fluent-wp-client';
 import { postSchema } from 'fluent-wp-client/zod';
-import {
-  wordPressPostLoader,
-} from 'wp-astrojs-integration';
+import { wordPressPostLoader } from 'wp-astrojs-integration/loaders';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
@@ -701,16 +735,15 @@ const posts = defineLiveCollection({
 ### JWT auth
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
 import { WordPressClient } from 'fluent-wp-client';
 import { postSchema } from 'fluent-wp-client/zod';
-import {
-  wordPressPostLoader,
-} from 'wp-astrojs-integration';
+import { wordPressPostLoader } from 'wp-astrojs-integration/loaders';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
   auth: {
     token: import.meta.env.WP_JWT_TOKEN,
   },
@@ -767,6 +800,7 @@ The `WPContent` component processes WordPress content with Gutenberg block styli
 
 ```astro
 ---
+import { WORDPRESS_URL } from 'astro:env/server';
 import WPContent from 'wp-astrojs-integration/components/WPContent.astro';
 
 const { entry: post } = await getLiveEntry('posts', { slug });
@@ -774,9 +808,9 @@ const { entry: post } = await getLiveEntry('posts', { slug });
 
 <article>
   <h1 set:html={post.data.title.rendered} />
-  <WPContent 
+  <WPContent
     content={post.data.content.rendered}
-    baseUrl={import.meta.env.PUBLIC_WORDPRESS_BASE_URL}
+    baseUrl={WORDPRESS_URL}
   />
 </article>
 ```
@@ -789,11 +823,12 @@ Post, page, and custom content live loaders also support an explicit `embed` opt
 
 ```astro
 ---
+import { WORDPRESS_URL } from 'astro:env/server';
 import { WordPressClient } from 'fluent-wp-client';
 import WPImage from 'wp-astrojs-integration/components/WPImage.astro';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  baseUrl: WORDPRESS_URL,
 });
 
 const post = await wp.content('posts').item(slug, { embed: ['wp:featuredmedia'] });
@@ -802,8 +837,8 @@ const featuredMedia = post._embedded?.['wp:featuredmedia']?.[0];
 
 <article>
   {featuredMedia && (
-    <WPImage 
-      media={featuredMedia} 
+    <WPImage
+      media={featuredMedia}
       size="large"
       loading="eager"
       alt={featuredMedia.alt_text}
@@ -846,7 +881,7 @@ const categoryEntries = categories.entries ?? [];
       ))}
     </ul>
   </aside>
-  
+
   <main>
       {postEntries.map((post) => (
       <article>
@@ -878,10 +913,10 @@ const { entries: categories } = await getLiveCollection('product-categories');
 
 <div class="shop">
   {categories.map((cat) => {
-    const catProducts = products.filter(p => 
+    const catProducts = products.filter(p =>
       p.data.product_categories?.includes(cat.data.id)
     );
-    
+
     return (
       <section>
         <h2>{cat.data.name}</h2>
@@ -906,7 +941,7 @@ const { entries: categories } = await getLiveCollection('product-categories');
 ## Reference: Available loaders
 
 | Entity | Live loader | Static loader | Schema |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Posts | `wordPressPostLoader` | `wordPressPostStaticLoader` | `postSchema` |
 | Pages | `wordPressPageLoader` | `wordPressPageStaticLoader` | `pageSchema` |
 | Media | `wordPressMediaLoader` | `wordPressMediaStaticLoader` | `mediaSchema` |

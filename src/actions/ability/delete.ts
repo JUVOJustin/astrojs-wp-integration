@@ -1,18 +1,16 @@
 import type { ActionClient } from 'astro:actions';
 import type { WordPressClient } from 'fluent-wp-client';
-import {
-  type DeleteAbilityInput,
-  deleteAbilityInputSchema,
-} from 'fluent-wp-client/zod';
-import { type ResolvableActionClient, withActionClient } from '../post/client';
+import { deleteAbilityInputSchema } from 'fluent-wp-client/zod';
+import type { DeleteAbilityInput } from 'fluent-wp-client/zod';
+
+import { withActionClient } from '../post/client';
+import type { ResolvableActionClient } from '../post/client';
 import { validateActionResponse } from '../response-validation';
-import {
-  type AbilityActionOptions,
-  createAbilityAction,
-  type ExecuteAbilityOptions,
-} from './factory';
+import { createAbilityAction } from './factory';
+import type { AbilityActionOptions, ExecuteAbilityOptions } from './factory';
 
 export type { DeleteAbilityInput };
+
 /**
  * Input schema for executing one destructive WordPress ability via DELETE.
  */
@@ -48,17 +46,18 @@ type DeleteAbilityActionOptions<
 export async function executeDeleteAbility<T = unknown>(
   client: WordPressClient,
   input: DeleteAbilityInput,
-  options?: ExecuteDeleteAbilityOptions<T>,
+  options?: ExecuteDeleteAbilityOptions<T>
 ): Promise<T> {
   return withActionClient(client, async (resolvedClient) => {
     const result = await resolvedClient.executeDeleteAbility(
       input.name,
-      input.input,
+      input.input
     );
+
     return validateActionResponse(
       result,
       options?.responseSchema,
-      'WordPress ability DELETE action',
+      'WordPress ability DELETE action'
     );
   });
 }
@@ -68,15 +67,16 @@ export async function executeDeleteAbility<T = unknown>(
  */
 export function createDeleteAbilityAction<
   TResponse = unknown,
-  TSchema extends
-    typeof deleteAbilityInputSchema = typeof deleteAbilityInputSchema,
+  TSchema extends typeof deleteAbilityInputSchema =
+    typeof deleteAbilityInputSchema,
 >(
   client: ResolvableActionClient,
-  options?: DeleteAbilityActionOptions<TResponse, TSchema>,
+  options?: DeleteAbilityActionOptions<TResponse, TSchema>
 ): ActionClient<TResponse, undefined, TSchema> & string {
   return createAbilityAction<DeleteAbilityInput, TResponse, TSchema>({
     ...options,
     client,
+    // SAFETY: The fallback is used only when no custom schema is supplied for this ability.
     defaultSchema: deleteAbilityInputSchema as TSchema,
     execute: (resolvedClient, input, executeOptions) =>
       executeDeleteAbility<TResponse>(resolvedClient, input, executeOptions),

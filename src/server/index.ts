@@ -11,7 +11,5 @@ export type {
   WordPressLoginActionResult,
   WordPressLoginInput,
 } from './auth';
-export {
-  createWordPressAuthBridge,
-  wordPressLoginInputSchema,
-} from './auth';
+
+export { createWordPressAuthBridge, wordPressLoginInputSchema } from './auth';

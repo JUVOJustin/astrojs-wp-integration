@@ -1,17 +1,13 @@
-import {
-  type ActionAPIContext,
-  type ActionClient,
-  defineAction,
-} from 'astro:actions';
-import { z } from 'astro/zod';
+import type { z } from 'astro/zod';
+import { defineAction } from 'astro:actions';
+import type { ActionAPIContext, ActionClient } from 'astro:actions';
 import type {
   WordPressClient,
   WordPressStandardSchema,
 } from 'fluent-wp-client';
-import {
-  type ResolvableActionClient,
-  resolveRequiredActionClient,
-} from '../post/client';
+
+import { resolveRequiredActionClient } from '../post/client';
+import type { ResolvableActionClient } from '../post/client';
 
 /**
  * Shared action options used by all ability action factories.
@@ -51,7 +47,7 @@ type CreateAbilityActionParams<
   execute: (
     client: WordPressClient,
     input: TInput,
-    options?: ExecuteAbilityOptions<TResponse>,
+    options?: ExecuteAbilityOptions<TResponse>
   ) => Promise<TResponse>;
 };
 
@@ -63,17 +59,19 @@ export function createAbilityAction<
   TResponse,
   TSchema extends z.ZodType,
 >(
-  params: CreateAbilityActionParams<TInput, TResponse, TSchema>,
+  params: CreateAbilityActionParams<TInput, TResponse, TSchema>
 ): ActionClient<TResponse, undefined, TSchema> & string {
-  const inputSchema = (params.schema ?? params.defaultSchema) as TSchema;
-  const responseSchema = params.responseSchema;
+  const inputSchema = params.schema ?? params.defaultSchema;
+  const { responseSchema } = params;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // SAFETY: Astro's generated action proxy supplies the callable and string-coercion API.
   return defineAction({
     input: inputSchema,
     handler: async (input: z.infer<TSchema>, context: ActionAPIContext) => {
       const client = await resolveRequiredActionClient(params.client, context);
+
+      // SAFETY: Each ability factory pairs its schema output with the corresponding executor input.
       return params.execute(client, input as TInput, { responseSchema });
     },
-  } as any) as ActionClient<TResponse, undefined, TSchema> & string;
+  }) as ActionClient<TResponse, undefined, TSchema> & string;
 }

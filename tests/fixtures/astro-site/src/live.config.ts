@@ -1,3 +1,4 @@
+import { z } from 'astro/zod';
 /**
  * Shared live collection config for the Astro integration fixture.
  *
@@ -5,9 +6,9 @@
  * collections defined in `src/content.config.ts` inside the same fixture app.
  */
 import { defineLiveCollection } from 'astro:content';
-import { defineWordPressCollection } from 'virtual:wp-astrojs/collections';
-import { z } from 'astro/zod';
 import { WordPressClient } from 'fluent-wp-client';
+import { defineWordPressCollection } from 'virtual:wp-astrojs/collections';
+
 import {
   wordPressCategoryLoader,
   wordPressContentLoader,
@@ -23,15 +24,16 @@ import {
   postsItemSchema,
 } from './generated/wp-schemas';
 import { createAcfChoiceLabelMapper } from './lib/acf-choice-label-mapper';
-import { useTestAcfChoiceCatalog } from './lib/test-acf-catalog';
 import { trackedWordPressFetch } from './lib/wp-fetch-metrics';
 
 const baseUrl = resolveWpBaseUrl();
+
 const wp = new WordPressClient({
   baseUrl,
   fetch:
     process.env.ASTRO_TEST_ROUTE_CACHE === '1' ? trackedWordPressFetch : fetch,
 });
+
 const mapAcfChoiceLabels = createAcfChoiceLabelMapper(baseUrl);
 
 /** Live post collection loaded at request time with schema validation. */
@@ -88,11 +90,11 @@ const liveUsers = defineLiveCollection({
 });
 
 export const collections = {
-  livePosts,
-  liveMappedPosts,
-  livePages,
-  liveCategories,
   liveBooks,
   liveCatalogBooks,
+  liveCategories,
+  liveMappedPosts,
+  livePages,
+  livePosts,
   liveUsers,
 };

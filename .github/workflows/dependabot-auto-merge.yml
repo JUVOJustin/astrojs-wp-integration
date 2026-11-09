@@ -1,0 +1,52 @@
+name: Dependency patch merge
+on:
+  workflow_run:
+    workflows: [Quality, Tests]
+    types: [completed]
+permissions:
+  contents: read
+concurrency:
+  group: dependabot-merge-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+jobs:
+  merge:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+      checks: read
+      statuses: read
+    steps:
+      # Never check out or execute dependency PR code with this token.
+      - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const run = context.payload.workflow_run;
+            const prs = await github.paginate(github.rest.repos.listPullRequestsAssociatedWithCommit, {
+              owner, repo, commit_sha: run.head_sha,
+            });
+            for (const candidate of prs) {
+              const { data: pr } = await github.rest.pulls.get({ owner, repo, pull_number: candidate.number });
+              if (pr.state !== 'open' || pr.draft || pr.user.login !== 'dependabot[bot]' ||
+                  pr.head.sha !== run.head_sha || pr.head.repo.full_name !== `${owner}/${repo}` ||
+                  pr.base.ref !== 'main' || !pr.head.ref.startsWith('dependabot/npm_and_yarn/')) continue;
+              const patchGroup = /\/patch-/.test(pr.head.ref);
+              const version = pr.title.match(/^Bump (.+) from (\d+)\.(\d+)\.(\d+) to (\d+)\.(\d+)\.(\d+)(?: |$)/);
+              const patch = version && version[2] === version[5] && version[3] === version[6] && Number(version[7]) > Number(version[4]);
+              const pnpmMinor = version && version[1] === 'pnpm' && version[2] === version[5];
+              if (!patchGroup && !patch && !pnpmMinor) continue;
+              const checks = await github.paginate(github.rest.checks.listForRef, {
+                owner, repo, ref: pr.head.sha, filter: 'latest',
+              });
+              const required = ['biome', 'integration-tests', 'astro-build-tests'];
+              if (!required.every(name => checks.some(c => c.name === name && c.conclusion === 'success'))) continue;
+              if (checks.some(c => c.status !== 'completed' || c.conclusion !== 'success')) continue;
+              const { data: status } = await github.rest.repos.getCombinedStatusForRef({ owner, repo, ref: pr.head.sha });
+              if (status.statuses.length && status.state !== 'success') continue;
+              const { data: current } = await github.rest.pulls.get({ owner, repo, pull_number: pr.number });
+              if (current.head.sha !== pr.head.sha || current.mergeable_state !== 'clean') continue;
+              await github.rest.pulls.merge({ owner, repo, pull_number: pr.number, sha: pr.head.sha, merge_method: 'squash' });
+            }

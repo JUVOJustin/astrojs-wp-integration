@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest';
+
 import { ActionError, callAction } from '../../helpers/action-client';
 
 /**
@@ -12,11 +13,11 @@ describe('Actions: Abilities', () => {
     await callAction(
       'deleteAbility',
       {
-        name: 'test/delete-option',
         input: optionKey,
+        name: 'test/delete-option',
       },
-      { authHeader: basicAuth },
-    ).catch(() => undefined);
+      { authHeader: basicAuth }
+    ).catch(() => {});
   });
 
   it('supports typed response schema in get ability action', async () => {
@@ -25,7 +26,7 @@ describe('Actions: Abilities', () => {
       {
         name: 'test/get-site-title',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     expect(result.title.length).toBeGreaterThan(0);
@@ -37,7 +38,7 @@ describe('Actions: Abilities', () => {
       {
         name: 'test/get-site-title',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     expect(result.title.length).toBeGreaterThan(0);
@@ -47,10 +48,10 @@ describe('Actions: Abilities', () => {
     const result = await callAction<{ current: string }>(
       'runAbility',
       {
-        name: 'test/update-option',
         input: { key: optionKey, value: 'astro-action-typed-run' },
+        name: 'test/update-option',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     expect(result.current).toBe('astro-action-typed-run');
@@ -60,27 +61,27 @@ describe('Actions: Abilities', () => {
     await callAction(
       'runAbility',
       {
-        name: 'test/update-option',
         input: { key: optionKey, value: 'astro-action-delete-seed' },
+        name: 'test/update-option',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     const result = await callAction<{ deleted: boolean }>(
       'deleteAbility',
       {
-        name: 'test/delete-option',
         input: optionKey,
+        name: 'test/delete-option',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
-    expect(result.deleted).toBe(true);
+    expect(result.deleted).toBeTruthy();
   });
 
   it('maps ability auth failures to ActionError', async () => {
     await expect(
-      callAction('getAbility', { name: 'test/get-site-title' }),
+      callAction('getAbility', { name: 'test/get-site-title' })
     ).rejects.toThrow(ActionError);
   });
 });

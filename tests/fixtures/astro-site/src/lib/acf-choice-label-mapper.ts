@@ -1,11 +1,12 @@
-type AcfChoice = {
+interface AcfChoice {
   label: string;
   value: string;
-};
+}
 
-type EntryWithAcf = {
+interface EntryWithAcf {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- ACF field names come from the fixture registration; scenarios assert their expected values.
   acf?: Record<string, unknown> | null;
-};
+}
 
 /**
  * Creates one callback that can normalize ACF choices for loaders and actions.
@@ -19,7 +20,7 @@ export function createAcfChoiceLabelMapper(baseUrl: string) {
 
   return async function mapAcfChoiceLabels<TEntry extends EntryWithAcf>(
     entry: TEntry,
-    _context: { resource: string },
+    _context: { resource: string }
   ): Promise<TEntry> {
     if (!entry.acf) {
       return entry;
@@ -33,7 +34,7 @@ export function createAcfChoiceLabelMapper(baseUrl: string) {
         Object.entries(entry.acf).map(([fieldName, value]) => [
           fieldName,
           choiceLabels.get(fieldName)?.get(String(value)) ?? value,
-        ]),
+        ])
       ),
     };
   };
@@ -41,7 +42,7 @@ export function createAcfChoiceLabelMapper(baseUrl: string) {
 
 async function getChoiceLabels(
   baseUrl: string,
-  lookups: Map<string, Promise<Map<string, Map<string, string>>>>,
+  lookups: Map<string, Promise<Map<string, Map<string, string>>>>
 ): Promise<Map<string, Map<string, string>>> {
   if (!lookups.has('acf-choices')) {
     lookups.set('acf-choices', loadChoiceLabels(baseUrl));
@@ -51,25 +52,28 @@ async function getChoiceLabels(
 }
 
 async function loadChoiceLabels(
-  baseUrl: string,
+  baseUrl: string
 ): Promise<Map<string, Map<string, string>>> {
   const response = await fetch(
-    `${baseUrl.replace(/\/$/, '')}/wp-json/wp-astrojs-integration/v1/acf-choices`,
+    `${baseUrl.replace(/\/$/, '')}/wp-json/wp-astrojs-integration/v1/acf-choices`
   );
 
   if (!response.ok) {
     return new Map();
   }
 
+  // SAFETY: The test ACF catalog endpoint returns registered field keys and their choice arrays.
   const data = (await response.json()) as Record<string, AcfChoice[]>;
   const choiceLabels = new Map<string, Map<string, string>>();
 
   for (const [fieldName, choices] of Object.entries(data)) {
-    if (!Array.isArray(choices)) continue;
+    if (!Array.isArray(choices)) {
+      continue;
+    }
 
     choiceLabels.set(
       fieldName,
-      new Map(choices.map((choice) => [choice.value, choice.label])),
+      new Map(choices.map((choice) => [choice.value, choice.label]))
     );
   }
 

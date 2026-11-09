@@ -7,8 +7,9 @@ import type {
   WordPressPost,
   WordPressPostLike,
   WordPressTag,
+  WordPressClient,
 } from 'fluent-wp-client';
-import { WordPressClient } from 'fluent-wp-client';
+
 import {
   createContentCollectionCacheHint,
   createContentEntryCacheHint,
@@ -18,8 +19,8 @@ import {
   createTermEntryCacheHint,
   createUserCollectionCacheHint,
   createUserEntryCacheHint,
-  type WordPressCacheHint,
 } from '../cache/hints';
+import type { WordPressCacheHint } from '../cache/hints';
 import type {
   CategoryFilter,
   ContentFilter,
@@ -39,23 +40,23 @@ import type {
 /**
  * Minimal embed config shared by post-like live loaders.
  */
-type EmbedConfig = {
+interface EmbedConfig {
   embed?: WordPressEmbedMode;
-};
+}
 
 /**
  * Shared shape used by Astro loader entry payloads.
  */
-type IdentifiableEntry = {
+interface IdentifiableEntry {
   id: number;
-};
+}
 
 /**
  * Astro's live loader callbacks pass an optional wrapped filter object.
  */
-type LiveLoaderContext = {
+interface LiveLoaderContext {
   filter?: unknown;
-};
+}
 
 /**
  * Configuration for one reusable live loader factory.
@@ -68,17 +69,17 @@ interface LiveLoaderDefinition<TEntry extends IdentifiableEntry, TFilter> {
   notFoundError: string;
   loadCollectionData: (
     client: WordPressClient,
-    filter: TFilter | undefined,
+    filter: TFilter | undefined
   ) => Promise<TEntry[]>;
   loadEntryData: (
     client: WordPressClient,
-    filter: TFilter | undefined,
+    filter: TFilter | undefined
   ) => Promise<TEntry | undefined>;
   mapEntry?: WordPressEntryMappingOptions<TEntry, TFilter>['mapEntry'];
   createEntryCacheHint?: (entry: TEntry) => WordPressCacheHint;
   createCollectionCacheHint?: (
     entries: TEntry[],
-    filter: TFilter | undefined,
+    filter: TFilter | undefined
   ) => WordPressCacheHint;
   renderHtml?: (entry: TEntry) => string | undefined;
 }
@@ -88,27 +89,33 @@ interface LiveLoaderDefinition<TEntry extends IdentifiableEntry, TFilter> {
  * filters such as `slug`, `search`, `include`, and custom query params.
  */
 function stripEntryLookupId<T extends { id?: unknown }>(
-  filter: T,
+  filter: T
 ): Omit<T, 'id'> {
   const { id: _id, ...rest } = filter;
+
   return rest;
 }
 
 /**
  * Unwraps Astro's optional nested `filter` shape into the real loader filter.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Astro and the legacy wrapper supply different filter envelopes at this callback boundary.
 function normalizeLoaderFilter<TFilter>(filter: unknown): TFilter | undefined {
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Unwrap the legacy Astro filter envelope while preserving direct filters.
   if (typeof filter === 'object' && filter !== null && 'filter' in filter) {
-    return (filter as { filter?: TFilter }).filter;
+    // SAFETY: The legacy Astro wrapper carries the same resource filter as the direct callback input.
+    return filter.filter as TFilter | undefined;
   }
 
+  // SAFETY: Public loader signatures bind this callback input to their resource-specific filter type.
   return filter as TFilter | undefined;
 }
 
 /**
  * Converts one thrown value into Astro's expected loader error shape.
  */
-function createLoaderError(message: string, error: unknown): { error: Error } {
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- JavaScript can throw non-Error values; Astro expects an Error result.
+function createLoaderError(message: string, error: unknown) {
   return {
     error: error instanceof Error ? error : new Error(message),
   };
@@ -120,10 +127,10 @@ function createLoaderError(message: string, error: unknown): { error: Error } {
 async function mapLiveEntry<TEntry extends IdentifiableEntry, TFilter>(
   entry: TEntry,
   definition: LiveLoaderDefinition<TEntry, TFilter>,
-  filter: TFilter | undefined,
+  filter: TFilter | undefined
 ): Promise<TEntry> {
   return definition.mapEntry
-    ? definition.mapEntry(entry, { resource: definition.resource, filter })
+    ? definition.mapEntry(entry, { filter, resource: definition.resource })
     : entry;
 }
 
@@ -133,27 +140,22 @@ async function mapLiveEntry<TEntry extends IdentifiableEntry, TFilter>(
 function createLiveEntry<TEntry extends IdentifiableEntry>(
   entry: TEntry,
   cacheHint?: WordPressCacheHint,
-  renderHtml?: (entry: TEntry) => string | undefined,
-): {
-  id: string;
-  data: TEntry;
-  cacheHint?: WordPressCacheHint;
-  rendered?: { html: string };
-} {
+  renderHtml?: (entry: TEntry) => string | undefined
+) {
   const html = renderHtml?.(entry);
 
   if (!html) {
     return {
-      id: String(entry.id),
       data: entry,
-      ...(cacheHint ? { cacheHint } : {}),
+      id: String(entry.id),
+      ...(cacheHint ? { cacheHint } : undefined),
     };
   }
 
   return {
     id: String(entry.id),
     data: entry,
-    ...(cacheHint ? { cacheHint } : {}),
+    ...(cacheHint ? { cacheHint } : undefined),
     rendered: { html },
   };
 }
@@ -162,12 +164,15 @@ function createLiveEntry<TEntry extends IdentifiableEntry>(
  * Free-text searches can change membership when any matching or formerly
  * matching entity changes, so only per-entry hints are safe for these results.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- The shared loader must inspect filters for resources with different query fields.
 function hasFreeTextSearchFilter(filter: unknown): boolean {
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Only object filters can contain a search query.
   if (typeof filter !== 'object' || filter === null) {
     return false;
   }
 
-  return typeof (filter as { search?: unknown }).search === 'string';
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Only string searches can affect collection membership.
+  return 'search' in filter && typeof filter.search === 'string';
 }
 
 /**
@@ -175,34 +180,24 @@ function hasFreeTextSearchFilter(filter: unknown): boolean {
  */
 function createLiveWordPressLoader<TEntry extends IdentifiableEntry, TFilter>(
   client: WordPressClient,
-  definition: LiveLoaderDefinition<TEntry, TFilter>,
-): {
-  name: string;
-  loadCollection: (context: LiveLoaderContext) => Promise<
-    | {
-        entries: ReturnType<typeof createLiveEntry<TEntry>>[];
-        cacheHint?: WordPressCacheHint;
-      }
-    | { error: Error }
-  >;
-  loadEntry: (
-    context: LiveLoaderContext,
-  ) => Promise<ReturnType<typeof createLiveEntry<TEntry>> | { error: Error }>;
-} {
+  definition: LiveLoaderDefinition<TEntry, TFilter>
+) {
   return {
-    name: definition.name,
     loadCollection: async ({ filter }: LiveLoaderContext) => {
       try {
         const resolvedFilter = normalizeLoaderFilter<TFilter>(filter);
+
         const entries = await definition.loadCollectionData(
           client,
-          resolvedFilter,
+          resolvedFilter
         );
+
         const mappedEntries = await Promise.all(
           entries.map((entry) =>
-            mapLiveEntry(entry, definition, resolvedFilter),
-          ),
+            mapLiveEntry(entry, definition, resolvedFilter)
+          )
         );
+
         const cacheHint = hasFreeTextSearchFilter(resolvedFilter)
           ? undefined
           : definition.createCollectionCacheHint?.(entries, resolvedFilter);
@@ -212,10 +207,10 @@ function createLiveWordPressLoader<TEntry extends IdentifiableEntry, TFilter>(
             createLiveEntry(
               entry,
               definition.createEntryCacheHint?.(entries[index]),
-              definition.renderHtml,
-            ),
+              definition.renderHtml
+            )
           ),
-          ...(cacheHint ? { cacheHint } : {}),
+          ...(cacheHint ? { cacheHint } : undefined),
         };
       } catch (error) {
         return createLoaderError(definition.collectionError, error);
@@ -229,25 +224,26 @@ function createLiveWordPressLoader<TEntry extends IdentifiableEntry, TFilter>(
         if (!entry) {
           return createLoaderError(
             definition.notFoundError,
-            new Error(definition.notFoundError),
+            new Error(definition.notFoundError)
           );
         }
 
         const mappedEntry = await mapLiveEntry(
           entry,
           definition,
-          resolvedFilter,
+          resolvedFilter
         );
 
         return createLiveEntry(
           mappedEntry,
           definition.createEntryCacheHint?.(entry),
-          definition.renderHtml,
+          definition.renderHtml
         );
       } catch (error) {
         return createLoaderError(definition.entryError, error);
       }
     },
+    name: definition.name,
   };
 }
 
@@ -257,12 +253,13 @@ function createLiveWordPressLoader<TEntry extends IdentifiableEntry, TFilter>(
 async function loadPostEntry(
   client: WordPressClient,
   filter: PostFilter | undefined,
-  options?: EmbedConfig,
+  options?: EmbedConfig
 ): Promise<WordPressPost | undefined> {
   if (filter?.id) {
     return client.content('posts').item(filter.id, { embed: options?.embed });
   }
 
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Collection filters also accept slug arrays; a single-entry lookup requires a string.
   if (typeof filter?.slug === 'string') {
     return client.content('posts').item(filter.slug, { embed: options?.embed });
   }
@@ -276,12 +273,13 @@ async function loadPostEntry(
 async function loadPageEntry(
   client: WordPressClient,
   filter: PageFilter | undefined,
-  options?: EmbedConfig,
+  options?: EmbedConfig
 ): Promise<WordPressPage | undefined> {
   if (filter?.id) {
     return client.content('pages').item(filter.id, { embed: options?.embed });
   }
 
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Collection filters also accept slug arrays; a single-entry lookup requires a string.
   if (typeof filter?.slug === 'string') {
     return client.content('pages').item(filter.slug, { embed: options?.embed });
   }
@@ -294,12 +292,13 @@ async function loadPageEntry(
  */
 async function loadMediaEntry(
   client: WordPressClient,
-  filter: MediaFilter | undefined,
+  filter: MediaFilter | undefined
 ): Promise<WordPressMedia | undefined> {
   if (filter?.id) {
     return client.media().item(filter.id);
   }
 
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Collection filters also accept slug arrays; a single-entry lookup requires a string.
   if (typeof filter?.slug === 'string') {
     return client.media().item(filter.slug);
   }
@@ -312,12 +311,13 @@ async function loadMediaEntry(
  */
 async function loadCategoryEntry(
   client: WordPressClient,
-  filter: CategoryFilter | undefined,
+  filter: CategoryFilter | undefined
 ): Promise<WordPressCategory | undefined> {
   if (filter?.id) {
     return client.terms('categories').item(filter.id);
   }
 
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Collection filters also accept slug arrays; a single-entry lookup requires a string.
   if (typeof filter?.slug === 'string') {
     return client.terms('categories').item(filter.slug);
   }
@@ -330,12 +330,13 @@ async function loadCategoryEntry(
  */
 async function loadTagEntry(
   client: WordPressClient,
-  filter: TagFilter | undefined,
+  filter: TagFilter | undefined
 ): Promise<WordPressTag | undefined> {
   if (filter?.id) {
     return client.terms('tags').item(filter.id);
   }
 
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Collection filters also accept slug arrays; a single-entry lookup requires a string.
   if (typeof filter?.slug === 'string') {
     return client.terms('tags').item(filter.slug);
   }
@@ -365,12 +366,13 @@ function createTermQueryFilter(filter: TermFilter | undefined): TermFilter {
 async function loadTermEntry(
   client: WordPressClient,
   resource: string,
-  filter: TermFilter | undefined,
+  filter: TermFilter | undefined
 ): Promise<WordPressCategory | undefined> {
   if (filter?.id) {
     return client.terms(resource).item(filter.id);
   }
 
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Collection filters also accept slug arrays; a single-entry lookup requires a string.
   if (typeof filter?.slug === 'string') {
     return client.terms(resource).item(filter.slug);
   }
@@ -383,7 +385,7 @@ async function loadTermEntry(
  */
 async function loadUserEntry(
   client: WordPressClient,
-  filter: UserFilter | undefined,
+  filter: UserFilter | undefined
 ): Promise<WordPressAuthor | undefined> {
   if (filter?.id) {
     return client.users().item(filter.id);
@@ -394,6 +396,7 @@ async function loadUserEntry(
   }
 
   const users = await client.users().list({ search: filter.slug });
+
   return users.find((candidate) => candidate.slug === filter.slug);
 }
 
@@ -402,28 +405,28 @@ async function loadUserEntry(
  */
 export function wordPressPostLoader(
   client: WordPressClient,
-  options?: WordPressLiveContentLoaderOptions<WordPressPost, PostFilter>,
-): LiveLoader<WordPressPost, PostFilter> {
+  options?: WordPressLiveContentLoaderOptions<WordPressPost, PostFilter>
+): LiveLoader<WordPressPost, PostFilter, PostFilter> {
   return createLiveWordPressLoader<WordPressPost, PostFilter>(client, {
-    name: 'wordpress-post-loader',
-    resource: 'posts',
     collectionError: 'Failed to load posts',
-    entryError: 'Failed to load post',
-    notFoundError: 'Post not found',
-    createEntryCacheHint: (entry) =>
-      createContentEntryCacheHint('posts', entry),
     createCollectionCacheHint: (entries) =>
       createContentCollectionCacheHint('posts', entries),
+    createEntryCacheHint: (entry) =>
+      createContentEntryCacheHint('posts', entry),
+    entryError: 'Failed to load post',
     loadCollectionData: (client, filter: PostFilter | undefined) =>
       client.content('posts').list({
-        ...(filter ? stripEntryLookupId(filter) : {}),
+        ...(filter ? stripEntryLookupId(filter) : undefined),
         embed: options?.embed,
-      } as never),
-    mapEntry: options?.mapEntry,
+      }),
     loadEntryData: (client, filter: PostFilter | undefined) =>
       loadPostEntry(client, filter, options),
+    mapEntry: options?.mapEntry,
+    name: 'wordpress-post-loader',
+    notFoundError: 'Post not found',
     renderHtml: (entry) => entry.content.rendered,
-  }) as LiveLoader<WordPressPost, PostFilter>;
+    resource: 'posts',
+  });
 }
 
 /**
@@ -431,28 +434,28 @@ export function wordPressPostLoader(
  */
 export function wordPressPageLoader(
   client: WordPressClient,
-  options?: WordPressLiveContentLoaderOptions<WordPressPage, PageFilter>,
-): LiveLoader<WordPressPage, PageFilter> {
+  options?: WordPressLiveContentLoaderOptions<WordPressPage, PageFilter>
+): LiveLoader<WordPressPage, PageFilter, PageFilter> {
   return createLiveWordPressLoader<WordPressPage, PageFilter>(client, {
-    name: 'wordpress-page-loader',
-    resource: 'pages',
     collectionError: 'Failed to load pages',
-    entryError: 'Failed to load page',
-    notFoundError: 'Page not found',
-    createEntryCacheHint: (entry) =>
-      createContentEntryCacheHint('pages', entry),
     createCollectionCacheHint: (entries) =>
       createContentCollectionCacheHint('pages', entries),
+    createEntryCacheHint: (entry) =>
+      createContentEntryCacheHint('pages', entry),
+    entryError: 'Failed to load page',
     loadCollectionData: (client, filter: PageFilter | undefined) =>
       client.content('pages').list({
-        ...(filter ? stripEntryLookupId(filter) : {}),
+        ...(filter ? stripEntryLookupId(filter) : undefined),
         embed: options?.embed,
-      } as never),
-    mapEntry: options?.mapEntry,
+      }),
     loadEntryData: (client, filter: PageFilter | undefined) =>
       loadPageEntry(client, filter, options),
+    mapEntry: options?.mapEntry,
+    name: 'wordpress-page-loader',
+    notFoundError: 'Page not found',
     renderHtml: (entry) => entry.content.rendered,
-  }) as LiveLoader<WordPressPage, PageFilter>;
+    resource: 'pages',
+  });
 }
 
 /**
@@ -460,24 +463,24 @@ export function wordPressPageLoader(
  */
 export function wordPressMediaLoader(
   client: WordPressClient,
-  options?: WordPressEntryMappingOptions<WordPressMedia, MediaFilter>,
-): LiveLoader<WordPressMedia, MediaFilter> {
+  options?: WordPressEntryMappingOptions<WordPressMedia, MediaFilter>
+): LiveLoader<WordPressMedia, MediaFilter, MediaFilter> {
   return createLiveWordPressLoader<WordPressMedia, MediaFilter>(client, {
-    name: 'wordpress-media-loader',
-    resource: 'media',
     collectionError: 'Failed to load media',
-    entryError: 'Failed to load media',
-    notFoundError: 'Media not found',
-    createEntryCacheHint: createMediaEntryCacheHint,
     createCollectionCacheHint: (entries) =>
       createMediaCollectionCacheHint(entries),
+    createEntryCacheHint: createMediaEntryCacheHint,
+    entryError: 'Failed to load media',
     loadCollectionData: (client, filter) =>
       filter
         ? client.media().list(stripEntryLookupId(filter))
         : client.media().listAll(),
     loadEntryData: loadMediaEntry,
     mapEntry: options?.mapEntry,
-  }) as LiveLoader<WordPressMedia, MediaFilter>;
+    name: 'wordpress-media-loader',
+    notFoundError: 'Media not found',
+    resource: 'media',
+  });
 }
 
 /**
@@ -485,26 +488,26 @@ export function wordPressMediaLoader(
  */
 export function wordPressCategoryLoader(
   client: WordPressClient,
-  options?: WordPressEntryMappingOptions<WordPressCategory, CategoryFilter>,
-): LiveLoader<WordPressCategory, CategoryFilter> {
+  options?: WordPressEntryMappingOptions<WordPressCategory, CategoryFilter>
+): LiveLoader<WordPressCategory, CategoryFilter, CategoryFilter> {
   return createLiveWordPressLoader<WordPressCategory, CategoryFilter>(client, {
-    name: 'wordpress-category-loader',
-    resource: 'categories',
     collectionError: 'Failed to load categories',
-    entryError: 'Failed to load category',
-    notFoundError: 'Category not found',
-    createEntryCacheHint: (entry) =>
-      createTermEntryCacheHint('categories', entry),
     createCollectionCacheHint: (entries) =>
       createTermCollectionCacheHint('categories', entries),
+    createEntryCacheHint: (entry) =>
+      createTermEntryCacheHint('categories', entry),
+    entryError: 'Failed to load category',
     loadCollectionData: (client, filter) =>
       client.terms('categories').list({
-        ...(filter ? stripEntryLookupId(filter) : {}),
+        ...(filter ? stripEntryLookupId(filter) : undefined),
         hideEmpty: filter?.hideEmpty ?? filter?.hide_empty,
       }),
     loadEntryData: loadCategoryEntry,
     mapEntry: options?.mapEntry,
-  }) as LiveLoader<WordPressCategory, CategoryFilter>;
+    name: 'wordpress-category-loader',
+    notFoundError: 'Category not found',
+    resource: 'categories',
+  });
 }
 
 /**
@@ -512,25 +515,25 @@ export function wordPressCategoryLoader(
  */
 export function wordPressTagLoader(
   client: WordPressClient,
-  options?: WordPressEntryMappingOptions<WordPressTag, TagFilter>,
-): LiveLoader<WordPressTag, TagFilter> {
+  options?: WordPressEntryMappingOptions<WordPressTag, TagFilter>
+): LiveLoader<WordPressTag, TagFilter, TagFilter> {
   return createLiveWordPressLoader<WordPressTag, TagFilter>(client, {
-    name: 'wordpress-tag-loader',
-    resource: 'tags',
     collectionError: 'Failed to load tags',
-    entryError: 'Failed to load tag',
-    notFoundError: 'Tag not found',
-    createEntryCacheHint: (entry) => createTermEntryCacheHint('tags', entry),
     createCollectionCacheHint: (entries) =>
       createTermCollectionCacheHint('tags', entries),
+    createEntryCacheHint: (entry) => createTermEntryCacheHint('tags', entry),
+    entryError: 'Failed to load tag',
     loadCollectionData: (client, filter) =>
       client.terms('tags').list({
-        ...(filter ? stripEntryLookupId(filter) : {}),
+        ...(filter ? stripEntryLookupId(filter) : undefined),
         hideEmpty: filter?.hideEmpty ?? filter?.hide_empty,
       }),
     loadEntryData: loadTagEntry,
     mapEntry: options?.mapEntry,
-  }) as LiveLoader<WordPressTag, TagFilter>;
+    name: 'wordpress-tag-loader',
+    notFoundError: 'Tag not found',
+    resource: 'tags',
+  });
 }
 
 /**
@@ -538,25 +541,25 @@ export function wordPressTagLoader(
  */
 export function wordPressTermLoader(
   client: WordPressClient,
-  options: WordPressTermLoaderOptions<WordPressCategory, TermFilter>,
-): LiveLoader<WordPressCategory, TermFilter> {
+  options: WordPressTermLoaderOptions<WordPressCategory, TermFilter>
+): LiveLoader<WordPressCategory, TermFilter, TermFilter> {
   const { resource } = options;
 
   return createLiveWordPressLoader<WordPressCategory, TermFilter>(client, {
-    name: 'wordpress-term-loader',
-    resource,
     collectionError: `Failed to load ${resource}`,
-    entryError: `Failed to load ${resource} term`,
-    notFoundError: `${resource} term not found`,
-    createEntryCacheHint: (entry) => createTermEntryCacheHint(resource, entry),
     createCollectionCacheHint: (entries) =>
       createTermCollectionCacheHint(resource, entries),
+    createEntryCacheHint: (entry) => createTermEntryCacheHint(resource, entry),
+    entryError: `Failed to load ${resource} term`,
     loadCollectionData: (client, filter: TermFilter | undefined) =>
       client.terms(resource).list(createTermQueryFilter(filter)),
     loadEntryData: (client, filter: TermFilter | undefined) =>
       loadTermEntry(client, resource, filter),
     mapEntry: options.mapEntry,
-  }) as LiveLoader<WordPressCategory, TermFilter>;
+    name: 'wordpress-term-loader',
+    notFoundError: `${resource} term not found`,
+    resource,
+  });
 }
 
 /**
@@ -565,26 +568,23 @@ export function wordPressTermLoader(
  * The v3 client returns the broader post-like shape for generic resources,
  * while Astro collections still expose this loader as post-compatible data.
  */
-async function loadContentEntry(
+async function loadContentEntry<TEntry extends WordPressPostLike>(
   client: WordPressClient,
   resource: string,
   filter: ContentFilter | undefined,
-  options?: EmbedConfig,
-): Promise<WordPressPost | undefined> {
+  options?: EmbedConfig
+): Promise<TEntry | undefined> {
   if (filter?.id) {
     return client
-      .content(resource)
-      .item(filter.id, { embed: options?.embed }) as unknown as Promise<
-      WordPressPost | undefined
-    >;
+      .content<TEntry>(resource)
+      .item(filter.id, { embed: options?.embed });
   }
 
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Collection filters also accept slug arrays; a single-entry lookup requires a string.
   if (typeof filter?.slug === 'string') {
     return client
-      .content(resource)
-      .item(filter.slug, { embed: options?.embed }) as unknown as Promise<
-      WordPressPost | undefined
-    >;
+      .content<TEntry>(resource)
+      .item(filter.slug, { embed: options?.embed });
   }
 
   return undefined;
@@ -595,23 +595,23 @@ async function loadContentEntry(
  */
 export function wordPressUserLoader(
   client: WordPressClient,
-  options?: WordPressEntryMappingOptions<WordPressAuthor, UserFilter>,
-): LiveLoader<WordPressAuthor, UserFilter> {
+  options?: WordPressEntryMappingOptions<WordPressAuthor, UserFilter>
+): LiveLoader<WordPressAuthor, UserFilter, UserFilter> {
   return createLiveWordPressLoader<WordPressAuthor, UserFilter>(client, {
-    name: 'wordpress-user-loader',
-    resource: 'users',
     collectionError: 'Failed to load users',
-    entryError: 'Failed to load user',
-    notFoundError: 'User not found',
-    createEntryCacheHint: createUserEntryCacheHint,
     createCollectionCacheHint: () => createUserCollectionCacheHint(),
+    createEntryCacheHint: createUserEntryCacheHint,
+    entryError: 'Failed to load user',
     loadCollectionData: (client, filter) =>
       client.users().list({
-        ...(filter ? stripEntryLookupId(filter) : {}),
+        ...(filter ? stripEntryLookupId(filter) : undefined),
       }),
     loadEntryData: loadUserEntry,
     mapEntry: options?.mapEntry,
-  }) as LiveLoader<WordPressAuthor, UserFilter>;
+    name: 'wordpress-user-loader',
+    notFoundError: 'User not found',
+    resource: 'users',
+  });
 }
 
 /**
@@ -622,30 +622,28 @@ export function wordPressContentLoader<
   TEntry extends WordPressPostLike = WordPressPost,
 >(
   client: WordPressClient,
-  options: WordPressContentLoaderOptions<TEntry, ContentFilter>,
-): LiveLoader<TEntry, ContentFilter> {
+  options: WordPressContentLoaderOptions<TEntry, ContentFilter>
+): LiveLoader<TEntry, ContentFilter, ContentFilter> {
   const { resource, embed } = options;
 
   return createLiveWordPressLoader<TEntry, ContentFilter>(client, {
-    name: 'wordpress-content-loader',
-    resource,
     collectionError: `Failed to load ${resource}`,
-    entryError: `Failed to load ${resource} entry`,
-    notFoundError: `${resource} entry not found`,
-    createEntryCacheHint: (entry) =>
-      createContentEntryCacheHint(resource, entry),
     createCollectionCacheHint: (entries) =>
       createContentCollectionCacheHint(resource, entries),
+    createEntryCacheHint: (entry) =>
+      createContentEntryCacheHint(resource, entry),
+    entryError: `Failed to load ${resource} entry`,
     loadCollectionData: (client, filter: ContentFilter | undefined) =>
       client.content<TEntry>(resource).list({
-        ...(filter ? stripEntryLookupId(filter) : {}),
+        ...(filter ? stripEntryLookupId(filter) : undefined),
         embed,
-      } as never),
+      }),
     loadEntryData: (client, filter: ContentFilter | undefined) =>
-      loadContentEntry(client, resource, filter, { embed }) as Promise<
-        TEntry | undefined
-      >,
+      loadContentEntry<TEntry>(client, resource, filter, { embed }),
     mapEntry: options.mapEntry,
+    name: 'wordpress-content-loader',
+    notFoundError: `${resource} entry not found`,
     renderHtml: (entry) => entry.content?.rendered,
-  }) as LiveLoader<TEntry, ContentFilter>;
+    resource,
+  });
 }

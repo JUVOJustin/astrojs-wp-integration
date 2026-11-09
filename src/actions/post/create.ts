@@ -1,23 +1,16 @@
-import {
-  type ActionAPIContext,
-  type ActionClient,
-  defineAction,
-} from 'astro:actions';
-import { z } from 'astro/zod';
+import type { z } from 'astro/zod';
+import { defineAction } from 'astro:actions';
+import type { ActionAPIContext, ActionClient } from 'astro:actions';
 import type { WordPressClient } from 'fluent-wp-client';
-import {
-  postWriteBaseSchema,
-  type WordPressPost,
-  type WordPressPostWriteBase,
-  type WordPressStandardSchema,
+import { postWriteBaseSchema } from 'fluent-wp-client/zod';
+import type {
+  WordPressPost,
+  WordPressStandardSchema,
 } from 'fluent-wp-client/zod';
+
 import { validateActionResponse } from '../response-validation';
-import {
-  type ActionResponseMapper,
-  type ResolvableActionClient,
-  resolveRequiredActionClient,
-  withActionClient,
-} from './client';
+import { resolveRequiredActionClient, withActionClient } from './client';
+import type { ActionResponseMapper, ResolvableActionClient } from './client';
 import { getDefaultContentResponseSchema } from './response-schema';
 
 /**
@@ -49,10 +42,7 @@ export interface ExecuteCreateOptions<T = WordPressPost> {
   /** Standard Schema-compatible parser used for the response (default: postSchema) */
   responseSchema?: WordPressStandardSchema<T>;
   /** Optional mapper for successful WordPress responses before validation/return */
-  mapResponse?: ActionResponseMapper<
-    T,
-    CreatePostInput & Record<string, unknown>
-  >;
+  mapResponse?: ActionResponseMapper<T, CreatePostInput>;
 }
 
 /**
@@ -69,10 +59,7 @@ export interface CreatePostActionOptions<T = WordPressPost> {
   /** Optional parser override for the action response */
   responseSchema?: WordPressStandardSchema<T>;
   /** Optional mapper for successful WordPress responses before validation/return */
-  mapResponse?: ActionResponseMapper<
-    T,
-    CreatePostInput & Record<string, unknown>
-  >;
+  mapResponse?: ActionResponseMapper<T, CreatePostInput>;
 }
 
 /**
@@ -98,15 +85,15 @@ type CreatePostActionFactoryOptions<
  */
 export async function executeCreatePost<T = WordPressPost>(
   client: WordPressClient,
-  input: CreatePostInput & Record<string, unknown>,
-  options?: ExecuteCreateOptions<T>,
+  input: CreatePostInput,
+  options?: ExecuteCreateOptions<T>
 ): Promise<T> {
   const resource = options?.resource ?? 'posts';
 
   return withActionClient(client, async (resolvedClient) => {
-    const created = (await resolvedClient
-      .content(resource)
-      .create(input as WordPressPostWriteBase)) as T;
+    // SAFETY: mapResponse receives SDK data before validation; the configured responseSchema validates the mapped T.
+    const created = (await resolvedClient.content(resource).create(input)) as T;
+
     const mapped = options?.mapResponse
       ? await options.mapResponse(created, {
           client: resolvedClient,
@@ -115,13 +102,15 @@ export async function executeCreatePost<T = WordPressPost>(
           resource,
         })
       : created;
+
+    // SAFETY: An explicitly chosen T requires a matching responseSchema; the fallback serves the default resource type.
     const responseSchema = (options?.responseSchema ??
       getDefaultContentResponseSchema(resource)) as WordPressStandardSchema<T>;
 
     return validateActionResponse(
       mapped,
       responseSchema,
-      `WordPress ${resource} create action`,
+      `WordPress ${resource} create action`
     );
   });
 }
@@ -148,31 +137,32 @@ export function createCreatePostAction<
   TSchema extends typeof createPostInputSchema = typeof createPostInputSchema,
 >(
   client: ResolvableActionClient,
-  options?: CreatePostActionFactoryOptions<TResponse, TSchema>,
+  options?: CreatePostActionFactoryOptions<TResponse, TSchema>
 ): ActionClient<TResponse, undefined, TSchema> & string;
 export function createCreatePostAction<
   TResponse = WordPressPost,
   TSchema extends typeof createPostInputSchema = typeof createPostInputSchema,
 >(
   client: ResolvableActionClient,
-  options?: CreatePostActionFactoryOptions<TResponse, TSchema>,
+  options?: CreatePostActionFactoryOptions<TResponse, TSchema>
 ): ActionClient<TResponse, undefined, TSchema> & string {
+  // SAFETY: A custom schema carries TSchema; otherwise the factory uses its default schema.
   const inputSchema = (options?.schema ?? createPostInputSchema) as TSchema;
   const resource = options?.resource;
   const responseSchema = options?.responseSchema;
   const mapResponse = options?.mapResponse;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // SAFETY: Astro's generated action proxy supplies the callable and string-coercion API.
   return defineAction({
     input: inputSchema,
     handler: async (input: z.infer<TSchema>, context: ActionAPIContext) => {
       const resolvedClient = await resolveRequiredActionClient(client, context);
 
-      return executeCreatePost<TResponse>(
-        resolvedClient,
-        input as CreatePostInput & Record<string, unknown>,
-        { resource, responseSchema, mapResponse },
-      );
+      return executeCreatePost<TResponse>(resolvedClient, input, {
+        mapResponse,
+        resource,
+        responseSchema,
+      });
     },
-  } as any) as ActionClient<TResponse, undefined, TSchema> & string;
+  }) as ActionClient<TResponse, undefined, TSchema> & string;
 }

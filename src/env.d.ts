@@ -26,23 +26,27 @@ declare module 'astro:actions' {
     readonly fields: Record<string, string[]>;
   }
 
-  export type ActionResult<TData> = {
+  export interface ActionResult<TData> {
     data: TData | undefined;
     error: ActionError | undefined;
-  };
+  }
 
   export interface ActionClient<
     TData = unknown,
     TAccept = 'json' | 'form' | undefined,
     TSchema = unknown,
   > {
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Astro action inputs are validated by each action schema at runtime.
     (input: unknown): Promise<ActionResult<TData>>;
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Astro action inputs are validated by each action schema at runtime.
     orThrow(input: unknown): Promise<TData>;
     queryString?: string;
     toString(): string;
   }
 
-  export type ActionAPIContext = import('astro').APIContext;
+  import type { APIContext } from 'astro';
+
+  export type ActionAPIContext = APIContext;
 
   export interface DefineActionOptions<
     TInput,
@@ -61,7 +65,7 @@ declare module 'astro:actions' {
     TSchema = unknown,
     TAccept extends 'json' | 'form' | undefined = undefined,
   >(
-    options: DefineActionOptions<TInput, TData, TSchema, TAccept>,
+    options: DefineActionOptions<TInput, TData, TSchema, TAccept>
   ): ActionClient<TData, TAccept, TSchema>;
 
   export function isActionError(error: unknown): error is ActionError;
@@ -69,16 +73,17 @@ declare module 'astro:actions' {
 }
 
 declare module 'astro:content' {
-  export type LiveDataEntry<TData = unknown> = {
+  export interface LiveDataEntry<TData = unknown> {
     id: string;
     data: TData;
     cacheHint?: unknown;
     rendered?: { html: string };
-  };
+  }
 
   export function getLiveEntry(
     collection: string,
-    filter: unknown,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Astro resolves collection-specific filter types in generated application declarations.
+    filter: unknown
   ): Promise<{
     entry?: LiveDataEntry;
     error?: Error;
@@ -87,7 +92,8 @@ declare module 'astro:content' {
 
   export function getLiveCollection(
     collection: string,
-    filter?: unknown,
+    // oxlint-disable-next-line anti-slop/no-unknown-parameters -- Astro resolves collection-specific filter types in generated application declarations.
+    filter?: unknown
   ): Promise<{
     entries: LiveDataEntry[];
     error?: Error;
@@ -108,11 +114,11 @@ declare module 'virtual:wp-astrojs/catalog' {
   export const hasCatalog: boolean;
 
   export function seedWordPressClient<TClient extends WordPressClient>(
-    client: TClient,
+    client: TClient
   ): TClient;
 
   export function createWordPressClient(
-    config?: WordPressClientConfig,
+    config?: WordPressClientConfig
   ): WordPressClient;
 
   export const defineWordPressClient: typeof createWordPressClient;
@@ -133,11 +139,11 @@ declare module 'virtual:wp-astrojs/schemas' {
 
   export function getWordPressResourceSchemas(
     resource: string,
-    options?: WordPressCatalogSchemaOptions,
+    options?: WordPressCatalogSchemaOptions
   ): ResourceZodSchemas;
 
   export function getWordPressContentSchemas(
-    resource: string,
+    resource: string
   ): ResourceZodSchemas;
 
   export function getWordPressTermSchemas(resource: string): ResourceZodSchemas;
@@ -146,19 +152,19 @@ declare module 'virtual:wp-astrojs/schemas' {
     TOptions extends Record<string, unknown>,
   >(
     resource: string,
-    options?: TOptions & WordPressCatalogSchemaOptions,
+    options?: TOptions & WordPressCatalogSchemaOptions
   ): TOptions & { schema?: unknown; responseSchema?: unknown };
 }
 
 declare module 'virtual:wp-astrojs/collections' {
-  import type { BaseSchema } from 'astro:content';
-  import type { WordPressGeneratedResourceSchemas } from 'virtual:wp-astrojs/generated-schemas';
-  import type { WordPressCatalogResourceKind } from 'virtual:wp-astrojs/schemas';
   import type { LiveLoader, Loader } from 'astro/loaders';
+  import type { BaseSchema } from 'astro:content';
   import type {
     WordPressClient,
     WordPressClientConfig,
   } from 'fluent-wp-client';
+  import type { WordPressGeneratedResourceSchemas } from 'virtual:wp-astrojs/generated-schemas';
+  import type { WordPressCatalogResourceKind } from 'virtual:wp-astrojs/schemas';
 
   export interface DefineWordPressCollectionOptions<
     TSchema extends BaseSchema = BaseSchema,
@@ -169,6 +175,7 @@ declare module 'virtual:wp-astrojs/collections' {
     clientConfig?: WordPressClientConfig;
     schema?: TSchema;
     loader?: Loader | LiveLoader;
+    // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- WordPress plugin fields are open-ended; each consumer validates the values it uses.
     loaderOptions?: Record<string, unknown>;
   }
 
@@ -183,7 +190,7 @@ declare module 'virtual:wp-astrojs/collections' {
     TSchema extends BaseSchema = GeneratedWordPressSchema<TResource>,
   >(
     resource: TResource,
-    options?: DefineWordPressCollectionOptions<TSchema>,
+    options?: DefineWordPressCollectionOptions<TSchema>
   ): {
     type: 'content_layer' | 'live';
     schema: TSchema;
@@ -194,7 +201,7 @@ declare module 'virtual:wp-astrojs/collections' {
     TSchema extends BaseSchema = BaseSchema,
   >(
     resource: string,
-    options?: DefineWordPressCollectionOptions<TSchema>,
+    options?: DefineWordPressCollectionOptions<TSchema>
   ): {
     type: 'content_layer' | 'live';
     schema: TSchema;
@@ -203,6 +210,6 @@ declare module 'virtual:wp-astrojs/collections' {
 }
 
 declare module 'virtual:wp-astrojs/generated-schemas' {
-  export interface WordPressGeneratedResourceSchemas {}
+  export type WordPressGeneratedResourceSchemas = object;
   export const wordPressGeneratedSchemaMap: WordPressGeneratedResourceSchemas;
 }

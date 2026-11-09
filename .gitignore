@@ -7,3 +7,13 @@ dist
 
 # Temporary env file created by test global-setup
 .test-env.json
+
+.env
+.env.*
+!.env.schema
+.varlock/
+*.tgz
+tests/fixtures/.tmp-*/
+
+# Astro-generated type and content state
+.astro/

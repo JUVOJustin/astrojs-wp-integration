@@ -1,21 +1,15 @@
-import {
-  type ActionAPIContext,
-  type ActionClient,
-  defineAction,
-} from 'astro:actions';
 import { z } from 'astro/zod';
-import type { WordPressClient } from 'fluent-wp-client';
-import {
-  authorSchema,
-  type UserWriteInput,
-  type WordPressAuthor,
-  type WordPressStandardSchema,
+import { defineAction } from 'astro:actions';
+import type { ActionAPIContext, ActionClient } from 'astro:actions';
+import { authorSchema } from 'fluent-wp-client';
+import type {
+  WordPressClient,
+  WordPressAuthor,
+  WordPressStandardSchema,
 } from 'fluent-wp-client';
-import {
-  type ResolvableActionClient,
-  resolveRequiredActionClient,
-  withActionClient,
-} from '../post/client';
+
+import { resolveRequiredActionClient, withActionClient } from '../post/client';
+import type { ResolvableActionClient } from '../post/client';
 import { validateActionResponse } from '../response-validation';
 
 /**
@@ -23,16 +17,16 @@ import { validateActionResponse } from '../response-validation';
  */
 export const createUserInputSchema = z
   .object({
-    username: z.string().min(1),
+    description: z.string().optional(),
     email: z.string().email(),
-    password: z.string().min(1),
-    name: z.string().optional(),
     first_name: z.string().optional(),
     last_name: z.string().optional(),
+    name: z.string().optional(),
     nickname: z.string().optional(),
-    description: z.string().optional(),
+    password: z.string().min(1),
     roles: z.array(z.string()).optional(),
     url: z.string().url().optional(),
+    username: z.string().min(1),
   })
   .passthrough();
 
@@ -76,20 +70,20 @@ type CreateUserActionFactoryOptions<
  */
 export async function executeCreateUser<T = WordPressAuthor>(
   client: WordPressClient,
-  input: CreateUserInput & Record<string, unknown>,
-  options?: ExecuteCreateUserOptions<T>,
+  input: CreateUserInput,
+  options?: ExecuteCreateUserOptions<T>
 ): Promise<T> {
   return withActionClient(client, async (resolvedClient) => {
-    const created = await resolvedClient
-      .users()
-      .create(input as UserWriteInput);
+    const created = await resolvedClient.users().create(input);
+
+    // SAFETY: An explicitly chosen T requires a matching responseSchema; the fallback serves the default resource type.
     const responseSchema = (options?.responseSchema ??
       authorSchema) as WordPressStandardSchema<T>;
 
     return validateActionResponse(
       created,
       responseSchema,
-      'WordPress user create action',
+      'WordPress user create action'
     );
   });
 }
@@ -102,22 +96,21 @@ export function createCreateUserAction<
   TSchema extends typeof createUserInputSchema = typeof createUserInputSchema,
 >(
   client: ResolvableActionClient,
-  options?: CreateUserActionFactoryOptions<TResponse, TSchema>,
+  options?: CreateUserActionFactoryOptions<TResponse, TSchema>
 ): ActionClient<TResponse, undefined, TSchema> & string {
+  // SAFETY: A custom schema carries TSchema; otherwise the factory uses its default schema.
   const inputSchema = (options?.schema ?? createUserInputSchema) as TSchema;
   const responseSchema = options?.responseSchema;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // SAFETY: Astro's generated action proxy supplies the callable and string-coercion API.
   return defineAction({
     input: inputSchema,
     handler: async (input: z.infer<TSchema>, context: ActionAPIContext) => {
       const resolvedClient = await resolveRequiredActionClient(client, context);
 
-      return executeCreateUser<TResponse>(
-        resolvedClient,
-        input as CreateUserInput & Record<string, unknown>,
-        { responseSchema },
-      );
+      return executeCreateUser<TResponse>(resolvedClient, input, {
+        responseSchema,
+      });
     },
-  } as any) as ActionClient<TResponse, undefined, TSchema> & string;
+  }) as ActionClient<TResponse, undefined, TSchema> & string;
 }

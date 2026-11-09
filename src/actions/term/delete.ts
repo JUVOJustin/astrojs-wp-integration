@@ -1,22 +1,17 @@
-import {
-  type ActionAPIContext,
-  type ActionClient,
-  defineAction,
-} from 'astro:actions';
 import { z } from 'astro/zod';
+import { defineAction } from 'astro:actions';
+import type { ActionAPIContext, ActionClient } from 'astro:actions';
 import type { WordPressClient } from 'fluent-wp-client';
-import {
-  type ResolvableActionClient,
-  resolveRequiredActionClient,
-  withActionClient,
-} from '../post/client';
+
+import { resolveRequiredActionClient, withActionClient } from '../post/client';
+import type { ResolvableActionClient } from '../post/client';
 
 /**
  * Input schema for deleting one WordPress term.
  */
 export const deleteTermInputSchema = z.object({
-  id: z.number().int().positive(),
   force: z.boolean().optional(),
+  id: z.number().int().positive(),
 });
 
 export type DeleteTermInput = z.infer<typeof deleteTermInputSchema>;
@@ -24,7 +19,10 @@ export type DeleteTermInput = z.infer<typeof deleteTermInputSchema>;
 /**
  * Normalized result returned by `executeDeleteTerm`.
  */
-export type DeleteTermResult = { id: number; deleted: boolean };
+export interface DeleteTermResult {
+  id: number;
+  deleted: boolean;
+}
 
 /**
  * Low-level options accepted by `executeDeleteTerm`.
@@ -58,7 +56,7 @@ export type DeleteTermActionConfig = DeleteTermActionOptions;
 export async function executeDeleteTerm(
   client: WordPressClient,
   input: DeleteTermInput,
-  options?: ExecuteDeleteTermOptions,
+  options?: ExecuteDeleteTermOptions
 ): Promise<DeleteTermResult> {
   const resource = options?.resource ?? 'categories';
 
@@ -66,7 +64,8 @@ export async function executeDeleteTerm(
     const result = await resolvedClient
       .terms(resource)
       .delete(input.id, { force: input.force });
-    return { id: result.id, deleted: result.deleted };
+
+    return { deleted: result.deleted, id: result.id };
   });
 }
 
@@ -75,19 +74,20 @@ export async function executeDeleteTerm(
  */
 export function createDeleteTermAction(
   client: ResolvableActionClient,
-  options?: DeleteTermActionOptions,
+  options?: DeleteTermActionOptions
 ): ActionClient<DeleteTermResult, undefined, typeof deleteTermInputSchema> &
   string {
   const resource = options?.resource;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // SAFETY: Astro's generated action proxy supplies the callable and string-coercion API.
   return defineAction({
     input: deleteTermInputSchema,
     handler: async (input: DeleteTermInput, context: ActionAPIContext) => {
       const resolvedClient = await resolveRequiredActionClient(client, context);
+
       return executeDeleteTerm(resolvedClient, input, { resource });
     },
-  } as any) as ActionClient<
+  }) as ActionClient<
     DeleteTermResult,
     undefined,
     typeof deleteTermInputSchema

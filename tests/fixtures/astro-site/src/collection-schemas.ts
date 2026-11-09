@@ -24,18 +24,18 @@ export { categorySchema, pageSchema, postSchema };
 export const bookSchema = contentWordPressSchema.extend({
   acf: z
     .object({
-      acf_subtitle: z.string().nullable().optional(),
-      acf_summary: z.string().nullable().optional(),
-      acf_priority_score: z.preprocess(
-        (value) => (value === '' ? null : value),
-        z.number().nullable().optional(),
-      ),
       acf_external_url: z.preprocess(
         (value) => (value === '' ? null : value),
-        z.string().url().nullable().optional(),
+        z.string().url().nullable().optional()
+      ),
+      acf_featured_post: z.any().nullable().optional(),
+      acf_priority_score: z.preprocess(
+        (value) => (value === '' ? null : value),
+        z.number().nullable().optional()
       ),
       acf_related_posts: z.array(z.any()).nullable().optional(),
-      acf_featured_post: z.any().nullable().optional(),
+      acf_subtitle: z.string().nullable().optional(),
+      acf_summary: z.string().nullable().optional(),
     })
     .optional(),
 });

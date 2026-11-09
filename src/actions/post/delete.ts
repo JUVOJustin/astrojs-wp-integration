@@ -1,23 +1,18 @@
-import {
-  type ActionAPIContext,
-  type ActionClient,
-  defineAction,
-} from 'astro:actions';
 import { z } from 'astro/zod';
+import { defineAction } from 'astro:actions';
+import type { ActionAPIContext, ActionClient } from 'astro:actions';
 import type { WordPressClient } from 'fluent-wp-client';
-import {
-  type ResolvableActionClient,
-  resolveRequiredActionClient,
-  withActionClient,
-} from './client';
+
+import { resolveRequiredActionClient, withActionClient } from './client';
+import type { ResolvableActionClient } from './client';
 
 /**
  * Input schema for deleting a WordPress post (or page / custom post type).
  * When `force` is true the post is permanently deleted; otherwise it is moved to the trash.
  */
 export const deletePostInputSchema = z.object({
-  id: z.number().int().positive(),
   force: z.boolean().optional(),
+  id: z.number().int().positive(),
 });
 
 export type DeletePostInput = z.infer<typeof deletePostInputSchema>;
@@ -26,7 +21,10 @@ export type DeletePostInput = z.infer<typeof deletePostInputSchema>;
  * Normalized result returned by `executeDeletePost`.
  * `deleted: true` means the post was permanently removed; `false` means it was trashed.
  */
-export type DeletePostResult = { id: number; deleted: boolean };
+export interface DeletePostResult {
+  id: number;
+  deleted: boolean;
+}
 
 /**
  * Low-level options accepted by `executeDeletePost`.
@@ -63,7 +61,7 @@ export type DeletePostActionConfig = DeletePostActionOptions;
 export async function executeDeletePost(
   client: WordPressClient,
   input: DeletePostInput,
-  options?: ExecuteDeleteOptions,
+  options?: ExecuteDeleteOptions
 ): Promise<DeletePostResult> {
   const resource = options?.resource ?? 'posts';
 
@@ -71,7 +69,8 @@ export async function executeDeletePost(
     const result = await resolvedClient
       .content(resource)
       .delete(input.id, { force: input.force });
-    return { id: result.id, deleted: result.deleted };
+
+    return { deleted: result.deleted, id: result.id };
   });
 }
 
@@ -82,19 +81,20 @@ export async function executeDeletePost(
  */
 export function createDeletePostAction(
   client: ResolvableActionClient,
-  options?: DeletePostActionOptions,
+  options?: DeletePostActionOptions
 ): ActionClient<DeletePostResult, undefined, typeof deletePostInputSchema> &
   string {
   const resource = options?.resource;
 
+  // SAFETY: Astro's generated action proxy supplies the callable and string-coercion API.
   return defineAction({
     input: deletePostInputSchema,
     handler: async (input: DeletePostInput, context: ActionAPIContext) => {
       const resolvedClient = await resolveRequiredActionClient(client, context);
+
       return executeDeletePost(resolvedClient, input, { resource });
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any) as ActionClient<
+  }) as ActionClient<
     DeletePostResult,
     undefined,
     typeof deletePostInputSchema

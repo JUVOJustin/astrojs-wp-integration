@@ -11,13 +11,51 @@ This package integrates with Astro route caching through live-loader `cacheHint`
 
 Astro owns the cache runtime and configuration. Use the Astro docs as the source of truth for setup and provider behavior:
 
-- [Astro route caching](https://docs.astro.build/en/reference/experimental-flags/route-caching/)
+- [Astro route caching](https://docs.astro.build/en/guides/caching/)
 - [Live loader cache hints](https://docs.astro.build/en/reference/content-loader-reference/#cachehint)
-- [Built-in memory cache provider](https://docs.astro.build/en/reference/experimental-flags/route-caching/#built-in-memory-cache-provider)
+- [Built-in memory cache provider](https://docs.astro.build/en/guides/caching/#built-in-memory-cache-provider)
+
+## Configure Astro 7
+
+Use Astro 7.4.7 or later in the supported major. Route caching is stable: put `cache` at the top level of `astro.config.mjs`, not in `experimental`. Local Node deployments can use `memoryCache()` from `astro/config`; its contents belong to one process and do not survive restarts.
+
+### Cloudflare Workers
+
+Install `@astrojs/cloudflare` 14 and configure its cache provider:
+
+```js title="astro.config.mjs"
+import { defineConfig } from 'astro/config';
+import cloudflare from '@astrojs/cloudflare';
+import { cacheCloudflare } from '@astrojs/cloudflare/cache';
+
+export default defineConfig({
+  output: 'server',
+  adapter: cloudflare(),
+  cache: { provider: cacheCloudflare() },
+});
+```
+
+The provider converts `Astro.cache` directives into `Cloudflare-CDN-Cache-Control` and `Cache-Tag`. The adapter enables Workers Cache when this provider is configured. Check the generated deployment configuration: `cache.enabled` must be true. Keep `cross_version_cache` disabled when deployments should invalidate old HTML. These are deployment choices for the consuming application; this library does not install or select an adapter.
+
+Cloudflare's edge policy takes precedence over `CDN-Cache-Control` and then `Cache-Control`. For an account page, disable Astro caching and explicitly prevent downstream caching:
+
+```astro
+---
+Astro.cache.set(false);
+Astro.response.headers.set('Cache-Control', 'private, no-store');
+Astro.response.headers.set('Cloudflare-CDN-Cache-Control', 'private, no-store');
+---
+```
+
+Apply the same policy to authentication endpoints, redirects containing user state, and private server islands. Never apply a public edge lifetime to every response in middleware. Authentication must not depend on middleware executing on a cache hit.
+
+Serve public prerendered assets directly through Cloudflare Static Assets when possible. If a Worker intentionally fronts those assets, only successful public, deployment-bound HTML/Markdown responses should receive a long edge lifetime such as `public, max-age=31536000`. Do not extend that policy to on-demand WordPress pages, which need their own freshness and invalidation policy.
+
+See [Astro's Cloudflare cache provider](https://docs.astro.build/en/guides/caching/#cloudflare) and [Workers Cache configuration](https://developers.cloudflare.com/workers/cache/configuration/). Local Node tests exercise Astro's cache contract; they do not verify a deployed Cloudflare account's cache or purge permissions.
 
 ## What The Integration Adds
 
-- Live loaders return `cacheHint.lastModified` when the WordPress payload exposes a trustworthy timestamp.
+- Live loaders return `cacheHint.lastModified` when the WordPress payload exposes a valid GMT timestamp. Both raw WordPress timestamps and client-normalized UTC timestamps are supported; ambiguous site-local dates are not used.
 - Live loaders return tags for entry identity and useful relationships such as authors and terms.
 - The cache invalidation action fetches the latest WordPress entity, derives the entry tag, and calls `context.cache.invalidate()` for you.
 
@@ -41,7 +79,22 @@ The invalidation action is intentionally narrower than the full live-loader tag 
 - term invalidation targets only the changed entry tag
 - user invalidation targets only the changed entry tag
 
-That keeps cached listing strategies effective when only one changed item needs to be refreshed.
+That keeps explicitly separate ID-list caches effective when only one changed item needs to be refreshed. Astro may aggregate entry hints into the hint returned by `getLiveCollection()`, so a route consuming that entire hint also depends on those entries.
+
+Use `scope: 'resource'` for new publications, deletions, changed filter membership, ordering, or lists that must refresh immediately:
+
+```ts
+await actions.wpCacheInvalidate({
+  entity: 'post',
+  post_type: 'book',
+  id: 42,
+  scope: 'resource',
+});
+```
+
+This invalidates `wp:resource:books`, including cached entries and collection routes carrying that tag. It resolves the WordPress resource but does not fetch the deleted item. The `id` field remains required by the shared action schema; resource scope does not use it to narrow invalidation. The default `scope: 'entry'` still fetches the entity and invalidates only its entry tag. Protect the invalidation action in middleware and use a request-scoped client; a cache invalidation request is not proof of a WordPress mutation.
+
+Tags are shared across clients using the same REST resource name. Applications combining multiple WordPress sites need separate route-cache providers or application-owned namespaced tags. The package does not claim cross-site isolation.
 
 ## Live Collection Usage
 
@@ -97,10 +150,13 @@ export const GET: APIRoute = async (context) => {
 
   if (!tool.execute) throw new Error('Content tool is not executable.');
 
-  const result = await tool.execute({ slug: 'hello-world' }, {
-    toolCallId: 'read-post',
-    messages: [],
-  });
+  const result = await tool.execute(
+    { slug: 'hello-world' },
+    {
+      toolCallId: 'read-post',
+      messages: [],
+    }
+  );
 
   context.cache.set({ maxAge: 300, swr: 60 });
 
@@ -112,7 +168,7 @@ Do not use this pattern for per-user reads. Live collections do not receive `req
 
 ## Filtered Collections
 
-Filtered live collections can use collection-level cache hints when the result set has stable membership, such as `include`, `exclude`, taxonomy filters, author filters, or explicit ordering.
+Filtered live collections expose collection-level cache hints for `include`, `exclude`, taxonomy filters, author filters, or explicit ordering. These filters do not guarantee stable membership: use resource invalidation when mutations can change the result set.
 
 Free-text `search` filters do not receive a collection-level cache hint. A search result can change when any matching or formerly matching WordPress entity changes, so caching the whole result set under one route hint is not safe. Entries returned from the search still include per-entry cache hints, so routes can cache individual entity pages or compose their own narrower strategy.
 
@@ -140,13 +196,13 @@ if (cacheHint) {
 Create the action next to your existing WordPress write actions:
 
 ```ts title="src/actions/index.ts"
-import {
-  createWpCacheInvalidateAction,
-} from 'wp-astrojs-integration';
+import { createWpCacheInvalidateAction } from 'wp-astrojs-integration';
 import { wordPressAuthBridge } from '../lib/auth/bridge';
 
 export const server = {
-  wpCacheInvalidate: createWpCacheInvalidateAction(wordPressAuthBridge.getClient),
+  wpCacheInvalidate: createWpCacheInvalidateAction(
+    wordPressAuthBridge.getClient
+  ),
 };
 ```
 
@@ -155,9 +211,11 @@ Call it with `id` and `entity`. Add `post_type` for posts, `taxonomy` for terms,
 ```ts title="src/actions/cache-inputs.ts"
 import { z } from 'zod';
 
-const baseSchema = z.object({
-  id: z.number(),
-}).passthrough();
+const baseSchema = z
+  .object({
+    id: z.number(),
+  })
+  .passthrough();
 
 export const postSchema = baseSchema.extend({
   entity: z.literal('post'),
@@ -199,6 +257,6 @@ await actions.wpCacheInvalidate({
 
 For user-specific pages, use a request-scoped `fluent-wp-client` instance from middleware or the auth bridge and opt out per route instead of caching everything globally:
 
-- [Opting out of caching](https://docs.astro.build/en/reference/experimental-flags/route-caching/#opting-out-of-caching)
+- [Opting out of caching](https://docs.astro.build/en/guides/caching/#opting-out-of-caching)
 
 That is the right default for dashboards, account pages, or any route where request cookies or user identity affect the HTML. Do not route per-user reads through live loaders; live loaders do not receive `request`, `cookies`, or `locals`.

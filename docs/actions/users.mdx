@@ -8,9 +8,21 @@ import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 User actions let you create, update, and delete WordPress users from Astro server-side code.
 
 <CardGrid>
-  <LinkCard title="Actions Overview" href="./index.mdx" description="Shared auth strategies, validation model, and error mapping for all actions." />
-  <LinkCard title="Post Actions" href="./posts.mdx" description="Reference patterns for resource actions and custom schema extension." />
-  <LinkCard title="Ability Actions" href="./abilities.mdx" description="Run WordPress abilities from Astro actions." />
+  <LinkCard
+    title="Actions Overview"
+    href="./index.mdx"
+    description="Shared auth strategies, validation model, and error mapping for all actions."
+  />
+  <LinkCard
+    title="Post Actions"
+    href="./posts.mdx"
+    description="Reference patterns for resource actions and custom schema extension."
+  />
+  <LinkCard
+    title="Ability Actions"
+    href="./abilities.mdx"
+    description="Run WordPress abilities from Astro actions."
+  />
 </CardGrid>
 
 ---
@@ -20,6 +32,7 @@ User actions let you create, update, and delete WordPress users from Astro serve
 Register the three user action factories in your Astro project's `src/actions/index.ts`:
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 import {
   createCreateUserAction,
   createUpdateUserAction,
@@ -28,7 +41,7 @@ import {
 import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
@@ -105,12 +118,16 @@ User actions expose base schemas for extension:
 You can extend input validation and response parsing:
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 import { WordPressClient } from 'fluent-wp-client';
-import { createCreateUserAction, createUserInputSchema } from 'wp-astrojs-integration';
+import {
+  createCreateUserAction,
+  createUserInputSchema,
+} from 'wp-astrojs-integration';
 import { z } from 'astro/zod';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,

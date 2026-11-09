@@ -1,25 +1,43 @@
-name: Biome
-
+name: Quality
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
-
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   biome:
+    # Keep the existing check name for branch protection consumers.
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
+    timeout-minutes: 10
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Biome
-        uses: biomejs/setup-biome@v2
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          version: 2.4.12
-
-      - name: Run Biome
-        run: biome ci .
+          persist-credentials: false
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check
+      - run: pnpm run format:check
+      - run: pnpm run check:types
+      - run: pnpm run check:astro
+      - run: pnpm run build
+      - run: pnpm pack --out /tmp/wp-astrojs-integration.tgz
+      - name: Check published manifest
+        run: |
+          node --input-type=module <<'JS'
+          import { execFileSync } from 'node:child_process';
+          const manifest = JSON.parse(execFileSync('tar', [
+            '-xOf', '/tmp/wp-astrojs-integration.tgz', 'package/package.json',
+          ], { encoding: 'utf8' }));
+          if (manifest.scripts) {
+            throw new Error('The published package must not contain contributor scripts');
+          }
+          JS

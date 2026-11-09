@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest';
+
 import { callAction } from '../../helpers/action-client';
 
 /**
@@ -8,19 +9,23 @@ import { callAction } from '../../helpers/action-client';
  * already covered in `fluent-wp-client`. It focuses on package behavior:
  * resource routing, schema override wiring, and action-style error mapping.
  */
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Registered fixture fields vary by resource; scenarios assert their values.
+type FixtureFields = Record<string, unknown>;
+
 describe('Actions: Meta behavior', () => {
   const basicAuth = `Basic ${btoa(`admin:${process.env.WP_APP_PASSWORD!}`)}`;
-  const createdIds: Array<{
+
+  const createdIds: {
     deleteAction: 'deletePost' | 'deletePage' | 'deleteBook';
     id: number;
-  }> = [];
+  }[] = [];
 
   /**
    * Stores one created entity so suite cleanup can remove it.
    */
   function trackCreated(
     deleteAction: 'deletePost' | 'deletePage' | 'deleteBook',
-    id: number,
+    id: number
   ): void {
     createdIds.push({ deleteAction, id });
   }
@@ -28,9 +33,8 @@ describe('Actions: Meta behavior', () => {
   /**
    * Reads normalized REST meta from one action response.
    */
-  function getMeta(entry: unknown): Record<string, unknown> {
-    const value = (entry as { meta?: Record<string, unknown> | unknown[] })
-      .meta;
+  function getMeta(entry: { meta?: FixtureFields | unknown[] }): FixtureFields {
+    const value = entry.meta;
 
     if (!value || Array.isArray(value)) {
       return {};
@@ -43,61 +47,64 @@ describe('Actions: Meta behavior', () => {
     for (const created of createdIds) {
       await callAction(
         created.deleteAction,
-        { id: created.id, force: true },
-        { authHeader: basicAuth },
-      ).catch(() => undefined);
+        { force: true, id: created.id },
+        { authHeader: basicAuth }
+      ).catch(() => {});
     }
   });
 
   it('passes meta payloads through post, page, and CPT resources', async () => {
     const post = await callAction<{
       id: number;
-      meta?: Record<string, unknown>;
+      meta?: FixtureFields;
     }>(
       'createPost',
       {
-        title: 'Meta behavior: post passthrough',
-        status: 'draft',
         meta: {
-          test_string_meta: 'post-value',
           test_number_meta: 12.5,
+          test_string_meta: 'post-value',
         },
+        status: 'draft',
+        title: 'Meta behavior: post passthrough',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
+
     trackCreated('deletePost', post.id);
 
     const page = await callAction<{
       id: number;
-      meta?: Record<string, unknown>;
+      meta?: FixtureFields;
     }>(
       'createPage',
       {
-        title: 'Meta behavior: page passthrough',
-        status: 'draft',
         meta: {
           test_string_meta: 'page-value',
         },
+        status: 'draft',
+        title: 'Meta behavior: page passthrough',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
+
     trackCreated('deletePage', page.id);
 
     const book = await callAction<{
       id: number;
-      meta?: Record<string, unknown>;
+      meta?: FixtureFields;
     }>(
       'createBook',
       {
-        title: 'Meta behavior: book passthrough',
-        status: 'draft',
         meta: {
-          test_string_meta: 'book-value',
           test_book_isbn: '978-1-23-456789-0',
+          test_string_meta: 'book-value',
         },
+        status: 'draft',
+        title: 'Meta behavior: book passthrough',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
+
     trackCreated('deleteBook', book.id);
 
     expect(getMeta(post).test_string_meta).toBe('post-value');
@@ -109,18 +116,19 @@ describe('Actions: Meta behavior', () => {
     const created = await callAction<{ id: number }>(
       'createPost',
       {
-        title: 'Meta behavior: partial update base',
-        status: 'draft',
         meta: {
-          test_string_meta: 'before',
           test_integer_meta: 3,
+          test_string_meta: 'before',
         },
+        status: 'draft',
+        title: 'Meta behavior: partial update base',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
+
     trackCreated('deletePost', created.id);
 
-    const updated = await callAction<{ meta?: Record<string, unknown> }>(
+    const updated = await callAction<{ meta?: FixtureFields }>(
       'updatePost',
       {
         id: created.id,
@@ -128,7 +136,7 @@ describe('Actions: Meta behavior', () => {
           test_string_meta: 'after',
         },
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     expect(getMeta(updated).test_string_meta).toBe('after');
@@ -143,10 +151,10 @@ describe('Actions: Meta behavior', () => {
     }>(
       'createPostResponseOverride',
       {
-        title: 'Meta behavior: schema override',
         status: 'draft',
+        title: 'Meta behavior: schema override',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     trackCreated('deletePost', result.id);
@@ -157,12 +165,12 @@ describe('Actions: Meta behavior', () => {
   it('maps authentication failures to ActionError', async () => {
     await expect(
       callAction('createPost', {
-        title: 'Meta behavior: should fail',
-        status: 'draft',
         meta: {
           test_string_meta: 'not-authorized',
         },
-      }),
+        status: 'draft',
+        title: 'Meta behavior: should fail',
+      })
     ).rejects.toMatchObject({ type: 'AstroActionError' });
   });
 });

@@ -1,27 +1,28 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
 import { callAction } from '../../helpers/action-client';
 import { startAstroPreviewServer } from '../../helpers/astro-preview';
 import { request } from '../../helpers/http-client';
 
 type PreviewSession = Awaited<ReturnType<typeof startAstroPreviewServer>>;
 
-type RouteCacheMetrics = {
+interface RouteCacheMetrics {
   collections: Record<string, number>;
   entries: Record<string, number>;
-};
+}
 
-type CachedPostListResponse = {
+interface CachedPostListResponse {
   renderToken: string;
   ids: number[];
-};
+}
 
-type CachedPostEntryResponse = {
+interface CachedPostEntryResponse {
   id: number;
   title: string;
   renderToken: string;
-};
+}
 
-type UserProfileResponse = {
+interface UserProfileResponse {
   renderToken: string;
   user: {
     id: number;
@@ -29,7 +30,7 @@ type UserProfileResponse = {
     email: string;
     name: string;
   };
-};
+}
 
 /**
  * Extracts one rendered cache token from the fixture page HTML.
@@ -48,7 +49,7 @@ function extractRenderToken(html: string): string {
  * Extracts one data-* attribute value from the rendered fixture HTML.
  */
 function extractDataAttribute(html: string, attribute: string): string {
-  const escaped = attribute.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const escaped = attribute.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const match = html.match(new RegExp(`${escaped}="([^"]*)"`));
 
   if (!match) {
@@ -59,41 +60,43 @@ function extractDataAttribute(html: string, attribute: string): string {
 }
 
 async function getRouteCacheMetrics(
-  baseUrl: string,
+  baseUrl: string
 ): Promise<RouteCacheMetrics> {
   return callAction<RouteCacheMetrics>('routeCacheMetricsGet', {}, { baseUrl });
 }
 
 async function resetRouteCacheMetrics(
-  baseUrl: string,
+  baseUrl: string
 ): Promise<RouteCacheMetrics> {
   return callAction<RouteCacheMetrics>(
     'routeCacheMetricsReset',
     {},
-    { baseUrl },
+    { baseUrl }
   );
 }
 
 async function fetchCachedPostList(
-  baseUrl: string,
+  baseUrl: string
 ): Promise<CachedPostListResponse> {
   const response = await request(`${baseUrl}/api/cached-post-list.json`);
+
   return response.json();
 }
 
 async function fetchCachedPostEntry(
   baseUrl: string,
-  id: number,
+  id: number
 ): Promise<CachedPostEntryResponse> {
   const response = await request(
-    `${baseUrl}/api/cached-post-entry.json?id=${id}`,
+    `${baseUrl}/api/cached-post-entry.json?id=${id}`
   );
+
   return response.json();
 }
 
 async function fetchUserProfilePersonalized(
   baseUrl: string,
-  authHeader: string,
+  authHeader: string
 ): Promise<Response> {
   return request(`${baseUrl}/api/user-profile-personalized.json`, {
     headers: {
@@ -104,7 +107,7 @@ async function fetchUserProfilePersonalized(
 
 async function fetchUserProfileCached(
   baseUrl: string,
-  authHeader: string,
+  authHeader: string
 ): Promise<Response> {
   return request(`${baseUrl}/api/user-profile-cached.json`, {
     headers: {
@@ -131,14 +134,16 @@ describe('Route Caching: Astro preview runtime', () => {
 
   it('caches live content responses and invalidates them through the content cache action', async () => {
     const firstResponse = await request(
-      `${previewSession.baseUrl}/live-cached-book`,
+      `${previewSession.baseUrl}/live-cached-book`
     );
+
     const firstHtml = await firstResponse.text();
     const firstToken = extractRenderToken(firstHtml);
     const originalTitle = extractDataAttribute(firstHtml, 'data-book-title');
+
     const originalSubtitle = extractDataAttribute(
       firstHtml,
-      'data-book-subtitle',
+      'data-book-subtitle'
     );
 
     const idMatch = firstHtml.match(/data-book-id="(\d+)"/);
@@ -150,11 +155,13 @@ describe('Route Caching: Astro preview runtime', () => {
 
     try {
       const secondResponse = await request(
-        `${previewSession.baseUrl}/live-cached-book`,
+        `${previewSession.baseUrl}/live-cached-book`
       );
+
       const thirdResponse = await request(
-        `${previewSession.baseUrl}/live-cached-book`,
+        `${previewSession.baseUrl}/live-cached-book`
       );
+
       const secondHtml = await secondResponse.text();
       const thirdHtml = await thirdResponse.text();
       const secondToken = extractRenderToken(secondHtml);
@@ -166,16 +173,16 @@ describe('Route Caching: Astro preview runtime', () => {
       await callAction(
         'updateBook',
         {
-          id: bookId,
-          title: updatedTitle,
           acf: {
             acf_subtitle: updatedSubtitle,
           },
+          id: bookId,
+          title: updatedTitle,
         },
         {
           authHeader: basicAuth,
           baseUrl: previewSession.baseUrl,
-        },
+        }
       );
 
       const invalidation = await callAction<{
@@ -185,27 +192,30 @@ describe('Route Caching: Astro preview runtime', () => {
       }>(
         'wpCacheInvalidate',
         {
-          id: bookId,
           entity: 'post',
+          id: bookId,
           post_type: 'book',
         },
         {
           authHeader: basicAuth,
           baseUrl: previewSession.baseUrl,
-        },
+        }
       );
 
-      expect(invalidation.invalidated).toBe(true);
+      expect(invalidation.invalidated).toBeTruthy();
       expect(invalidation.resource).toBe('books');
       expect(invalidation.tags).toContain(`wp:entry:books:${bookId}`);
 
       const fourthResponse = await request(
-        `${previewSession.baseUrl}/live-cached-book`,
+        `${previewSession.baseUrl}/live-cached-book`
       );
+
       const fourthHtml = await fourthResponse.text();
+
       const fifthResponse = await request(
-        `${previewSession.baseUrl}/live-cached-book`,
+        `${previewSession.baseUrl}/live-cached-book`
       );
+
       const fifthHtml = await fifthResponse.text();
       const fourthToken = extractRenderToken(fourthHtml);
       const fifthToken = extractRenderToken(fifthHtml);
@@ -219,37 +229,38 @@ describe('Route Caching: Astro preview runtime', () => {
       await callAction(
         'updateBook',
         {
-          id: bookId,
-          title: originalTitle,
           acf: {
             acf_subtitle: originalSubtitle,
           },
+          id: bookId,
+          title: originalTitle,
         },
         {
           authHeader: basicAuth,
           baseUrl: previewSession.baseUrl,
-        },
-      ).catch(() => undefined);
+        }
+      ).catch(() => {});
 
       await callAction(
         'wpCacheInvalidate',
         {
-          id: bookId,
           entity: 'post',
+          id: bookId,
           post_type: 'book',
         },
         {
           authHeader: basicAuth,
           baseUrl: previewSession.baseUrl,
-        },
-      ).catch(() => undefined);
+        }
+      ).catch(() => {});
     }
   });
 
   it('caches live term responses and invalidates them through the term cache action', async () => {
     const firstResponse = await request(
-      `${previewSession.baseUrl}/live-cached-category`,
+      `${previewSession.baseUrl}/live-cached-category`
     );
+
     const firstHtml = await firstResponse.text();
     const firstToken = extractRenderToken(firstHtml);
     const originalName = extractDataAttribute(firstHtml, 'data-category-name');
@@ -262,11 +273,13 @@ describe('Route Caching: Astro preview runtime', () => {
 
     try {
       const secondResponse = await request(
-        `${previewSession.baseUrl}/live-cached-category`,
+        `${previewSession.baseUrl}/live-cached-category`
       );
+
       const thirdResponse = await request(
-        `${previewSession.baseUrl}/live-cached-category`,
+        `${previewSession.baseUrl}/live-cached-category`
       );
+
       const secondHtml = await secondResponse.text();
       const thirdHtml = await thirdResponse.text();
       const secondToken = extractRenderToken(secondHtml);
@@ -284,7 +297,7 @@ describe('Route Caching: Astro preview runtime', () => {
         {
           authHeader: basicAuth,
           baseUrl: previewSession.baseUrl,
-        },
+        }
       );
 
       const invalidation = await callAction<{
@@ -294,28 +307,31 @@ describe('Route Caching: Astro preview runtime', () => {
       }>(
         'wpCacheInvalidate',
         {
-          id: categoryId,
           entity: 'term',
+          id: categoryId,
           taxonomy: 'category',
         },
         {
           authHeader: basicAuth,
           baseUrl: previewSession.baseUrl,
-        },
+        }
       );
 
-      expect(invalidation.invalidated).toBe(true);
+      expect(invalidation.invalidated).toBeTruthy();
       expect(invalidation.resource).toBe('categories');
       expect(invalidation.tags).toContain(`wp:entry:categories:${categoryId}`);
       expect(invalidation.tags).toHaveLength(1);
 
       const fourthResponse = await request(
-        `${previewSession.baseUrl}/live-cached-category`,
+        `${previewSession.baseUrl}/live-cached-category`
       );
+
       const fourthHtml = await fourthResponse.text();
+
       const fifthResponse = await request(
-        `${previewSession.baseUrl}/live-cached-category`,
+        `${previewSession.baseUrl}/live-cached-category`
       );
+
       const fifthHtml = await fifthResponse.text();
       const fourthToken = extractRenderToken(fourthHtml);
       const fifthToken = extractRenderToken(fifthHtml);
@@ -333,25 +349,88 @@ describe('Route Caching: Astro preview runtime', () => {
         {
           authHeader: basicAuth,
           baseUrl: previewSession.baseUrl,
-        },
-      ).catch(() => undefined);
+        }
+      ).catch(() => {});
 
       await callAction(
         'wpCacheInvalidate',
         {
-          id: categoryId,
           entity: 'term',
+          id: categoryId,
           taxonomy: 'category',
         },
         {
           authHeader: basicAuth,
           baseUrl: previewSession.baseUrl,
-        },
-      ).catch(() => undefined);
+        }
+      ).catch(() => {});
     }
   });
 
+  it('invalidates resource listings even after an entry is deleted', async () => {
+    const first = await fetchCachedPostList(previewSession.baseUrl);
+
+    const created = await callAction<{ id: number }>(
+      'createPost',
+      {
+        title: 'Cache invalidation deletion fixture',
+        status: 'publish',
+      },
+      { authHeader: basicAuth, baseUrl: previewSession.baseUrl }
+    );
+
+    const entryBeforeDelete = await fetchCachedPostEntry(
+      previewSession.baseUrl,
+      created.id
+    );
+
+    await callAction(
+      'deletePost',
+      { id: created.id, force: true },
+      {
+        authHeader: basicAuth,
+        baseUrl: previewSession.baseUrl,
+      }
+    );
+
+    const stillCached = await fetchCachedPostList(previewSession.baseUrl);
+    expect(stillCached.renderToken).toBe(first.renderToken);
+
+    const entryStillCached = await fetchCachedPostEntry(
+      previewSession.baseUrl,
+      created.id
+    );
+
+    expect(entryStillCached.renderToken).toBe(entryBeforeDelete.renderToken);
+
+    const result = await callAction<{ tags: string[] }>(
+      'wpCacheInvalidate',
+      {
+        entity: 'post',
+        post_type: 'post',
+        id: created.id,
+        scope: 'resource',
+      },
+      { authHeader: basicAuth, baseUrl: previewSession.baseUrl }
+    );
+
+    expect(result.tags).toStrictEqual(['wp:resource:posts']);
+    const refreshed = await fetchCachedPostList(previewSession.baseUrl);
+    expect(refreshed.renderToken).not.toBe(first.renderToken);
+
+    const deletedEntry = await request(
+      `${previewSession.baseUrl}/api/cached-post-entry.json?id=${created.id}`
+    );
+
+    expect(deletedEntry.status).toBe(404);
+  });
+
   it('keeps the cached post list while refreshing only the invalidated post entry', async () => {
+    await callAction(
+      'wpCacheInvalidate',
+      { entity: 'post', post_type: 'post', id: 1, scope: 'resource' },
+      { authHeader: basicAuth, baseUrl: previewSession.baseUrl }
+    );
     await resetRouteCacheMetrics(previewSession.baseUrl);
 
     const listFirst = await fetchCachedPostList(previewSession.baseUrl);
@@ -359,21 +438,23 @@ describe('Route Caching: Astro preview runtime', () => {
 
     const entriesFirst = await Promise.all(
       listFirst.ids.map((id) =>
-        fetchCachedPostEntry(previewSession.baseUrl, id),
-      ),
+        fetchCachedPostEntry(previewSession.baseUrl, id)
+      )
     );
 
     const listSecond = await fetchCachedPostList(previewSession.baseUrl);
     const listThird = await fetchCachedPostList(previewSession.baseUrl);
+
     const entriesSecond = await Promise.all(
       listFirst.ids.map((id) =>
-        fetchCachedPostEntry(previewSession.baseUrl, id),
-      ),
+        fetchCachedPostEntry(previewSession.baseUrl, id)
+      )
     );
+
     const entriesThird = await Promise.all(
       listFirst.ids.map((id) =>
-        fetchCachedPostEntry(previewSession.baseUrl, id),
-      ),
+        fetchCachedPostEntry(previewSession.baseUrl, id)
+      )
     );
 
     expect(listSecond.renderToken).toBe(listFirst.renderToken);
@@ -381,16 +462,17 @@ describe('Route Caching: Astro preview runtime', () => {
 
     for (let index = 0; index < entriesFirst.length; index += 1) {
       expect(entriesSecond[index].renderToken).toBe(
-        entriesFirst[index].renderToken,
+        entriesFirst[index].renderToken
       );
       expect(entriesThird[index].renderToken).toBe(
-        entriesFirst[index].renderToken,
+        entriesFirst[index].renderToken
       );
     }
 
     const metricsBeforeUpdate = await getRouteCacheMetrics(
-      previewSession.baseUrl,
+      previewSession.baseUrl
     );
+
     expect(metricsBeforeUpdate.collections['posts:list']).toBe(1);
 
     for (const id of listFirst.ids) {
@@ -411,29 +493,30 @@ describe('Route Caching: Astro preview runtime', () => {
         {
           authHeader: basicAuth,
           baseUrl: previewSession.baseUrl,
-        },
+        }
       );
 
       await callAction(
         'wpCacheInvalidate',
         {
-          id: changedEntry.id,
           entity: 'post',
+          id: changedEntry.id,
           post_type: 'post',
         },
         {
           authHeader: basicAuth,
           baseUrl: previewSession.baseUrl,
-        },
+        }
       );
 
       const listAfterInvalidation = await fetchCachedPostList(
-        previewSession.baseUrl,
+        previewSession.baseUrl
       );
+
       const entriesAfterInvalidation = await Promise.all(
         listFirst.ids.map((id) =>
-          fetchCachedPostEntry(previewSession.baseUrl, id),
-        ),
+          fetchCachedPostEntry(previewSession.baseUrl, id)
+        )
       );
 
       expect(listAfterInvalidation.renderToken).toBe(listFirst.renderToken);
@@ -453,8 +536,9 @@ describe('Route Caching: Astro preview runtime', () => {
       }
 
       const metricsAfterInvalidation = await getRouteCacheMetrics(
-        previewSession.baseUrl,
+        previewSession.baseUrl
       );
+
       expect(metricsAfterInvalidation.collections['posts:list']).toBe(1);
       expect(metricsAfterInvalidation.entries[`id:${changedEntry.id}`]).toBe(2);
 
@@ -475,21 +559,21 @@ describe('Route Caching: Astro preview runtime', () => {
         {
           authHeader: basicAuth,
           baseUrl: previewSession.baseUrl,
-        },
-      ).catch(() => undefined);
+        }
+      ).catch(() => {});
 
       await callAction(
         'wpCacheInvalidate',
         {
-          id: changedEntry.id,
           entity: 'post',
+          id: changedEntry.id,
           post_type: 'post',
         },
         {
           authHeader: basicAuth,
           baseUrl: previewSession.baseUrl,
-        },
-      ).catch(() => undefined);
+        }
+      ).catch(() => {});
     }
   });
 
@@ -501,13 +585,18 @@ describe('Route Caching: Astro preview runtime', () => {
 
     const firstResponse = await fetchUserProfilePersonalized(
       previewSession.baseUrl,
-      aliceAuth,
+      aliceAuth
     );
+
+    // SAFETY: The fixture profile endpoint returns user details and a render token; this test checks cache isolation.
     const firstBody = (await firstResponse.json()) as UserProfileResponse;
+
     const secondResponse = await fetchUserProfilePersonalized(
       previewSession.baseUrl,
-      bobAuth,
+      bobAuth
     );
+
+    // SAFETY: The fixture profile endpoint returns user details and a render token; this test checks cache isolation.
     const secondBody = (await secondResponse.json()) as UserProfileResponse;
 
     expect(firstBody.user.slug).toBe('alice');
@@ -529,13 +618,18 @@ describe('Route Caching: Astro preview runtime', () => {
 
     const firstResponse = await fetchUserProfileCached(
       previewSession.baseUrl,
-      aliceAuth,
+      aliceAuth
     );
+
+    // SAFETY: The fixture profile endpoint returns user details and a render token; this test checks cache isolation.
     const firstBody = (await firstResponse.json()) as UserProfileResponse;
+
     const secondResponse = await fetchUserProfileCached(
       previewSession.baseUrl,
-      bobAuth,
+      bobAuth
     );
+
+    // SAFETY: The fixture profile endpoint returns user details and a render token; this test checks cache isolation.
     const secondBody = (await secondResponse.json()) as UserProfileResponse;
 
     // Astro route cache keys by URL (not headers), so Bob receives Alice's cached response
