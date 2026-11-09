@@ -7,8 +7,7 @@ import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
 ## Overview
 
-The package ships a JWT-first Astro auth bridge for WordPress.
-It is built on top of `fluent-wp-client` and is meant to be the central place where Astro resolves one authenticated WordPress client or client config per request.
+The package ships a JWT-first Astro auth bridge for WordPress. It is built on top of `fluent-wp-client` and is meant to be the central place where Astro resolves one authenticated WordPress client or client config per request.
 
 ## What It Gives You
 
@@ -18,10 +17,7 @@ It is built on top of `fluent-wp-client` and is meant to be the central place wh
 - `resolveUser(context)` and `isAuthenticated(context)` for middleware checks
 - `getClientConfig(context)` when you need raw client config instead of the client instance
 
-The bridge is client-first, uses web-standard runtime APIs, and does not expose a legacy raw JWT action-auth helper.
-It uses the published client's `loginWithJwt()` and `users().me()` helpers instead of duplicating request handling.
-`resolveUser()` and `isAuthenticated()` only describe request user state.
-If you want `getClient()` or `getClientConfig()` to fall back to bridge-level static credentials, opt in with `{ allowStaticAuthFallback: true }`.
+The bridge is client-first, uses web-standard runtime APIs, and does not expose a legacy raw JWT action-auth helper. It uses the published client's `loginWithJwt()` and `users().me()` helpers instead of duplicating request handling. `resolveUser()` and `isAuthenticated()` only describe request user state. If you want `getClient()` or `getClientConfig()` to fall back to bridge-level static credentials, opt in with `{ allowStaticAuthFallback: true }`.
 
 ## WordPress Requirement
 
@@ -30,11 +26,12 @@ Enable the [JWT Authentication for WP REST API](https://es.wordpress.org/plugins
 ## Basic Setup
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 // src/lib/auth/bridge.ts
 import { createWordPressAuthBridge } from 'wp-astrojs-integration';
 
 export const wordPressAuthBridge = createWordPressAuthBridge({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
   cookieName: 'wp_user_session',
 });
 ```
@@ -102,10 +99,11 @@ export const server = {
 If you prefer static credentials, build one client yourself and pass it directly:
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
@@ -135,8 +133,7 @@ const wp = new WordPressClient(clientConfig);
 
 ## Optional Static Fallback
 
-If the same bridge also has static `auth`, `authHeader`, or `authHeaders`, keep request-user checks on `resolveUser()` / `isAuthenticated()`.
-Only opt into static fallback when you explicitly want one service-capable client.
+If the same bridge also has static `auth`, `authHeader`, or `authHeaders`, keep request-user checks on `resolveUser()` / `isAuthenticated()`. Only opt into static fallback when you explicitly want one service-capable client.
 
 ```ts
 const wp = await wordPressAuthBridge.getClient(Astro, {
@@ -153,12 +150,13 @@ if (!wp) {
 The bridge can also resolve auth from request headers or other request-scoped sources.
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 import { createAuthResolver } from 'fluent-wp-client';
 import { createWordPressAuthBridge } from 'wp-astrojs-integration';
 import type { ActionAPIContext } from 'astro:actions';
 
 export const bridge = createWordPressAuthBridge({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
   authResolver: createAuthResolver<ActionAPIContext>((context) => {
     return context.request.headers.get('authorization');
   }),
@@ -175,5 +173,9 @@ type LoginPayload = z.input<typeof wordPressLoginInputSchema>;
 ```
 
 <CardGrid>
-  <LinkCard title="Testing guide" href="./testing.mdx" description="Project test workflows, integration/static-build projects, and local wp-env commands." />
+  <LinkCard
+    title="Testing guide"
+    href="./testing.mdx"
+    description="Project test workflows, integration/static-build projects, and local wp-env commands."
+  />
 </CardGrid>

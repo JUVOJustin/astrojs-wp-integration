@@ -15,8 +15,8 @@ export const GET: APIRoute = async (context) => {
   }
 
   const client = new WordPressClient({
-    baseUrl,
     auth: { token: authHeader.replace('Bearer ', '') },
+    baseUrl,
   });
 
   const user = await client.users().me();
@@ -27,10 +27,10 @@ export const GET: APIRoute = async (context) => {
   return Response.json({
     renderToken: `${Date.now()}-${Math.random()}`,
     user: {
-      id: user.id,
-      slug: user.slug,
       email: user.email,
+      id: user.id,
       name: user.name,
+      slug: user.slug,
     },
   });
 };

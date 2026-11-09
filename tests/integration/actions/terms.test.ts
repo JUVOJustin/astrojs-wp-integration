@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest';
+
 import { callAction } from '../../helpers/action-client';
 
 /**
@@ -7,18 +8,18 @@ import { callAction } from '../../helpers/action-client';
 describe('Actions: Terms', () => {
   const basicAuth = `Basic ${btoa(`admin:${process.env.WP_APP_PASSWORD!}`)}`;
 
-  const createdTerms: Array<{
+  const createdTerms: {
     deleteAction: 'deleteCategory' | 'deleteGenre';
     id: number;
-  }> = [];
+  }[] = [];
 
   afterAll(async () => {
     for (const term of createdTerms) {
       await callAction(
         term.deleteAction,
-        { id: term.id, force: true },
-        { authHeader: basicAuth },
-      ).catch(() => undefined);
+        { force: true, id: term.id },
+        { authHeader: basicAuth }
+      ).catch(() => {});
     }
   });
 
@@ -26,11 +27,11 @@ describe('Actions: Terms', () => {
     const created = await callAction<{ id: number; taxonomy: string }>(
       'createCategory',
       {
+        custom_note: 'custom schema field',
         name: 'Action category create',
         slug: 'action-category-create',
-        custom_note: 'custom schema field',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     createdTerms.push({ deleteAction: 'deleteCategory', id: created.id });
@@ -39,11 +40,11 @@ describe('Actions: Terms', () => {
     const updated = await callAction<{ name: string }>(
       'updateCategory',
       {
+        custom_note: 'typed update field',
         id: created.id,
         name: 'Action category updated',
-        custom_note: 'typed update field',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     expect(updated.name).toBe('Action category updated');
@@ -56,7 +57,7 @@ describe('Actions: Terms', () => {
         name: 'Action tag create',
         slug: 'action-tag-create',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     expect(created.taxonomy).toBe('post_tag');
@@ -64,13 +65,13 @@ describe('Actions: Terms', () => {
     const deleted = await callAction<{ deleted: boolean }>(
       'deleteTag',
       {
-        id: created.id,
         force: true,
+        id: created.id,
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
-    expect(deleted.deleted).toBe(true);
+    expect(deleted.deleted).toBeTruthy();
   });
 
   it('supports custom taxonomy resources with response schema override', async () => {
@@ -84,7 +85,7 @@ describe('Actions: Terms', () => {
         name: 'Action genre create',
         slug: 'action-genre-create',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     createdTerms.push({ deleteAction: 'deleteGenre', id: created.id });
@@ -93,7 +94,7 @@ describe('Actions: Terms', () => {
 
   it('maps term write auth failures to ActionError', async () => {
     await expect(
-      callAction('createCategory', { name: 'Unauthorized term create' }),
+      callAction('createCategory', { name: 'Unauthorized term create' })
     ).rejects.toMatchObject({ type: 'AstroActionError' });
   });
 });

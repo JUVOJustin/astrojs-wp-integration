@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest';
+
 import { callAction } from '../../helpers/action-client';
 
 /**
@@ -13,9 +14,9 @@ describe('Actions: Books', () => {
     for (const id of createdIds) {
       await callAction(
         'deleteBook',
-        { id, force: true },
-        { authHeader: basicAuth },
-      ).catch(() => undefined);
+        { force: true, id },
+        { authHeader: basicAuth }
+      ).catch(() => {});
     }
   });
 
@@ -23,11 +24,11 @@ describe('Actions: Books', () => {
     const created = await callAction<{ id: number; type: string }>(
       'createBook',
       {
-        title: 'Books behavior: action create',
-        status: 'draft',
         meta: { test_book_isbn: '978-0-00-000000-1' },
+        status: 'draft',
+        title: 'Books behavior: action create',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     createdIds.push(created.id);
@@ -38,11 +39,11 @@ describe('Actions: Books', () => {
     const created = await callAction<{ id: number; type: string }>(
       'createBookCustomSchema',
       {
-        title: 'Books behavior: schema extension',
-        status: 'draft',
         custom_note: 'typed-input-extension',
+        status: 'draft',
+        title: 'Books behavior: schema extension',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     createdIds.push(created.id);
@@ -57,10 +58,10 @@ describe('Actions: Books', () => {
     }>(
       'createBookResponseOverride',
       {
-        title: 'Books behavior: response override',
         status: 'draft',
+        title: 'Books behavior: response override',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     createdIds.push(created.id);
@@ -71,11 +72,12 @@ describe('Actions: Books', () => {
     const created = await callAction<{ id: number }>(
       'createBook',
       {
-        title: 'Books behavior: update base',
         status: 'draft',
+        title: 'Books behavior: update base',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
+
     createdIds.push(created.id);
 
     const updated = await callAction<{
@@ -84,11 +86,11 @@ describe('Actions: Books', () => {
     }>(
       'updateBook',
       {
+        custom_note: 'typed-update-extension',
         id: created.id,
         title: 'Books behavior: updated title',
-        custom_note: 'typed-update-extension',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     expect(updated.type).toBe('book');
@@ -98,9 +100,9 @@ describe('Actions: Books', () => {
   it('maps CPT write auth failures to ActionError', async () => {
     await expect(
       callAction('createBook', {
-        title: 'Books behavior: unauthorized',
         status: 'draft',
-      }),
+        title: 'Books behavior: unauthorized',
+      })
     ).rejects.toMatchObject({ type: 'AstroActionError' });
   });
 });

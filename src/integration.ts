@@ -4,6 +4,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
+
 import type { AstroConfig, AstroIntegration } from 'astro';
 import { uneval } from 'devalue';
 import type {
@@ -12,7 +13,8 @@ import type {
   WordPressDiscoveryOptions,
 } from 'fluent-wp-client';
 import { WordPressClient } from 'fluent-wp-client';
-import { loadEnv, type Plugin } from 'vite';
+import { loadEnv, normalizePath } from 'vite';
+import type { Plugin } from 'vite';
 
 const DEFAULT_ENV_PREFIX = 'WP_CATALOG_';
 const VIRTUAL_MODULE_ID = 'virtual:wp-astrojs/catalog';
@@ -21,10 +23,13 @@ const SCHEMAS_VIRTUAL_MODULE_ID = 'virtual:wp-astrojs/schemas';
 const RESOLVED_SCHEMAS_VIRTUAL_MODULE_ID = `\0${SCHEMAS_VIRTUAL_MODULE_ID}`;
 const COLLECTIONS_VIRTUAL_MODULE_ID = 'virtual:wp-astrojs/collections';
 const RESOLVED_COLLECTIONS_VIRTUAL_MODULE_ID = `\0${COLLECTIONS_VIRTUAL_MODULE_ID}`;
+
 const GENERATED_SCHEMAS_VIRTUAL_MODULE_ID =
   'virtual:wp-astrojs/generated-schemas';
+
 const RESOLVED_GENERATED_SCHEMAS_VIRTUAL_MODULE_ID = `\0${GENERATED_SCHEMAS_VIRTUAL_MODULE_ID}`;
 const execFileAsync = promisify(execFile);
+
 // Keep this injected consumer declaration in sync with src/env.d.ts.
 const BASE_VIRTUAL_MODULE_TYPES = `declare module 'virtual:wp-astrojs/catalog' {
   import type {
@@ -164,19 +169,20 @@ interface GeneratedSchemaResource {
 type CatalogEnv = Record<string, string | undefined>;
 
 interface WordPressRestIndex {
+  // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The REST index keys are arbitrary plugin routes; discovery only needs their names.
   routes?: Record<string, unknown>;
 }
 
 function resolveCatalogOptions(
-  catalog: WordPressAstroIntegrationOptions['catalog'],
+  catalog: WordPressAstroIntegrationOptions['catalog']
 ): ResolvedCatalogOptions {
   if (catalog === false) {
     return {
+      cacheFile: 'wp-astrojs/catalog.json',
       enabled: false,
+      envPrefix: DEFAULT_ENV_PREFIX,
       refresh: 'build',
       required: true,
-      envPrefix: DEFAULT_ENV_PREFIX,
-      cacheFile: 'wp-astrojs/catalog.json',
     };
   }
 
@@ -184,33 +190,45 @@ function resolveCatalogOptions(
 
   return {
     ...options,
+    cacheFile: options.cacheFile ?? 'wp-astrojs/catalog.json',
     enabled: options.enabled ?? true,
+    envPrefix: options.envPrefix ?? DEFAULT_ENV_PREFIX,
     refresh: options.refresh ?? 'build',
     required: options.required ?? true,
-    envPrefix: options.envPrefix ?? DEFAULT_ENV_PREFIX,
-    cacheFile: options.cacheFile ?? 'wp-astrojs/catalog.json',
   };
 }
 
 function shouldRefreshCatalog(
   refresh: ResolvedCatalogOptions['refresh'],
   command: 'dev' | 'build' | 'preview' | 'sync',
-  hasStoredCatalog: boolean,
+  hasStoredCatalog: boolean
 ): boolean {
-  if (refresh === 'always') return true;
-  if (refresh === 'manual') return false;
-  if (refresh === 'build') return command === 'build' || !hasStoredCatalog;
-  if (refresh === 'dev') return command === 'dev' || !hasStoredCatalog;
+  if (refresh === 'always') {
+    return true;
+  }
+
+  if (refresh === 'manual') {
+    return false;
+  }
+
+  if (refresh === 'build') {
+    return command === 'build' || !hasStoredCatalog;
+  }
+
+  if (refresh === 'dev') {
+    return command === 'dev' || !hasStoredCatalog;
+  }
 
   return !hasStoredCatalog;
 }
 
 function loadCatalogEnv(
   config: AstroConfig,
-  command: 'dev' | 'build' | 'preview' | 'sync',
+  command: 'dev' | 'build' | 'preview' | 'sync'
 ): CatalogEnv {
   const mode =
     process.env.NODE_ENV ?? (command === 'dev' ? 'development' : 'production');
+
   const envDir = config.vite.envDir ?? fileURLToPath(config.root);
 
   return loadEnv(mode, envDir, '');
@@ -219,15 +237,16 @@ function loadCatalogEnv(
 function readEnvValue(
   env: CatalogEnv,
   envPrefix: string,
-  key: string,
+  key: string
 ): string | undefined {
   const value = env[`${envPrefix}${key}`];
+
   return value && value.length > 0 ? value : undefined;
 }
 
 function resolveBaseUrl(
   options: ResolvedCatalogOptions,
-  env: CatalogEnv,
+  env: CatalogEnv
 ): string | undefined {
   return options.url ?? readEnvValue(env, options.envPrefix, 'URL');
 }
@@ -237,13 +256,13 @@ function validateBaseUrl(baseUrl: string, envPrefix: string): string {
     return new URL(baseUrl).toString().replace(/\/$/, '');
   } catch {
     throw new Error(
-      `wp-astrojs-integration catalog received an invalid WordPress URL from ${envPrefix}URL or catalog.url: ${baseUrl}`,
+      `wp-astrojs-integration catalog received an invalid WordPress URL from ${envPrefix}URL or catalog.url: ${baseUrl}`
     );
   }
 }
 
 async function hasJwtAuthTokenEndpoint(
-  client: WordPressClient,
+  client: WordPressClient
 ): Promise<boolean> {
   try {
     const { data } = await client.request<WordPressRestIndex>({
@@ -260,33 +279,39 @@ async function hasJwtAuthTokenEndpoint(
 async function resolveClientAuthConfig(
   env: CatalogEnv,
   envPrefix: string,
-  baseUrl: string,
+  baseUrl: string
 ): Promise<Pick<WordPressClientConfig, 'auth' | 'authHeader'>> {
   const authHeader = readEnvValue(env, envPrefix, 'AUTH_HEADER');
-  if (authHeader) return { authHeader };
+
+  if (authHeader) {
+    return { authHeader };
+  }
 
   const username = readEnvValue(env, envPrefix, 'USERNAME');
   const password = readEnvValue(env, envPrefix, 'PASSWORD');
+
   if (username && password) {
     const jwtClient = new WordPressClient({ baseUrl });
 
     if (await hasJwtAuthTokenEndpoint(jwtClient)) {
-      const jwt = await jwtClient.loginWithJwt({ username, password });
+      const jwt = await jwtClient.loginWithJwt({ password, username });
+
       return { auth: { token: jwt.token } };
     }
 
-    return { auth: { username, password } };
+    return { auth: { password, username } };
   }
 
   return {};
 }
 
 async function readStoredCatalog(
-  catalogPath: URL,
+  catalogPath: URL
 ): Promise<WordPressDiscoveryCatalog | undefined> {
   try {
+    // SAFETY: writeStoredCatalog serializes this SDK type; malformed JSON is surfaced to the caller.
     return JSON.parse(
-      await readFile(catalogPath, 'utf-8'),
+      await readFile(catalogPath, 'utf-8')
     ) as WordPressDiscoveryCatalog;
   } catch (error) {
     if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
@@ -299,7 +324,7 @@ async function readStoredCatalog(
 
 async function writeStoredCatalog(
   catalogPath: URL,
-  catalog: WordPressDiscoveryCatalog,
+  catalog: WordPressDiscoveryCatalog
 ): Promise<void> {
   await mkdir(new URL('.', catalogPath), { recursive: true });
   await writeFile(catalogPath, `${JSON.stringify(catalog, null, 2)}\n`);
@@ -315,9 +340,20 @@ function formatCatalogSummary(catalog: WordPressDiscoveryCatalog): string {
 }
 
 function getCatalogSourceUrl(
-  catalog: WordPressDiscoveryCatalog,
+  catalog: WordPressDiscoveryCatalog
 ): string | undefined {
-  const source = (catalog as { source?: { baseUrl?: unknown } }).source;
+  if (!('source' in catalog)) {
+    return undefined;
+  }
+
+  const { source } = catalog;
+
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Cached catalogs from older client versions may omit source metadata.
+  if (typeof source !== 'object' || source === null || !('baseUrl' in source)) {
+    return undefined;
+  }
+
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Older cached catalogs may omit or mis-type the source URL.
   return typeof source?.baseUrl === 'string' ? source.baseUrl : undefined;
 }
 
@@ -330,7 +366,7 @@ function toPascalCase(slug: string): string {
 
 function createGeneratedSchemaResource(
   resource: string,
-  description: { resource?: string; restBase?: string; slug?: string },
+  description: { resource?: string; restBase?: string; slug?: string }
 ): GeneratedSchemaResource {
   const slug = description.slug ?? description.resource ?? resource;
   const pascal = toPascalCase(slug);
@@ -343,16 +379,18 @@ function createGeneratedSchemaResource(
 }
 
 function getGeneratedSchemaResources(
-  catalog: WordPressDiscoveryCatalog | undefined,
+  catalog: WordPressDiscoveryCatalog | undefined
 ): GeneratedSchemaResource[] {
-  if (!catalog) return [];
+  if (!catalog) {
+    return [];
+  }
 
   return [
     ...Object.entries(catalog.content ?? {}).map(([resource, description]) =>
-      createGeneratedSchemaResource(resource, description),
+      createGeneratedSchemaResource(resource, description)
     ),
     ...Object.entries(catalog.terms ?? {}).map(([resource, description]) =>
-      createGeneratedSchemaResource(resource, description),
+      createGeneratedSchemaResource(resource, description)
     ),
   ];
 }
@@ -360,11 +398,14 @@ function getGeneratedSchemaResources(
 function getFluentWpClientCliPath(): string {
   const packageRoot = resolve(
     dirname(fileURLToPath(import.meta.resolve('fluent-wp-client'))),
-    '..',
+    '..'
   );
+
+  // SAFETY: This manifest belongs to the installed fluent-wp-client dependency; only its CLI bin is read.
   const packageJson = JSON.parse(
-    readFileSync(join(packageRoot, 'package.json'), 'utf-8'),
+    readFileSync(join(packageRoot, 'package.json'), 'utf-8')
   ) as { bin?: { 'fluent-wp-client'?: string } };
+
   const binPath = packageJson.bin?.['fluent-wp-client'];
 
   if (!binPath) {
@@ -377,7 +418,7 @@ function getFluentWpClientCliPath(): string {
 function createSchemaCliArgs(
   baseUrl: string,
   zodOut: string,
-  typesOut: string,
+  typesOut: string
 ): string[] {
   return [
     getFluentWpClientCliPath(),
@@ -392,7 +433,7 @@ function createSchemaCliArgs(
 }
 
 function createSchemaCliEnv(
-  authConfig: Pick<WordPressClientConfig, 'auth' | 'authHeader'>,
+  authConfig: Pick<WordPressClientConfig, 'auth' | 'authHeader'>
 ): NodeJS.ProcessEnv {
   const cliEnv: NodeJS.ProcessEnv = {};
 
@@ -412,7 +453,7 @@ async function generateSchemaArtifacts(
   authConfig: Pick<WordPressClientConfig, 'auth' | 'authHeader'>,
   baseUrl: string,
   zodOut: string,
-  typesOut: string,
+  typesOut: string
 ): Promise<void> {
   const schemaCliEnv = createSchemaCliEnv(authConfig);
 
@@ -424,12 +465,12 @@ async function generateSchemaArtifacts(
         ...process.env,
         ...schemaCliEnv,
       },
-    },
+    }
   );
 }
 
 async function readGeneratedFile(
-  filePath: string,
+  filePath: string
 ): Promise<string | undefined> {
   try {
     return await readFile(filePath, 'utf-8');
@@ -445,15 +486,17 @@ async function readGeneratedFile(
 function filterGeneratedResources(
   resources: GeneratedSchemaResource[],
   zodModule: string | undefined,
-  typeDeclarations: string | undefined,
+  typeDeclarations: string | undefined
 ): GeneratedSchemaResource[] {
-  if (!zodModule || !typeDeclarations) return [];
+  if (!zodModule || !typeDeclarations) {
+    return [];
+  }
 
   return resources.filter(
     (resource) =>
       zodModule.includes(`export const ${resource.schemaName} =`) &&
       (typeDeclarations.includes(`interface ${resource.typeName} `) ||
-        typeDeclarations.includes(`type ${resource.typeName} =`)),
+        typeDeclarations.includes(`type ${resource.typeName} =`))
   );
 }
 
@@ -465,9 +508,10 @@ function createGeneratedSchemasModule(state: CatalogState): string {
   }
 
   const moduleUrl = pathToFileURL(state.generatedSchemasPath).href;
+
   const entries = resources.map(
     (resource) =>
-      `${JSON.stringify(resource.resource)}: generated.${resource.schemaName}`,
+      `${JSON.stringify(resource.resource)}: generated.${resource.schemaName}`
   );
 
   return `
@@ -483,17 +527,19 @@ function createGeneratedSchemasModule(state: CatalogState): string {
 function createGeneratedSchemasTypes(state: CatalogState): string {
   const resources = state.generatedResources ?? [];
   const typeDeclarations = state.generatedSchemaTypes ?? '';
+
   const schemaDeclarations = resources.map(
     (resource) =>
-      `export const ${resource.schemaName}: ZodType<${resource.typeName}>;`,
+      `export const ${resource.schemaName}: z.ZodType<${resource.typeName}>;`
   );
+
   const mapEntries = resources.map(
     (resource) =>
-      `${JSON.stringify(resource.resource)}: typeof ${resource.schemaName};`,
+      `${JSON.stringify(resource.resource)}: typeof ${resource.schemaName};`
   );
 
   return `declare module 'virtual:wp-astrojs/generated-schemas' {
-  import type { ZodType } from 'zod';
+  import type { z } from 'astro/zod';
 
   ${typeDeclarations}
 
@@ -515,18 +561,32 @@ function createVirtualModuleTypes(state: CatalogState): string {
 function createCatalogVirtualModule(state: CatalogState): Plugin {
   return {
     name: 'wp-astrojs-integration:catalog',
-    resolveId(id) {
-      if (id === VIRTUAL_MODULE_ID) return RESOLVED_VIRTUAL_MODULE_ID;
+    resolveId(id, importer) {
+      // CLI schemas live in the app cache, outside the SDK's dependency tree under pnpm.
+      if (
+        id === 'zod' &&
+        importer &&
+        state.generatedSchemasPath &&
+        normalizePath(importer) === normalizePath(state.generatedSchemasPath)
+      ) {
+        return this.resolve('astro/zod', importer, { skipSelf: true });
+      }
+
+      if (id === VIRTUAL_MODULE_ID) {
+        return RESOLVED_VIRTUAL_MODULE_ID;
+      }
+
       if (id === SCHEMAS_VIRTUAL_MODULE_ID) {
         return RESOLVED_SCHEMAS_VIRTUAL_MODULE_ID;
       }
+
       if (id === COLLECTIONS_VIRTUAL_MODULE_ID) {
         return RESOLVED_COLLECTIONS_VIRTUAL_MODULE_ID;
       }
+
       if (id === GENERATED_SCHEMAS_VIRTUAL_MODULE_ID) {
         return RESOLVED_GENERATED_SCHEMAS_VIRTUAL_MODULE_ID;
       }
-      return undefined;
     },
     load(id) {
       if (id === RESOLVED_GENERATED_SCHEMAS_VIRTUAL_MODULE_ID) {
@@ -621,7 +681,7 @@ function createCatalogVirtualModule(state: CatalogState): Plugin {
             wordPressTermStaticLoader,
             wordPressUserLoader,
             wordPressUserStaticLoader,
-          } from 'wp-astrojs-integration';
+          } from 'wp-astrojs-integration/loaders';
           import { createWordPressClient } from 'virtual:wp-astrojs/catalog';
           import { getWordPressResourceSchemas } from 'virtual:wp-astrojs/schemas';
           import { wordPressGeneratedSchemaMap } from 'virtual:wp-astrojs/generated-schemas';
@@ -712,9 +772,12 @@ function createCatalogVirtualModule(state: CatalogState): Plugin {
         `;
       }
 
-      if (id !== RESOLVED_VIRTUAL_MODULE_ID) return undefined;
+      if (id !== RESOLVED_VIRTUAL_MODULE_ID) {
+        return;
+      }
 
       const catalogCode = state.catalog ? uneval(state.catalog) : 'undefined';
+
       const catalogPathCode = state.catalogPath
         ? JSON.stringify(state.catalogPath)
         : 'undefined';
@@ -745,14 +808,19 @@ function createCatalogVirtualModule(state: CatalogState): Plugin {
  * Adds WordPress catalog discovery to Astro projects.
  */
 export default function wordpress(
-  options: WordPressAstroIntegrationOptions = {},
+  options: WordPressAstroIntegrationOptions = {}
 ): AstroIntegration {
   const catalogOptions = resolveCatalogOptions(options.catalog);
   const state: CatalogState = {};
 
   return {
-    name: 'wp-astrojs-integration',
     hooks: {
+      'astro:config:done': ({ injectTypes }) => {
+        injectTypes({
+          content: createVirtualModuleTypes(state),
+          filename: 'wp-astrojs-catalog.d.ts',
+        });
+      },
       'astro:config:setup': async ({
         command,
         config,
@@ -766,45 +834,58 @@ export default function wordpress(
           },
         });
 
-        if (!catalogOptions.enabled) return;
+        if (!catalogOptions.enabled) {
+          return;
+        }
 
         const catalogPath = new URL(catalogOptions.cacheFile, config.cacheDir);
+
         const generatedSchemasPath = new URL(
           'wp-astrojs/generated-schemas.mjs',
-          config.cacheDir,
+          config.cacheDir
         );
+
         const generatedSchemaTypesPath = new URL(
           'wp-astrojs/generated-schemas.d.ts',
-          config.cacheDir,
+          config.cacheDir
         );
+
         const catalogFilePath = fileURLToPath(catalogPath);
         const generatedSchemasFilePath = fileURLToPath(generatedSchemasPath);
+
         const generatedSchemaTypesFilePath = fileURLToPath(
-          generatedSchemaTypesPath,
+          generatedSchemaTypesPath
         );
+
         state.catalogPath = catalogFilePath;
 
         const storedCatalog = await readStoredCatalog(catalogPath);
         const catalogEnv = loadCatalogEnv(config, command);
         const baseUrl = resolveBaseUrl(catalogOptions, catalogEnv);
+
         const validatedBaseUrl = baseUrl
           ? validateBaseUrl(baseUrl, catalogOptions.envPrefix)
           : undefined;
+
         const shouldRefresh = shouldRefreshCatalog(
           catalogOptions.refresh,
           command,
-          Boolean(storedCatalog),
+          Boolean(storedCatalog)
         );
+
         let resolvedAuthConfig:
           | Pick<WordPressClientConfig, 'auth' | 'authHeader'>
           | undefined;
+
         const getResolvedAuthConfig = async () => {
-          if (!validatedBaseUrl) return {};
+          if (!validatedBaseUrl) {
+            return {};
+          }
 
           resolvedAuthConfig ??= await resolveClientAuthConfig(
             catalogEnv,
             catalogOptions.envPrefix,
-            validatedBaseUrl,
+            validatedBaseUrl
           );
 
           return resolvedAuthConfig;
@@ -812,9 +893,13 @@ export default function wordpress(
 
         if (!shouldRefresh && !storedCatalog) {
           const message = `WordPress catalog refresh is set to '${catalogOptions.refresh}', but no stored catalog exists at ${catalogFilePath}.`;
-          if (catalogOptions.required) throw new Error(message);
+
+          if (catalogOptions.required) {
+            throw new Error(message);
+          }
 
           logger.warn(`${message} Continuing without a WordPress catalog.`);
+
           return;
         }
 
@@ -829,19 +914,23 @@ export default function wordpress(
             catalogSourceUrl !== validatedBaseUrl
           ) {
             logger.warn(
-              `Stored WordPress catalog was generated for ${catalogSourceUrl}, but current URL is ${validatedBaseUrl}.`,
+              `Stored WordPress catalog was generated for ${catalogSourceUrl}, but current URL is ${validatedBaseUrl}.`
             );
           }
 
           logger.info(
-            `WordPress catalog loaded from ${catalogFilePath} (${formatCatalogSummary(storedCatalog)})`,
+            `WordPress catalog loaded from ${catalogFilePath} (${formatCatalogSummary(storedCatalog)})`
           );
         } else {
           if (!validatedBaseUrl) {
             const message = `wp-astrojs-integration catalog is enabled, but ${catalogOptions.envPrefix}URL is not set.`;
-            if (catalogOptions.required) throw new Error(message);
+
+            if (catalogOptions.required) {
+              throw new Error(message);
+            }
 
             logger.warn(`${message} Continuing without a WordPress catalog.`);
+
             return;
           }
 
@@ -849,6 +938,7 @@ export default function wordpress(
             baseUrl: validatedBaseUrl,
             ...(await getResolvedAuthConfig()),
           };
+
           let catalog: WordPressDiscoveryCatalog;
 
           try {
@@ -858,11 +948,14 @@ export default function wordpress(
               refresh: true,
             });
           } catch (error) {
-            if (catalogOptions.required) throw error;
+            if (catalogOptions.required) {
+              throw error;
+            }
 
             logger.warn(
-              `Failed to fetch WordPress catalog from ${validatedBaseUrl}. Continuing without a catalog.`,
+              `Failed to fetch WordPress catalog from ${validatedBaseUrl}. Continuing without a catalog.`
             );
+
             return;
           }
 
@@ -870,19 +963,20 @@ export default function wordpress(
           state.catalog = catalog;
           addWatchFile(catalogPath);
           logger.info(
-            `WordPress catalog written to ${catalogFilePath} (${formatCatalogSummary(catalog)})`,
+            `WordPress catalog written to ${catalogFilePath} (${formatCatalogSummary(catalog)})`
           );
         }
 
         const catalogGeneratedResources = getGeneratedSchemaResources(
-          state.catalog,
+          state.catalog
         );
 
         let generatedZodModule = await readGeneratedFile(
-          generatedSchemasFilePath,
+          generatedSchemasFilePath
         );
+
         let generatedTypes = await readGeneratedFile(
-          generatedSchemaTypesFilePath,
+          generatedSchemaTypesFilePath
         );
 
         if (
@@ -894,20 +988,20 @@ export default function wordpress(
               await getResolvedAuthConfig(),
               validatedBaseUrl,
               generatedSchemasFilePath,
-              generatedSchemaTypesFilePath,
+              generatedSchemaTypesFilePath
             );
             generatedZodModule = await readGeneratedFile(
-              generatedSchemasFilePath,
+              generatedSchemasFilePath
             );
             generatedTypes = await readGeneratedFile(
-              generatedSchemaTypesFilePath,
+              generatedSchemaTypesFilePath
             );
             logger.info(
-              `WordPress typed schemas written to ${generatedSchemasFilePath} and ${generatedSchemaTypesFilePath}`,
+              `WordPress typed schemas written to ${generatedSchemasFilePath} and ${generatedSchemaTypesFilePath}`
             );
           } catch (error) {
             logger.warn(
-              `Failed to generate WordPress typed schema artifacts. Catalog runtime schemas remain available. ${error}`,
+              `Failed to generate WordPress typed schema artifacts. Catalog runtime schemas remain available. ${error}`
             );
           }
         }
@@ -917,7 +1011,7 @@ export default function wordpress(
           state.generatedResources = filterGeneratedResources(
             catalogGeneratedResources,
             generatedZodModule,
-            generatedTypes,
+            generatedTypes
           );
           addWatchFile(generatedSchemasPath);
           addWatchFile(generatedSchemaTypesPath);
@@ -925,12 +1019,7 @@ export default function wordpress(
 
         state.generatedSchemaTypes = generatedTypes;
       },
-      'astro:config:done': ({ injectTypes }) => {
-        injectTypes({
-          filename: 'wp-astrojs-catalog.d.ts',
-          content: createVirtualModuleTypes(state),
-        });
-      },
     },
+    name: 'wp-astrojs-integration',
   };
 }

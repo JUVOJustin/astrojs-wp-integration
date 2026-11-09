@@ -10,25 +10,41 @@ Actions are Astro server actions that wrap the WordPress REST API, providing typ
 Every action factory works directly with a `WordPressClient` or a request-aware client resolver such as `wordPressAuthBridge.getClient`. Under the hood, each action delegates to `fluent-wp-client` and maps failures to `ActionError`.
 
 <CardGrid>
-  <LinkCard title="Post actions" href="./posts.mdx" description="Create, update, and delete posts, pages, and custom post types." />
-  <LinkCard title="Term actions" href="./terms.mdx" description="Manage categories, tags, and custom taxonomies." />
-  <LinkCard title="User actions" href="./users.mdx" description="Create, update, and delete WordPress users." />
-  <LinkCard title="Ability actions" href="./abilities.mdx" description="Execute WordPress abilities through Astro actions." />
+  <LinkCard
+    title="Post actions"
+    href="./posts.mdx"
+    description="Create, update, and delete posts, pages, and custom post types."
+  />
+  <LinkCard
+    title="Term actions"
+    href="./terms.mdx"
+    description="Manage categories, tags, and custom taxonomies."
+  />
+  <LinkCard
+    title="User actions"
+    href="./users.mdx"
+    description="Create, update, and delete WordPress users."
+  />
+  <LinkCard
+    title="Ability actions"
+    href="./abilities.mdx"
+    description="Execute WordPress abilities through Astro actions."
+  />
 </CardGrid>
 
 ## Integration testing
 
-Action integration tests run through a real Astro fixture app and call `/_actions/*` endpoints over HTTP.
-This validates routing, input parsing, handler execution, and serialized responses as one end-to-end flow.
+Action integration tests run through a real Astro fixture app and call `/_actions/*` endpoints over HTTP. This validates routing, input parsing, handler execution, and serialized responses as one end-to-end flow.
 
-Use `npm run test:integration` for action/loaders/auth integration checks through the real Astro fixture app.
+Use `pnpm run test:integration` for action/loaders/auth integration checks through the real Astro fixture app.
 
 ---
 
 ## Authentication
 
 <Aside type="note" title="Prefer one shared client resolver">
-Use `wordPressAuthBridge.getClient` as the shared action input when auth depends on the current Astro request.
+  Use `wordPressAuthBridge.getClient` as the shared action input when auth
+  depends on the current Astro request.
 </Aside>
 
 All write operations use one `WordPressClient` or one request-aware client resolver.
@@ -50,7 +66,9 @@ export const server = {
   createPost: createCreatePostAction(wordPressAuthBridge.getClient),
   updatePost: createUpdatePostAction(wordPressAuthBridge.getClient),
   deletePost: createDeletePostAction(wordPressAuthBridge.getClient),
-  createCategory: createCreateTermAction(wordPressAuthBridge.getClient, { resource: 'categories' }),
+  createCategory: createCreateTermAction(wordPressAuthBridge.getClient, {
+    resource: 'categories',
+  }),
   createUser: createCreateUserAction(wordPressAuthBridge.getClient),
   getAbility: createGetAbilityAction(wordPressAuthBridge.getClient),
 };
@@ -59,10 +77,11 @@ export const server = {
 ### Static client (app password)
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
@@ -78,10 +97,11 @@ export const server = {
 ### Static client (JWT)
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
   auth: {
     token: import.meta.env.WP_JWT_TOKEN,
   },
@@ -91,13 +111,18 @@ const wp = new WordPressClient({
 ### Static client with request-aware auth headers
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
   authHeaders: ({ method, url, body }) => {
     // Replace with your signer implementation
-    const signature = createSignedAuthHeader({ method, url: url.toString(), body });
+    const signature = createSignedAuthHeader({
+      method,
+      url: url.toString(),
+      body,
+    });
 
     return {
       Authorization: signature,
@@ -111,6 +136,7 @@ const wp = new WordPressClient({
 Use the same client in all factories when you want one shared static auth setup:
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 // src/actions/index.ts
 import {
   createCreatePostAction,
@@ -128,7 +154,7 @@ import {
 import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
@@ -152,8 +178,16 @@ export const server = {
 ```
 
 <CardGrid>
-  <LinkCard title="User actions" href="./users.mdx" description="Delete flow requirements, including mandatory reassignment." />
-  <LinkCard title="Term actions" href="./terms.mdx" description="Category, tag, and custom taxonomy resource behavior." />
+  <LinkCard
+    title="User actions"
+    href="./users.mdx"
+    description="Delete flow requirements, including mandatory reassignment."
+  />
+  <LinkCard
+    title="Term actions"
+    href="./terms.mdx"
+    description="Category, tag, and custom taxonomy resource behavior."
+  />
 </CardGrid>
 
 ---
@@ -167,7 +201,7 @@ Input validation happens in two distinct layers. Understanding where each field 
 These constraints are enforced by the Zod schema **before any request reaches WordPress**. A violation throws immediately in the Astro server process and never touches the network.
 
 | Field | Constraint |
-|---|---|
+| --- | --- |
 | `id` (update / delete) | Must be a positive integer |
 | `force` (delete) | Must be a boolean |
 | `status` | Must be one of `'publish'`, `'draft'`, `'pending'`, `'private'`, `'future'` |
@@ -192,7 +226,7 @@ These constraints are enforced by the Zod schema **before any request reaches Wo
 These fields are forwarded to WordPress without further local inspection. WordPress validates them server-side and returns a structured error if they are invalid. The action catches that response and surfaces it as an `ActionError`.
 
 | Field | What WordPress checks |
-|---|---|
+| --- | --- |
 | `author` | The user ID must exist and the authenticated user must be allowed to assign that author |
 | `featured_media` | The attachment ID must exist and be of media type `image` |
 | `categories` | Each ID must correspond to a published category term |
@@ -213,10 +247,12 @@ import { createPostInputSchema } from 'wp-astrojs-integration';
 import { z } from 'astro/zod';
 
 const mySchema = createPostInputSchema.extend({
-  acf: z.object({
-    price: z.number().positive(),
-    sku: z.string(),
-  }).optional(),
+  acf: z
+    .object({
+      price: z.number().positive(),
+      sku: z.string(),
+    })
+    .optional(),
 });
 ```
 
@@ -248,7 +284,7 @@ The `message` is taken directly from the WordPress `{ code, message, data }` err
 ### Common error codes
 
 | `error.code` | HTTP status | Typical cause |
-|---|---|---|
+| --- | --- | --- |
 | `UNAUTHORIZED` | 401 | Missing, wrong, or expired credentials (basic auth or JWT) |
 | `FORBIDDEN` | 403 | Authenticated user lacks capability for the operation |
 | `NOT_FOUND` | 404 | Post / term / attachment ID does not exist |
@@ -279,7 +315,7 @@ const wp = new WordPressClient({
 const product = await executeCreatePost(
   wp,
   { title: 'My Product', status: 'publish' },
-  { resource: 'products' },
+  { resource: 'products' }
 );
 ```
 
@@ -288,9 +324,21 @@ If you use JWT, build the client with `auth: { token }` instead.
 When `resource` is omitted it defaults to `'posts'` for content actions and `'categories'` for term actions.
 
 <CardGrid>
-  <LinkCard title="Post actions: resources" href="./posts.mdx#pages-and-custom-post-types" description="How `resource` targets pages and custom post type endpoints." />
-  <LinkCard title="Term actions" href="./terms.mdx" description="Resource usage for built-in and custom taxonomies." />
-  <LinkCard title="Ability actions" href="./abilities.mdx" description="Action wrappers for the WordPress abilities API." />
+  <LinkCard
+    title="Post actions: resources"
+    href="./posts.mdx#pages-and-custom-post-types"
+    description="How `resource` targets pages and custom post type endpoints."
+  />
+  <LinkCard
+    title="Term actions"
+    href="./terms.mdx"
+    description="Resource usage for built-in and custom taxonomies."
+  />
+  <LinkCard
+    title="Ability actions"
+    href="./abilities.mdx"
+    description="Action wrappers for the WordPress abilities API."
+  />
 </CardGrid>
 
 This is also how integration tests call actions directly — without needing the Astro runtime.

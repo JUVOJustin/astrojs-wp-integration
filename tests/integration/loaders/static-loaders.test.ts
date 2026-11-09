@@ -1,5 +1,7 @@
+import type { Loader } from 'astro/loaders';
 import { WordPressClient } from 'fluent-wp-client';
 import { beforeAll, describe, expect, it } from 'vitest';
+
 import {
   wordPressCategoryStaticLoader,
   wordPressContentStaticLoader,
@@ -14,6 +16,18 @@ import { createMockLogger } from '../../helpers/mock-logger';
 import { createMockStore } from '../../helpers/mock-store';
 import { getBaseUrl } from '../../helpers/wp-client';
 
+// These loaders consume only the store and logger; real Astro builds cover the full context.
+function loadWithStore(
+  loader: Loader,
+  context: {
+    logger: ReturnType<typeof createMockLogger>;
+    store: ReturnType<typeof createMockStore>['store'];
+  }
+) {
+  // SAFETY: The omitted Astro services are not read by our static loaders.
+  return loader.load(context as never);
+}
+
 /**
  * Legacy helper method keys from fluent-wp-client v1 content wrappers.
  */
@@ -27,13 +41,14 @@ const LEGACY_CONTENT_METHOD_KEYS = [
 /**
  * Asserts one loader record data object is plain and serialization-safe.
  */
+// oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The serialization assertion must inspect every field of a WordPress record.
 function expectSerializableContentData(data: Record<string, unknown>): void {
   for (const value of Object.values(data)) {
-    expect(typeof value).not.toBe('function');
+    expect(value).not.toBeTypeOf('function');
   }
 
   for (const key of LEGACY_CONTENT_METHOD_KEYS) {
-    expect(Object.prototype.hasOwnProperty.call(data, key)).toBe(false);
+    expect(Object.hasOwn(data, key)).toBeFalsy();
   }
 }
 
@@ -57,7 +72,7 @@ describe('Static Loaders', () => {
     return new WordPressClient({ baseUrl });
   }
 
-  describe('wordPressPostStaticLoader', () => {
+  describe(wordPressPostStaticLoader, () => {
     it('clears the Astro store and then writes normalized entries', async () => {
       const loader = wordPressPostStaticLoader(createClient());
       const { store, entries } = createMockStore();
@@ -67,10 +82,10 @@ describe('Static Loaders', () => {
         data: { id: 999 },
       });
 
-      await loader.load({ store, logger } as never);
+      await loadWithStore(loader, { logger, store });
 
-      expect(store.clear).toHaveBeenCalledTimes(1);
-      expect(entries.has('999')).toBe(false);
+      expect(store.clear).toHaveBeenCalledOnce();
+      expect(entries.has('999')).toBeFalsy();
       expect(entries.size).toBeGreaterThan(0);
     });
 
@@ -79,8 +94,9 @@ describe('Static Loaders', () => {
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
-      await loader.load({ store, logger } as never);
+      await loadWithStore(loader, { logger, store });
 
+      // SAFETY: The fixture store erases resource types; this scenario checks the expected rendered content fields.
       const first = entries.values().next().value as {
         data: { content: { rendered: string } };
         rendered?: { html: string };
@@ -94,11 +110,11 @@ describe('Static Loaders', () => {
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
-      await loader.load({ store, logger } as never);
+      await loadWithStore(loader, { logger, store });
 
       for (const key of entries.keys()) {
-        expect(typeof key).toBe('string');
-        expect(Number.isFinite(Number(key))).toBe(true);
+        expect(key).toBeTypeOf('string');
+        expect(Number.isFinite(Number(key))).toBeTruthy();
       }
     });
 
@@ -112,10 +128,13 @@ describe('Static Loaders', () => {
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
-      await loader.load({ store, logger } as never);
+      await loadWithStore(loader, { logger, store });
 
       expect(entries.size).toBeGreaterThan(0);
+
       for (const entry of entries.values()) {
+        // SAFETY: Static content is stored as a plain record; the assertion rejects methods on its values.
+        // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The serialization assertion must inspect every field of a WordPress record.
         expectSerializableContentData(entry.data as Record<string, unknown>);
       }
     });
@@ -125,20 +144,25 @@ describe('Static Loaders', () => {
         mapEntry: (entry, context) => ({
           ...entry,
           acf: {
+            // oxlint-disable-next-line anti-slop/no-runtime-typeof -- ACF may return an empty array; preserve existing fields only when an object is available.
             ...(typeof entry.acf === 'object' && entry.acf !== null
               ? entry.acf
-              : {}),
+              : undefined),
             acf_subtitle: `${context.resource}:Mapped label`,
           },
         }),
       });
+
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
-      await loader.load({ store, logger } as never);
+      await loadWithStore(loader, { logger, store });
 
+      // SAFETY: This scenario maps ACF fields on test-post-001 and checks the projected value below.
       const mapped = [...entries.values()].find((entry) => {
+        // SAFETY: The selected content loader supplies post slugs; use that field to locate the seeded fixture.
         const data = entry.data as { slug?: string };
+
         return data.slug === 'test-post-001';
       }) as { data: { acf?: { acf_subtitle?: string } } } | undefined;
 
@@ -147,28 +171,42 @@ describe('Static Loaders', () => {
 
     it('supports callback-driven ACF choice labels from live REST API', async () => {
       const choiceLabels = await getAcfChoiceLabels(baseUrl);
+
       const loader = wordPressPostStaticLoader(createClient(), {
         mapEntry: (entry) => ({
           ...entry,
           acf: {
+            // oxlint-disable-next-line anti-slop/no-runtime-typeof -- ACF may return an empty array; preserve existing fields only when an object is available.
             ...(typeof entry.acf === 'object' && entry.acf !== null
               ? entry.acf
-              : {}),
+              : undefined),
             acf_project_status:
               choiceLabels
                 .get('acf_project_status')
-                ?.get(String(entry.acf?.acf_project_status)) ??
-              entry.acf?.acf_project_status,
+                ?.get(
+                  String(
+                    Array.isArray(entry.acf)
+                      ? undefined
+                      : entry.acf?.acf_project_status
+                  )
+                ) ??
+              (Array.isArray(entry.acf)
+                ? undefined
+                : entry.acf?.acf_project_status),
           },
         }),
       });
+
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
-      await loader.load({ store, logger } as never);
+      await loadWithStore(loader, { logger, store });
 
+      // SAFETY: This scenario maps ACF fields on test-post-001 and checks the projected value below.
       const mapped = [...entries.values()].find((entry) => {
+        // SAFETY: The selected content loader supplies post slugs; use that field to locate the seeded fixture.
         const data = entry.data as { slug?: string };
+
         return data.slug === 'test-post-001';
       }) as { data: { acf?: { acf_project_status?: string } } } | undefined;
 
@@ -176,7 +214,7 @@ describe('Static Loaders', () => {
     });
   });
 
-  describe('wordPressPageStaticLoader', () => {
+  describe(wordPressPageStaticLoader, () => {
     /**
      * Serialization test: pages must also be plain serializable data.
      */
@@ -185,10 +223,13 @@ describe('Static Loaders', () => {
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
-      await loader.load({ store, logger } as never);
+      await loadWithStore(loader, { logger, store });
 
       expect(entries.size).toBeGreaterThan(0);
+
       for (const entry of entries.values()) {
+        // SAFETY: Static content is stored as a plain record; the assertion rejects methods on its values.
+        // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The serialization assertion must inspect every field of a WordPress record.
         expectSerializableContentData(entry.data as Record<string, unknown>);
       }
     });
@@ -200,9 +241,10 @@ describe('Static Loaders', () => {
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
-      await loader.load({ store, logger } as never);
+      await loadWithStore(loader, { logger, store });
 
       expect(entries.size).toBeGreaterThan(0);
+
       for (const entry of entries.values()) {
         expect(entry.rendered).toBeUndefined();
       }
@@ -213,11 +255,11 @@ describe('Static Loaders', () => {
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
-      await loader.load({ store, logger } as never);
+      await loadWithStore(loader, { logger, store });
 
       expect(entries.size).toBeGreaterThan(0);
       expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('Loaded'),
+        expect.stringContaining('Loaded')
       );
     });
 
@@ -225,31 +267,36 @@ describe('Static Loaders', () => {
       const loader = wordPressTermStaticLoader(createClient(), {
         resource: 'genres',
       });
+
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
-      await loader.load({ store, logger } as never);
+      await loadWithStore(loader, { logger, store });
 
       expect(entries.size).toBeGreaterThan(0);
+
+      // SAFETY: The fixture store erases resource types; this scenario checks the expected rendered content fields.
       const first = entries.values().next().value as {
         data: { taxonomy: string };
       };
+
       expect(first.data.taxonomy).toBe('genre');
     });
   });
 
-  describe('wordPressUserStaticLoader', () => {
+  describe(wordPressUserStaticLoader, () => {
     it('stores user entries using string ids and no rendered html', async () => {
       const loader = wordPressUserStaticLoader(createClient());
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
-      await loader.load({ store, logger } as never);
+      await loadWithStore(loader, { logger, store });
 
       expect(entries.size).toBeGreaterThan(0);
+
       for (const [key, entry] of entries) {
-        expect(typeof key).toBe('string');
-        expect(Number.isFinite(Number(key))).toBe(true);
+        expect(key).toBeTypeOf('string');
+        expect(Number.isFinite(Number(key))).toBeTruthy();
         expect(entry.rendered).toBeUndefined();
       }
     });
@@ -259,10 +306,13 @@ describe('Static Loaders', () => {
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
-      await loader.load({ store, logger } as never);
+      await loadWithStore(loader, { logger, store });
 
       expect(entries.size).toBeGreaterThan(0);
+
       for (const entry of entries.values()) {
+        // SAFETY: The public user loader stores a REST object; the assertions check which fields are exposed.
+        // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- User REST fields vary by authentication; this assertion checks their visibility.
         const data = entry.data as Record<string, unknown>;
         // WordPress REST API hides email from unauthenticated requests
         expect(data.email).toBeUndefined();
@@ -270,21 +320,25 @@ describe('Static Loaders', () => {
     });
   });
 
-  describe('wordPressContentStaticLoader', () => {
+  describe(wordPressContentStaticLoader, () => {
     it('stores CPT entries with string ids and rendered html', async () => {
       const loader = wordPressContentStaticLoader(createClient(), {
         resource: 'books',
       });
+
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
-      await loader.load({ store, logger } as never);
+      await loadWithStore(loader, { logger, store });
 
       expect(entries.size).toBeGreaterThan(0);
+
+      // SAFETY: The fixture store erases resource types; this scenario checks the expected rendered content fields.
       const first = entries.values().next().value as {
         data: { type: string; content: { rendered: string } };
         rendered?: { html: string };
       };
+
       expect(first.data.type).toBe('book');
       expect(first.rendered?.html).toBe(first.data.content.rendered);
     });
@@ -293,13 +347,17 @@ describe('Static Loaders', () => {
       const loader = wordPressContentStaticLoader(createClient(), {
         resource: 'books',
       });
+
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
-      await loader.load({ store, logger } as never);
+      await loadWithStore(loader, { logger, store });
 
       expect(entries.size).toBeGreaterThan(0);
+
       for (const entry of entries.values()) {
+        // SAFETY: Static content is stored as a plain record; the assertion rejects methods on its values.
+        // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- The serialization assertion must inspect every field of a WordPress record.
         expectSerializableContentData(entry.data as Record<string, unknown>);
       }
     });
@@ -308,6 +366,7 @@ describe('Static Loaders', () => {
       const loader = wordPressContentStaticLoader(createClient(), {
         resource: 'books',
       });
+
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
@@ -315,10 +374,10 @@ describe('Static Loaders', () => {
         data: { id: 999 },
       });
 
-      await loader.load({ store, logger } as never);
+      await loadWithStore(loader, { logger, store });
 
-      expect(store.clear).toHaveBeenCalledTimes(1);
-      expect(entries.has('999')).toBe(false);
+      expect(store.clear).toHaveBeenCalledOnce();
+      expect(entries.has('999')).toBeFalsy();
       expect(entries.size).toBeGreaterThan(0);
     });
 
@@ -326,17 +385,18 @@ describe('Static Loaders', () => {
       const loader = wordPressContentStaticLoader(createClient(), {
         resource: 'books',
       });
+
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
-      await loader.load({ store, logger } as never);
+      await loadWithStore(loader, { logger, store });
 
       expect(entries.size).toBeGreaterThan(0);
       expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('Loaded'),
+        expect.stringContaining('Loaded')
       );
       expect(logger.info).toHaveBeenCalledWith(
-        expect.stringContaining('books'),
+        expect.stringContaining('books')
       );
     });
 
@@ -345,28 +405,31 @@ describe('Static Loaders', () => {
       const loaderAll = wordPressContentStaticLoader(createClient(), {
         resource: 'books',
       });
-      const { store: storeAll, entries: entriesAll } = createMockStore();
-      await loaderAll.load({
-        store: storeAll,
-        logger: createMockLogger(),
-      } as never);
 
-      const firstId = (
-        entriesAll.values().next().value as { data: { id: number } }
-      ).data.id;
+      const { store: storeAll, entries: entriesAll } = createMockStore();
+      await loadWithStore(loaderAll, {
+        logger: createMockLogger(),
+        store: storeAll,
+      });
+
+      const firstId =
+        // SAFETY: The posts loader supplies numeric IDs; the next request exercises filtering with this returned ID.
+        (entriesAll.values().next().value as { data: { id: number } }).data.id;
 
       const loader = wordPressContentStaticLoader(createClient(), {
-        resource: 'books',
         filter: { include: [firstId] },
+        resource: 'books',
       });
+
       const { store, entries } = createMockStore();
       const logger = createMockLogger();
 
-      await loader.load({ store, logger } as never);
+      await loadWithStore(loader, { logger, store });
 
       expect(entries.size).toBe(1);
       expect(
-        (entries.values().next().value as { data: { id: number } }).data.id,
+        // SAFETY: The filtered posts loader must return the requested ID or slug, checked by this assertion.
+        (entries.values().next().value as { data: { id: number } }).data.id
       ).toBe(firstId);
     });
   });
@@ -376,14 +439,18 @@ describe('Static Loaders', () => {
       const loader = wordPressPostStaticLoader(createClient(), {
         filter: { search: 'Test Post 001' },
       });
+
       const { store, entries } = createMockStore();
 
-      await loader.load({ store, logger: createMockLogger() } as never);
+      await loadWithStore(loader, { logger: createMockLogger(), store });
 
       expect(entries.size).toBeGreaterThan(0);
+
       const slugs = [...entries.values()].map(
-        (e) => (e as { data: { slug: string } }).data.slug,
+        // SAFETY: This posts fixture expects slugs; the following assertion checks the actual returned values.
+        (e) => (e as { data: { slug: string } }).data.slug
       );
+
       expect(slugs).toContain('test-post-001');
     });
 
@@ -391,26 +458,30 @@ describe('Static Loaders', () => {
       // Load without filter first to resolve a known post id
       const loaderAll = wordPressPostStaticLoader(createClient());
       const { store: storeAll, entries: entriesAll } = createMockStore();
-      await loaderAll.load({
-        store: storeAll,
+      await loadWithStore(loaderAll, {
         logger: createMockLogger(),
-      } as never);
+        store: storeAll,
+      });
 
-      const allEntries = [...entriesAll.values()] as Array<{
+      // SAFETY: The posts loader supplies numeric IDs; the next request exercises filtering with this returned ID.
+      const allEntries = [...entriesAll.values()] as {
         data: { id: number; slug: string };
-      }>;
+      }[];
+
       const target = allEntries.find((e) => e.data.slug === 'test-post-001')!;
 
       const loader = wordPressPostStaticLoader(createClient(), {
         filter: { include: [target.data.id] },
       });
+
       const { store, entries } = createMockStore();
 
-      await loader.load({ store, logger: createMockLogger() } as never);
+      await loadWithStore(loader, { logger: createMockLogger(), store });
 
       expect(entries.size).toBe(1);
       expect(
-        (entries.values().next().value as { data: { slug: string } }).data.slug,
+        // SAFETY: The filtered posts loader must return the requested ID or slug, checked by this assertion.
+        (entries.values().next().value as { data: { slug: string } }).data.slug
       ).toBe('test-post-001');
     });
   });

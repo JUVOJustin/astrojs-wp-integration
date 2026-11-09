@@ -1,20 +1,15 @@
-import {
-  type ActionAPIContext,
-  type ActionClient,
-  defineAction,
-} from 'astro:actions';
 import { z } from 'astro/zod';
-import type { WordPressClient } from 'fluent-wp-client';
-import {
-  categorySchema,
-  type WordPressCategory,
-  type WordPressStandardSchema,
+import { defineAction } from 'astro:actions';
+import type { ActionAPIContext, ActionClient } from 'astro:actions';
+import { categorySchema } from 'fluent-wp-client';
+import type {
+  WordPressClient,
+  WordPressCategory,
+  WordPressStandardSchema,
 } from 'fluent-wp-client';
-import {
-  type ResolvableActionClient,
-  resolveRequiredActionClient,
-  withActionClient,
-} from '../post/client';
+
+import { resolveRequiredActionClient, withActionClient } from '../post/client';
+import type { ResolvableActionClient } from '../post/client';
 import { validateActionResponse } from '../response-validation';
 import { createTermInputSchema } from './create';
 
@@ -69,21 +64,23 @@ type UpdateTermActionFactoryOptions<
  */
 export async function executeUpdateTerm<T = WordPressCategory>(
   client: WordPressClient,
-  input: UpdateTermInput & Record<string, unknown>,
-  options?: ExecuteUpdateTermOptions<T>,
+  input: UpdateTermInput,
+  options?: ExecuteUpdateTermOptions<T>
 ): Promise<T> {
   const resource = options?.resource ?? 'categories';
 
   return withActionClient(client, async (resolvedClient) => {
     const { id, ...fields } = input;
     const updated = await resolvedClient.terms(resource).update(id, fields);
+
+    // SAFETY: An explicitly chosen T requires a matching responseSchema; the fallback serves the default resource type.
     const responseSchema = (options?.responseSchema ??
       categorySchema) as WordPressStandardSchema<T>;
 
     return validateActionResponse(
       updated,
       responseSchema,
-      `WordPress ${resource} update action`,
+      `WordPress ${resource} update action`
     );
   });
 }
@@ -96,23 +93,23 @@ export function createUpdateTermAction<
   TSchema extends typeof updateTermInputSchema = typeof updateTermInputSchema,
 >(
   client: ResolvableActionClient,
-  options?: UpdateTermActionFactoryOptions<TResponse, TSchema>,
+  options?: UpdateTermActionFactoryOptions<TResponse, TSchema>
 ): ActionClient<TResponse, undefined, TSchema> & string {
+  // SAFETY: A custom schema carries TSchema; otherwise the factory uses its default schema.
   const inputSchema = (options?.schema ?? updateTermInputSchema) as TSchema;
   const resource = options?.resource;
   const responseSchema = options?.responseSchema;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // SAFETY: Astro's generated action proxy supplies the callable and string-coercion API.
   return defineAction({
     input: inputSchema,
     handler: async (input: z.infer<TSchema>, context: ActionAPIContext) => {
       const resolvedClient = await resolveRequiredActionClient(client, context);
 
-      return executeUpdateTerm<TResponse>(
-        resolvedClient,
-        input as UpdateTermInput & Record<string, unknown>,
-        { resource, responseSchema },
-      );
+      return executeUpdateTerm<TResponse>(resolvedClient, input, {
+        resource,
+        responseSchema,
+      });
     },
-  } as any) as ActionClient<TResponse, undefined, TSchema> & string;
+  }) as ActionClient<TResponse, undefined, TSchema> & string;
 }

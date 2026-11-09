@@ -1,5 +1,7 @@
-import { type ActionAPIContext, ActionError } from 'astro:actions';
-import { type WordPressClient, WordPressHttpError } from 'fluent-wp-client';
+import { ActionError } from 'astro:actions';
+import type { ActionAPIContext } from 'astro:actions';
+import { WordPressHttpError } from 'fluent-wp-client';
+import type { WordPressClient } from 'fluent-wp-client';
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -7,7 +9,7 @@ type MaybePromise<T> = T | Promise<T>;
  * Callback shape used when one Astro action needs a request-scoped WordPress client.
  */
 export type ActionClientResolver = (
-  context: ActionAPIContext,
+  context: ActionAPIContext
 ) => MaybePromise<WordPressClient | null | undefined>;
 
 /**
@@ -25,7 +27,7 @@ export type ActionResponseMapper<TResponse = unknown, TInput = unknown> = (
     input: TInput;
     operation: 'create' | 'update';
     resource: string;
-  },
+  }
 ) => TResponse | Promise<TResponse>;
 
 /**
@@ -33,8 +35,9 @@ export type ActionResponseMapper<TResponse = unknown, TInput = unknown> = (
  */
 export async function resolveActionClient(
   client: ResolvableActionClient,
-  context: ActionAPIContext,
+  context: ActionAPIContext
 ): Promise<WordPressClient | null> {
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Action factories accept a client instance or a request-scoped resolver.
   if (typeof client === 'function') {
     return (await client(context)) ?? null;
   }
@@ -47,7 +50,7 @@ export async function resolveActionClient(
  */
 export async function resolveRequiredActionClient(
   client: ResolvableActionClient,
-  context: ActionAPIContext,
+  context: ActionAPIContext
 ): Promise<WordPressClient> {
   const resolvedClient = await resolveActionClient(client, context);
 
@@ -66,7 +69,7 @@ export async function resolveRequiredActionClient(
  */
 export async function withActionClient<T>(
   client: WordPressClient,
-  callback: (client: WordPressClient) => Promise<T>,
+  callback: (client: WordPressClient) => Promise<T>
 ): Promise<T> {
   try {
     return await callback(client);
@@ -78,6 +81,7 @@ export async function withActionClient<T>(
 /**
  * Maps one client-side API error to the Astro action error contract.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- JavaScript catch values are untyped; known SDK and Astro errors retain their status.
 export function toActionError(error: unknown): ActionError {
   if (error instanceof ActionError) {
     return error;

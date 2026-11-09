@@ -1,4 +1,5 @@
 import { parse as devalueParse } from 'devalue';
+
 import { request } from './http-client';
 
 /**
@@ -28,6 +29,7 @@ export class ActionError extends Error {
  */
 async function parseActionResponse<T>(response: Response): Promise<T> {
   if (response.status === 204) {
+    // SAFETY: The RPC caller chooses void for actions that return HTTP 204.
     return undefined as T;
   }
 
@@ -55,9 +57,11 @@ async function parseActionResponse<T>(response: Response): Promise<T> {
   }
 
   if (contentType.includes('application/json+devalue')) {
+    // SAFETY: The caller supplies the expected fixture action result type; devalue preserves Astro RPC values.
     return devalueParse(body, { URL: (href: string) => new URL(href) }) as T;
   }
 
+  // SAFETY: The caller supplies the expected fixture action result type for plain JSON responses.
   return JSON.parse(body) as T;
 }
 
@@ -69,29 +73,30 @@ async function parseActionResponse<T>(response: Response): Promise<T> {
  */
 export async function callAction<T = unknown>(
   actionName: string,
+  // oxlint-disable-next-line anti-slop/no-unknown-parameters -- The RPC helper sends arbitrary test payloads, including deliberately invalid action inputs.
   input: unknown,
-  options?: { authHeader?: string; baseUrl?: string },
+  options?: { authHeader?: string; baseUrl?: string }
 ): Promise<T> {
   const baseUrl = options?.baseUrl ?? getAstroDevUrl();
   const url = `${baseUrl}/_actions/${actionName}`;
 
-  const headers: Record<string, string> = {
+  const headers = new Headers({
     Accept: 'application/json',
     Origin: baseUrl,
-  };
+  });
 
   if (input !== undefined) {
-    headers['Content-Type'] = 'application/json';
+    headers.set('Content-Type', 'application/json');
   }
 
   if (options?.authHeader) {
-    headers['X-Test-Auth'] = options.authHeader;
+    headers.set('X-Test-Auth', options.authHeader);
   }
 
   const response = await request(url, {
+    body: input === undefined ? undefined : JSON.stringify(input),
+    headers: Object.fromEntries(headers),
     method: 'POST',
-    headers,
-    body: input !== undefined ? JSON.stringify(input) : undefined,
   });
 
   return parseActionResponse<T>(response);

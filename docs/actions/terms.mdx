@@ -3,26 +3,40 @@ title: Term Actions
 description: Create, update, and delete WordPress categories, tags, and custom taxonomy terms from Astro server actions.
 ---
 
-import { Aside, CardGrid, LinkCard, Steps } from '@astrojs/starlight/components';
+import {
+  Aside,
+  CardGrid,
+  LinkCard,
+  Steps,
+} from '@astrojs/starlight/components';
 
 Term actions let you create, update, and delete WordPress taxonomy terms from Astro server-side code.
 
 They support built-in taxonomies (`categories`, `tags`) and custom taxonomies by passing the taxonomy REST `resource`.
 
 <CardGrid>
-  <LinkCard title="Actions overview" href="./index.mdx" description="Shared auth patterns, validation layers, and ActionError behavior." />
-  <LinkCard title="Post actions" href="./posts.mdx" description="Content resource actions for posts, pages, and custom post types." />
+  <LinkCard
+    title="Actions overview"
+    href="./index.mdx"
+    description="Shared auth patterns, validation layers, and ActionError behavior."
+  />
+  <LinkCard
+    title="Post actions"
+    href="./posts.mdx"
+    description="Content resource actions for posts, pages, and custom post types."
+  />
 </CardGrid>
 
 ## Setup
 
 <Steps>
-1. Register term action factories in your Astro `src/actions/index.ts`.
-2. Choose the target taxonomy endpoint via `resource`.
-3. Call the actions from server components, endpoints, or form handlers.
+  1. Register term action factories in your Astro `src/actions/index.ts`. 2.
+  Choose the target taxonomy endpoint via `resource`. 3. Call the actions from
+  server components, endpoints, or form handlers.
 </Steps>
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 import {
   createCreateTermAction,
   createUpdateTermAction,
@@ -31,7 +45,7 @@ import {
 import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
@@ -69,12 +83,16 @@ const { data } = await Astro.callAction(actions.updateTag, {
 ### Custom taxonomy term
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 import { WordPressClient } from 'fluent-wp-client';
 import { createCreateTermAction } from 'wp-astrojs-integration';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
-  auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
+  baseUrl: WORDPRESS_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
 });
 
 const createGenre = createCreateTermAction(wp, { resource: 'genres' });
@@ -88,7 +106,8 @@ const created = await Astro.callAction(createGenre, {
 ## Deleting a term
 
 <Aside type="caution" title="Term deletion behavior">
-WordPress term deletion is permanent in REST workflows. Use delete actions carefully in production.
+  WordPress term deletion is permanent in REST workflows. Use delete actions
+  carefully in production.
 </Aside>
 
 ```ts
@@ -105,13 +124,20 @@ const { data } = await Astro.callAction(actions.deleteGenre, {
 Use `schema` to validate custom term payload fields and `responseSchema` for typed result parsing.
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 import { z } from 'astro/zod';
 import { WordPressClient } from 'fluent-wp-client';
-import { createCreateTermAction, createTermInputSchema } from 'wp-astrojs-integration';
+import {
+  createCreateTermAction,
+  createTermInputSchema,
+} from 'wp-astrojs-integration';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
-  auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
+  baseUrl: WORDPRESS_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
 });
 
 const createGenre = createCreateTermAction(wp, {
@@ -144,7 +170,19 @@ const wp = new WordPressClient({
   auth: { username: 'admin', password: 'app-password' },
 });
 
-const created = await executeCreateTerm(wp, { name: 'Release Notes' }, { resource: 'tags' });
-await executeUpdateTerm(wp, { id: created.id, slug: 'release-notes' }, { resource: 'tags' });
-await executeDeleteTerm(wp, { id: created.id, force: true }, { resource: 'tags' });
+const created = await executeCreateTerm(
+  wp,
+  { name: 'Release Notes' },
+  { resource: 'tags' }
+);
+await executeUpdateTerm(
+  wp,
+  { id: created.id, slug: 'release-notes' },
+  { resource: 'tags' }
+);
+await executeDeleteTerm(
+  wp,
+  { id: created.id, force: true },
+  { resource: 'tags' }
+);
 ```

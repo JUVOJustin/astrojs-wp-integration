@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { getAstroDevUrl } from '../../helpers/action-client';
 
 /**
@@ -11,7 +12,7 @@ describe('Live Loaders: Astro runtime', () => {
 
     if (response.status !== 200) {
       throw new Error(
-        `Expected status 200 but got ${response.status}: ${html}`,
+        `Expected status 200 but got ${response.status}: ${html}`
       );
     }
 
@@ -29,7 +30,7 @@ describe('Live Loaders: Astro runtime', () => {
 
     if (response.status !== 200) {
       throw new Error(
-        `Expected status 200 but got ${response.status}: ${html}`,
+        `Expected status 200 but got ${response.status}: ${html}`
       );
     }
 

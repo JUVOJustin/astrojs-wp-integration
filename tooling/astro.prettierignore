@@ -1,0 +1,6 @@
+**/*
+!**/*.astro
+**/node_modules/**
+**/dist/**
+**/.astro/**
+**/.tmp-*/**

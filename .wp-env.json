@@ -13,6 +13,6 @@
     "wp-content/seed-content.php": "./tests/wp-env/seed-content.php"
   },
   "lifecycleScripts": {
-    "afterStart": "npx wp-env run cli -- wp rewrite structure '/%postname%/' --hard && (npx wp-env run cli -- wp plugin is-installed advanced-custom-fields && npx wp-env run cli -- wp plugin activate advanced-custom-fields || npx wp-env run cli -- wp plugin install --activate advanced-custom-fields) && (npx wp-env run cli -- wp plugin is-installed jwt-authentication-for-wp-rest-api && npx wp-env run cli -- wp plugin activate jwt-authentication-for-wp-rest-api || npx wp-env run cli -- wp plugin install --activate jwt-authentication-for-wp-rest-api) && npx wp-env run cli -- wp eval-file wp-content/seed-content.php"
+    "afterStart": "pnpm exec wp-env run cli -- wp rewrite structure '/%postname%/' --hard && (pnpm exec wp-env run cli -- wp plugin is-installed advanced-custom-fields && pnpm exec wp-env run cli -- wp plugin activate advanced-custom-fields || pnpm exec wp-env run cli -- wp plugin install --activate advanced-custom-fields) && (pnpm exec wp-env run cli -- wp plugin is-installed jwt-authentication-for-wp-rest-api && pnpm exec wp-env run cli -- wp plugin activate jwt-authentication-for-wp-rest-api || pnpm exec wp-env run cli -- wp plugin install --activate jwt-authentication-for-wp-rest-api) && pnpm exec wp-env run cli -- wp eval-file wp-content/seed-content.php"
   }
 }

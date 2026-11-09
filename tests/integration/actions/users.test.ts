@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest';
+
 import { ActionError, callAction } from '../../helpers/action-client';
 import { createActionBaseConfig } from '../../helpers/wp-client';
 
@@ -15,19 +16,28 @@ function createUniqueUserSuffix(): string {
 async function createJwtTokenForUser(
   baseUrl: string,
   username: string,
-  password: string,
+  password: string
 ): Promise<string> {
   const response = await fetch(`${baseUrl}/wp-json/jwt-auth/v1/token`, {
-    method: 'POST',
+    body: JSON.stringify({ password, username }),
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }),
+    method: 'POST',
   });
-  const payload = (await response.json().catch(() => null)) as {
-    token?: unknown;
-  } | null;
-  if (!response.ok || !payload || typeof payload.token !== 'string') {
+
+  const payload: unknown = await response.json().catch(() => null);
+
+  if (
+    !response.ok ||
+    // oxlint-disable-next-line anti-slop/no-runtime-typeof -- JWT failures may return primitive or null bodies instead of a token object.
+    typeof payload !== 'object' ||
+    payload === null ||
+    !('token' in payload) ||
+    // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Only a token string can authenticate subsequent fixture requests.
+    typeof payload.token !== 'string'
+  ) {
     throw new Error('Failed to create JWT token for integration test user.');
   }
+
   return payload.token;
 }
 
@@ -43,25 +53,26 @@ describe('Actions: Users', () => {
     for (const id of createdIds) {
       await callAction(
         'deleteUser',
-        { id, force: true, reassign: 1 },
-        { authHeader: basicAuth },
-      ).catch(() => undefined);
+        { force: true, id, reassign: 1 },
+        { authHeader: basicAuth }
+      ).catch(() => {});
     }
   });
 
   it('creates users through action factory with schema extensions', async () => {
     const suffix = createUniqueUserSuffix();
+
     const created = await callAction<{ id: number; slug: string }>(
       'createUserCustomSchema',
       {
-        username: `user-create-${suffix}`,
-        email: `user-create-${suffix}@example.com`,
-        password: 'integration-password',
-        name: 'Users behavior: action create',
-        roles: ['author'],
         app_source: 'integration-test',
+        email: `user-create-${suffix}@example.com`,
+        name: 'Users behavior: action create',
+        password: 'integration-password',
+        roles: ['author'],
+        username: `user-create-${suffix}`,
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     createdIds.push(created.id);
@@ -71,28 +82,30 @@ describe('Actions: Users', () => {
 
   it('updates users through action factory with schema extensions', async () => {
     const suffix = createUniqueUserSuffix();
+
     const created = await callAction<{ id: number }>(
       'createUser',
       {
-        username: `user-update-${suffix}`,
         email: `user-update-${suffix}@example.com`,
-        password: 'integration-password',
         name: 'Users behavior: update base',
+        password: 'integration-password',
         roles: ['author'],
+        username: `user-update-${suffix}`,
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
+
     createdIds.push(created.id);
 
     const updated = await callAction<{ id: number; name: string }>(
       'updateUserCustomSchema',
       {
+        app_updated_by: 'integration-test',
+        description: 'Updated through Astro action integration test',
         id: created.id,
         name: 'Users behavior: updated',
-        description: 'Updated through Astro action integration test',
-        app_updated_by: 'integration-test',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     expect(updated.id).toBe(created.id);
@@ -101,14 +114,15 @@ describe('Actions: Users', () => {
 
   it('supports response schema override for create user action', async () => {
     const suffix = createUniqueUserSuffix();
+
     const created = await callAction<{ id: number; slug: string }>(
       'createUserResponseOverride',
       {
-        username: `user-schema-${suffix}`,
         email: `user-schema-${suffix}@example.com`,
         password: 'integration-password',
+        username: `user-schema-${suffix}`,
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     createdIds.push(created.id);
@@ -118,27 +132,28 @@ describe('Actions: Users', () => {
   it('maps unauthenticated create-user execution to ActionError', async () => {
     await expect(
       callAction('createUser', {
-        username: `user-anon-${createUniqueUserSuffix()}`,
         email: `user-anon-${createUniqueUserSuffix()}@example.com`,
         password: 'integration-password',
-      }),
+        username: `user-anon-${createUniqueUserSuffix()}`,
+      })
     ).rejects.toMatchObject({ type: 'AstroActionError' });
   });
 
   it('requires reassign and supports force delete behavior for users', async () => {
     const suffix = createUniqueUserSuffix();
+
     const candidate = await callAction<{ id: number }>(
       'createUser',
       {
-        username: `user-delete-${suffix}`,
         email: `user-delete-${suffix}@example.com`,
         password: 'integration-password',
+        username: `user-delete-${suffix}`,
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     await expect(
-      callAction('deleteUser', { id: candidate.id }, { authHeader: basicAuth }),
+      callAction('deleteUser', { id: candidate.id }, { authHeader: basicAuth })
     ).rejects.toThrow();
 
     const deleted = await callAction<{
@@ -148,15 +163,15 @@ describe('Actions: Users', () => {
     }>(
       'deleteUser',
       {
+        force: true,
         id: candidate.id,
         reassign: 1,
-        force: true,
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     expect(deleted.id).toBe(candidate.id);
-    expect(deleted.deleted).toBe(true);
+    expect(deleted.deleted).toBeTruthy();
     expect(deleted.reassignedTo).toBe(1);
   });
 
@@ -168,21 +183,23 @@ describe('Actions: Users', () => {
     const authorUser = await callAction<{ id: number }>(
       'createUser',
       {
-        username,
         email: `${username}@example.com`,
-        password,
         name: 'Users behavior: permissions baseline',
+        password,
         roles: ['author'],
+        username,
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
+
     createdIds.push(authorUser.id);
 
     const userJwtToken = await createJwtTokenForUser(
       actionBaseConfig.baseUrl,
       username,
-      password,
+      password
     );
+
     const userAuth = `Bearer ${userJwtToken}`;
 
     await expect(
@@ -192,18 +209,18 @@ describe('Actions: Users', () => {
           id: 1,
           name: 'Users behavior: forbidden cross-account update',
         },
-        { authHeader: userAuth },
-      ),
+        { authHeader: userAuth }
+      )
     ).rejects.toThrow(ActionError);
 
     const updatedSelf = await callAction<{ id: number; name: string }>(
       'updateUser',
       {
+        description: 'Updated by the same author user',
         id: authorUser.id,
         name: 'Users behavior: self update success',
-        description: 'Updated by the same author user',
       },
-      { authHeader: userAuth },
+      { authHeader: userAuth }
     );
 
     expect(updatedSelf.id).toBe(authorUser.id);

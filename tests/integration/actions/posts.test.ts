@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest';
+
 import { ActionError, callAction } from '../../helpers/action-client';
 
 /**
@@ -17,9 +18,9 @@ describe('Actions: Posts', () => {
     for (const id of createdIds) {
       await callAction(
         'deletePost',
-        { id, force: true },
-        { authHeader: jwtAuth },
-      ).catch(() => undefined);
+        { force: true, id },
+        { authHeader: jwtAuth }
+      ).catch(() => {});
     }
   });
 
@@ -27,11 +28,11 @@ describe('Actions: Posts', () => {
     const created = await callAction<{ id: number }>(
       'createPostCustomSchema',
       {
-        title: 'Action behavior: custom schema create',
-        status: 'draft',
         acf: { acf_subtitle: 'from create action schema' },
+        status: 'draft',
+        title: 'Action behavior: custom schema create',
       },
-      { authHeader: jwtAuth },
+      { authHeader: jwtAuth }
     );
 
     createdIds.push(created.id);
@@ -42,10 +43,10 @@ describe('Actions: Posts', () => {
     const created = await callAction<{ id: number }>(
       'createPostWithBridgeClient',
       {
-        title: 'Action behavior: bridge client create',
         status: 'draft',
+        title: 'Action behavior: bridge client create',
       },
-      { authHeader: jwtAuth },
+      { authHeader: jwtAuth }
     );
 
     createdIds.push(created.id);
@@ -56,25 +57,26 @@ describe('Actions: Posts', () => {
     const created = await callAction<{ id: number }>(
       'createPost',
       {
-        title: 'Action behavior: custom schema update base',
         status: 'draft',
+        title: 'Action behavior: custom schema update base',
       },
-      { authHeader: jwtAuth },
+      { authHeader: jwtAuth }
     );
+
     createdIds.push(created.id);
 
     const updated = await callAction<{ title: { rendered: string } }>(
       'updatePostCustomSchema',
       {
+        acf: { acf_subtitle: 'from update action schema' },
         id: created.id,
         title: 'Action behavior: custom schema updated',
-        acf: { acf_subtitle: 'from update action schema' },
       },
-      { authHeader: jwtAuth },
+      { authHeader: jwtAuth }
     );
 
     expect(updated.title.rendered).toBe(
-      'Action behavior: custom schema updated',
+      'Action behavior: custom schema updated'
     );
   });
 
@@ -82,10 +84,10 @@ describe('Actions: Posts', () => {
     const created = await callAction<{ id: number; status: string }>(
       'createPostResponseOverride',
       {
-        title: 'Action behavior: response schema override',
         status: 'draft',
+        title: 'Action behavior: response schema override',
       },
-      { authHeader: jwtAuth },
+      { authHeader: jwtAuth }
     );
 
     createdIds.push(created.id);
@@ -95,9 +97,9 @@ describe('Actions: Posts', () => {
   it('returns ActionError for unauthenticated action execution', async () => {
     await expect(
       callAction('createPost', {
-        title: 'Action behavior: anon execute',
         status: 'draft',
-      }),
+        title: 'Action behavior: anon execute',
+      })
     ).rejects.toThrow(ActionError);
   });
 
@@ -105,10 +107,10 @@ describe('Actions: Posts', () => {
     const trashedCandidate = await callAction<{ id: number }>(
       'createPost',
       {
-        title: 'Action behavior: trash flow',
         status: 'draft',
+        title: 'Action behavior: trash flow',
       },
-      { authHeader: jwtAuth },
+      { authHeader: jwtAuth }
     );
 
     const trashed = await callAction<{ deleted: boolean }>(
@@ -116,27 +118,29 @@ describe('Actions: Posts', () => {
       {
         id: trashedCandidate.id,
       },
-      { authHeader: jwtAuth },
+      { authHeader: jwtAuth }
     );
-    expect(trashed.deleted).toBe(false);
+
+    expect(trashed.deleted).toBeFalsy();
 
     const forceCandidate = await callAction<{ id: number }>(
       'createPost',
       {
-        title: 'Action behavior: force delete flow',
         status: 'draft',
+        title: 'Action behavior: force delete flow',
       },
-      { authHeader: jwtAuth },
+      { authHeader: jwtAuth }
     );
 
     const forceDeleted = await callAction<{ deleted: boolean }>(
       'deletePost',
       {
-        id: forceCandidate.id,
         force: true,
+        id: forceCandidate.id,
       },
-      { authHeader: jwtAuth },
+      { authHeader: jwtAuth }
     );
-    expect(forceDeleted.deleted).toBe(true);
+
+    expect(forceDeleted.deleted).toBeTruthy();
   });
 });

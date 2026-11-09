@@ -6,7 +6,7 @@
  * Astro pipeline (content config resolution, loader execution, page rendering)
  * works end-to-end against the live WordPress test instance.
  *
- * Requires `wp-env` to be running (`npm run wp:start`).
+ * Requires `wp-env` to be running (`pnpm run wp:start`).
  */
 
 import { execFile } from 'node:child_process';
@@ -14,23 +14,27 @@ import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+
 import { build } from 'astro';
 import { describe, expect, it } from 'vitest';
+
 import { resolveWpBaseUrl } from '../../helpers/wp-env';
 
 const execFileAsync = promisify(execFile);
 
 const fixtureRoot = fileURLToPath(
-  new URL('../../fixtures/astro-site', import.meta.url),
+  new URL('../../fixtures/astro-site', import.meta.url)
 );
+
 const astroBin = fileURLToPath(
-  new URL('../../../node_modules/astro/bin/astro.mjs', import.meta.url),
+  new URL('../../../node_modules/astro/bin/astro.mjs', import.meta.url)
 );
+
 const catalogAdminUsername = 'admin';
 const catalogAdminPassword = 'password';
 
 function createCatalogEnv(
-  extra: Record<string, string> = {},
+  extra: Record<string, string> = {}
 ): NodeJS.ProcessEnv {
   const env = {
     ...process.env,
@@ -50,7 +54,8 @@ function createCatalogEnv(
 }
 
 async function resetCatalogAdminPassword(): Promise<void> {
-  await execFileAsync('npx', [
+  await execFileAsync('pnpm', [
+    'exec',
     'wp-env',
     'run',
     'cli',
@@ -66,7 +71,7 @@ async function resetCatalogAdminPassword(): Promise<void> {
 describe('Static Loaders: Astro build integration', () => {
   it('syncs when live config imports catalog-backed collection helpers', async () => {
     const buildRoot = await mkdtemp(
-      path.join(path.dirname(fixtureRoot), '.tmp-sync-fixture-'),
+      path.join(path.dirname(fixtureRoot), '.tmp-sync-fixture-')
     );
 
     try {
@@ -83,24 +88,24 @@ describe('Static Loaders: Astro build integration', () => {
         },
       });
     } finally {
-      await rm(buildRoot, { recursive: true, force: true });
+      await rm(buildRoot, { force: true, recursive: true });
     }
   });
 
   it('loads catalog URL from Astro env files with minimal config', async () => {
     const buildRoot = await mkdtemp(
-      path.join(path.dirname(fixtureRoot), '.tmp-env-catalog-fixture-'),
+      path.join(path.dirname(fixtureRoot), '.tmp-env-catalog-fixture-')
     );
 
     try {
       await cp(fixtureRoot, buildRoot, { recursive: true });
       await rm(path.join(buildRoot, 'src', 'actions'), {
-        recursive: true,
         force: true,
+        recursive: true,
       });
       await writeFile(
         path.join(buildRoot, '.env'),
-        `WP_CATALOG_URL=${resolveWpBaseUrl()}\n`,
+        `WP_CATALOG_URL=${resolveWpBaseUrl()}\n`
       );
       await writeFile(
         path.join(buildRoot, 'astro.config.mjs'),
@@ -119,7 +124,7 @@ export default defineConfig({
     }),
   ],
 });
-`,
+`
       );
 
       await execFileAsync(process.execPath, [astroBin, 'sync'], {
@@ -133,31 +138,34 @@ export default defineConfig({
           'node_modules',
           '.astro',
           'wp-astrojs-env',
-          'catalog.json',
+          'catalog.json'
         ),
-        'utf-8',
+        'utf-8'
       );
+
+      // SAFETY: The built integration writes catalog JSON; this test checks the resource keys required by its scenario.
       const catalog = JSON.parse(catalogJson) as {
+        // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Discovery catalogs key resources by their WordPress endpoint names.
         content?: Record<string, unknown>;
       };
 
       expect(catalog.content?.posts).toBeDefined();
       expect(catalog.content?.books).toBeDefined();
     } finally {
-      await rm(buildRoot, { recursive: true, force: true });
+      await rm(buildRoot, { force: true, recursive: true });
     }
   });
 
   it('uses real WordPress JWT auth from Astro env files', async () => {
     const buildRoot = await mkdtemp(
-      path.join(path.dirname(fixtureRoot), '.tmp-auth-catalog-fixture-'),
+      path.join(path.dirname(fixtureRoot), '.tmp-auth-catalog-fixture-')
     );
 
     try {
       await cp(fixtureRoot, buildRoot, { recursive: true });
       await rm(path.join(buildRoot, 'src', 'actions'), {
-        recursive: true,
         force: true,
+        recursive: true,
       });
       await resetCatalogAdminPassword();
       await writeFile(
@@ -167,7 +175,7 @@ export default defineConfig({
           `WP_CATALOG_USERNAME=${catalogAdminUsername}`,
           `WP_CATALOG_PASSWORD=${catalogAdminPassword}`,
           '',
-        ].join('\n'),
+        ].join('\n')
       );
       await writeFile(
         path.join(buildRoot, 'astro.config.mjs'),
@@ -186,7 +194,7 @@ export default defineConfig({
     }),
   ],
 });
-`,
+`
       );
 
       await execFileAsync(process.execPath, [astroBin, 'sync'], {
@@ -200,12 +208,16 @@ export default defineConfig({
           'node_modules',
           '.astro',
           'wp-astrojs-auth',
-          'catalog.json',
+          'catalog.json'
         ),
-        'utf-8',
+        'utf-8'
       );
+
+      // SAFETY: The built integration writes catalog JSON; this test checks the resource keys required by its scenario.
       const catalog = JSON.parse(catalogJson) as {
+        // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Discovery catalogs key resources by their WordPress endpoint names.
         abilities?: Record<string, unknown>;
+        // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Discovery catalogs key resources by their WordPress endpoint names.
         content?: Record<string, unknown>;
       };
 
@@ -213,20 +225,21 @@ export default defineConfig({
       expect(catalog.content?.books).toBeDefined();
       expect(Object.keys(catalog.abilities ?? {})).not.toHaveLength(0);
     } finally {
-      await rm(buildRoot, { recursive: true, force: true });
+      await rm(buildRoot, { force: true, recursive: true });
     }
   });
 
   it('builds a minimal site with WordPress static loaders and catalog helpers', async () => {
     const buildRoot = await mkdtemp(
-      path.join(path.dirname(fixtureRoot), '.tmp-build-fixture-'),
+      path.join(path.dirname(fixtureRoot), '.tmp-build-fixture-')
     );
+
     try {
       // Copy the shared fixture and strip action routes for static build validation.
       await cp(fixtureRoot, buildRoot, { recursive: true });
       await rm(path.join(buildRoot, 'src', 'actions'), {
-        recursive: true,
         force: true,
+        recursive: true,
       });
 
       // Run the programmatic Astro build against the shared fixture project.
@@ -235,8 +248,9 @@ export default defineConfig({
       process.env.ASTRO_TEST_MODE = 'build';
       process.env.ASTRO_TEST_CATALOG = '1';
       process.env.WP_CATALOG_URL = resolveWpBaseUrl();
+
       try {
-        await build({ root: buildRoot, logLevel: 'silent' });
+        await build({ logLevel: 'silent', root: buildRoot });
       } finally {
         delete process.env.ASTRO_TEST_MODE;
 
@@ -267,28 +281,28 @@ export default defineConfig({
       // Verify at least some posts were loaded.
       const postsCountMatch = html.match(/Posts \((\d+)\)/);
       expect(postsCountMatch).not.toBeNull();
-      const postsCount = parseInt(postsCountMatch![1], 10);
+      const postsCount = Number.parseInt(postsCountMatch![1], 10);
       expect(postsCount).toBeGreaterThan(0);
 
       // Pages section should contain seeded content (10 pages).
       expect(html).toContain('<section id="pages">');
       const pagesCountMatch = html.match(/Pages \((\d+)\)/);
       expect(pagesCountMatch).not.toBeNull();
-      const pagesCount = parseInt(pagesCountMatch![1], 10);
+      const pagesCount = Number.parseInt(pagesCountMatch![1], 10);
       expect(pagesCount).toBeGreaterThan(0);
 
       // Categories section should contain seeded content (6 categories).
       expect(html).toContain('<section id="categories">');
       const categoriesCountMatch = html.match(/Categories \((\d+)\)/);
       expect(categoriesCountMatch).not.toBeNull();
-      const categoriesCount = parseInt(categoriesCountMatch![1], 10);
+      const categoriesCount = Number.parseInt(categoriesCountMatch![1], 10);
       expect(categoriesCount).toBeGreaterThan(0);
 
       // Books section should contain seeded content (10 books).
       expect(html).toContain('<section id="books">');
       const booksCountMatch = html.match(/Books \((\d+)\)/);
       expect(booksCountMatch).not.toBeNull();
-      const booksCount = parseInt(booksCountMatch![1], 10);
+      const booksCount = Number.parseInt(booksCountMatch![1], 10);
       expect(booksCount).toBeGreaterThan(0);
 
       // Mapped posts page should have been generated and contain the ACF
@@ -298,7 +312,7 @@ export default defineConfig({
       // which the mapper should translate to "In progress".
       const mappedPostsHtml = await readFile(
         path.join(buildRoot, 'dist', 'mapped-posts', 'index.html'),
-        'utf-8',
+        'utf-8'
       );
 
       expect(mappedPostsHtml).toContain('Static Mapped Posts Build Test');
@@ -308,13 +322,13 @@ export default defineConfig({
 
       const catalogHtml = await readFile(
         path.join(buildRoot, 'dist', 'catalog', 'index.html'),
-        'utf-8',
+        'utf-8'
       );
 
       expect(catalogHtml).toContain('<h1>Catalog Test</h1>');
       expect(catalogHtml).toContain('<p id="has-catalog">true</p>');
       expect(catalogHtml).toMatch(
-        /<p id="catalog-path">.*node_modules\/\.astro\/wp-astrojs-test\/catalog\.json<\/p>/,
+        /<p id="catalog-path">.*node_modules\/\.astro\/wp-astrojs-test\/catalog\.json<\/p>/
       );
       expect(catalogHtml).toContain('<p id="has-posts">true</p>');
       expect(catalogHtml).toContain('<p id="has-books">true</p>');
@@ -323,7 +337,7 @@ export default defineConfig({
       expect(catalogHtml).toContain('<p id="has-posts-item-schema">true</p>');
       expect(catalogHtml).toContain('<p id="has-posts-create-schema">true</p>');
       expect(catalogHtml).toContain(
-        '<p id="has-posts-response-schema">true</p>',
+        '<p id="has-posts-response-schema">true</p>'
       );
       expect(catalogHtml).toMatch(/<p id="catalog-posts-count">\d+<\/p>/);
 
@@ -333,18 +347,21 @@ export default defineConfig({
           'node_modules',
           '.astro',
           'wp-astrojs-test',
-          'catalog.json',
+          'catalog.json'
         ),
-        'utf-8',
+        'utf-8'
       );
+
+      // SAFETY: The built integration writes catalog JSON; this test checks the resource keys required by its scenario.
       const catalog = JSON.parse(catalogJson) as {
+        // oxlint-disable-next-line anti-slop/no-unsafe-dictionary-type -- Discovery catalogs key resources by their WordPress endpoint names.
         content?: Record<string, unknown>;
       };
 
       expect(catalog.content?.posts).toBeDefined();
       expect(catalog.content?.books).toBeDefined();
     } finally {
-      await rm(buildRoot, { recursive: true, force: true });
+      await rm(buildRoot, { force: true, recursive: true });
     }
   });
 });

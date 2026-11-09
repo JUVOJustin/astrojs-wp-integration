@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest';
+
 import { callAction } from '../../helpers/action-client';
 
 /**
@@ -13,9 +14,9 @@ describe('Actions: Pages', () => {
     for (const id of createdIds) {
       await callAction(
         'deletePage',
-        { id, force: true },
-        { authHeader: basicAuth },
-      ).catch(() => undefined);
+        { force: true, id },
+        { authHeader: basicAuth }
+      ).catch(() => {});
     }
   });
 
@@ -27,12 +28,12 @@ describe('Actions: Pages', () => {
     }>(
       'createPage',
       {
-        title: 'Pages behavior: action create',
-        status: 'draft',
-        parent: 0,
         menu_order: 9,
+        parent: 0,
+        status: 'draft',
+        title: 'Pages behavior: action create',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     createdIds.push(created.id);
@@ -44,9 +45,9 @@ describe('Actions: Pages', () => {
     const created = await callAction<{ id: number; type: string }>(
       'createPageWithStaticClient',
       {
-        title: 'Pages behavior: static client create',
         status: 'draft',
-      },
+        title: 'Pages behavior: static client create',
+      }
     );
 
     createdIds.push(created.id);
@@ -57,21 +58,22 @@ describe('Actions: Pages', () => {
     const page = await callAction<{ id: number }>(
       'createPage',
       {
-        title: 'Pages behavior: update schema base',
         status: 'draft',
+        title: 'Pages behavior: update schema base',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
+
     createdIds.push(page.id);
 
     const updated = await callAction<{ type: string; menu_order: number }>(
       'updatePage',
       {
+        acf: { acf_subtitle: 'page action update' },
         id: page.id,
         menu_order: 21,
-        acf: { acf_subtitle: 'page action update' },
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     expect(updated.type).toBe('page');
@@ -86,10 +88,10 @@ describe('Actions: Pages', () => {
     }>(
       'createPageResponseOverride',
       {
-        title: 'Pages behavior: response override',
         status: 'draft',
+        title: 'Pages behavior: response override',
       },
-      { authHeader: basicAuth },
+      { authHeader: basicAuth }
     );
 
     createdIds.push(created.id);
@@ -99,9 +101,9 @@ describe('Actions: Pages', () => {
   it('maps page write auth failures to ActionError', async () => {
     await expect(
       callAction('createPage', {
-        title: 'Pages behavior: unauthorized',
         status: 'draft',
-      }),
+        title: 'Pages behavior: unauthorized',
+      })
     ).rejects.toMatchObject({ type: 'AstroActionError' });
   });
 });

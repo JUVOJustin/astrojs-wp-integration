@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+
 import { callAction } from '../../helpers/action-client';
 import { getBaseUrl } from '../../helpers/wp-client';
 
@@ -7,13 +8,14 @@ import { getBaseUrl } from '../../helpers/wp-client';
  */
 function createExpiredToken(): string {
   const header = Buffer.from(
-    JSON.stringify({ alg: 'HS256', typ: 'JWT' }),
+    JSON.stringify({ alg: 'HS256', typ: 'JWT' })
   ).toString('base64url');
+
   const payload = Buffer.from(
     JSON.stringify({
-      exp: Math.floor(Date.now() / 1000) - 60,
       data: { user: { id: 1 } },
-    }),
+      exp: Math.floor(Date.now() / 1000) - 60,
+    })
   ).toString('base64url');
 
   return `${header}.${payload}.expired-signature`;
@@ -28,18 +30,18 @@ describe('Actions: Auth Bridge', () => {
   it('decodes one JWT token into a valid session object', async () => {
     const session = await callAction<{ token: string; authHeader: string }>(
       'authBridgeGetSession',
-      { token },
+      { token }
     );
 
     expect(session).not.toBeNull();
     expect(session.token).toBe(token);
-    expect(session.authHeader.startsWith('Bearer ')).toBe(true);
+    expect(session.authHeader.startsWith('Bearer ')).toBeTruthy();
   });
 
   it('decodes one JWT token without relying on the Node Buffer global', async () => {
     const session = await callAction<{ token: string }>(
       'authBridgeGetSessionWithoutBuffer',
-      { token },
+      { token }
     );
 
     expect(session).not.toBeNull();
@@ -49,7 +51,7 @@ describe('Actions: Auth Bridge', () => {
   it('resolves the authenticated user from one JWT session token', async () => {
     const user = await callAction<{ slug: string } | null>(
       'authBridgeResolveUserBySessionId',
-      { token },
+      { token }
     );
 
     expect(user).not.toBeNull();
@@ -59,11 +61,12 @@ describe('Actions: Auth Bridge', () => {
   it('returns null when the JWT session token is invalid', async () => {
     const tokenParts = token.split('.');
     const invalidToken = `${tokenParts[0]}.${tokenParts[1]}.invalid-signature`;
+
     const user = await callAction<{ slug: string } | null>(
       'authBridgeResolveUserBySessionId',
       {
         token: invalidToken,
-      },
+      }
     );
 
     expect(user).toBeNull();
@@ -71,14 +74,14 @@ describe('Actions: Auth Bridge', () => {
 
   it('surfaces transport errors while resolving the authenticated user', async () => {
     await expect(
-      callAction('authBridgeResolveUserBySessionIdUnreachable', { token }),
+      callAction('authBridgeResolveUserBySessionIdUnreachable', { token })
     ).rejects.toThrow();
   });
 
   it('resolves middleware user context from cookie-backed JWT session', async () => {
     const user = await callAction<{ slug: string } | null>(
       'authBridgeResolveUser',
-      { token },
+      { token }
     );
 
     expect(user).not.toBeNull();
@@ -88,10 +91,10 @@ describe('Actions: Auth Bridge', () => {
   it('reports unauthenticated state when cookie token is missing', async () => {
     const authenticated = await callAction<boolean>(
       'authBridgeIsAuthenticated',
-      {},
+      {}
     );
 
-    expect(authenticated).toBe(false);
+    expect(authenticated).toBeFalsy();
   });
 
   it('treats expired cookie-backed JWT sessions as unauthenticated', async () => {
@@ -99,23 +102,25 @@ describe('Actions: Auth Bridge', () => {
       'authBridgeIsAuthenticated',
       {
         token: createExpiredToken(),
-      },
+      }
     );
 
-    expect(authenticated).toBe(false);
+    expect(authenticated).toBeFalsy();
   });
 
   it('matches the wp-env JWT endpoint auth failure status for invalid credentials', async () => {
     const response = await fetch(`${getBaseUrl()}/wp-json/jwt-auth/v1/token`, {
-      method: 'POST',
+      body: JSON.stringify({
+        password: 'definitely-wrong',
+        username: 'admin',
+      }),
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        username: 'admin',
-        password: 'definitely-wrong',
-      }),
+      method: 'POST',
     });
+
+    // SAFETY: This response is deliberately invalid login data; the assertions verify its error code and status.
     const data = (await response.json()) as {
       code?: string;
       data?: { status?: number };
@@ -129,10 +134,10 @@ describe('Actions: Auth Bridge', () => {
   it('reports authenticated state when cookie token is present', async () => {
     const authenticated = await callAction<boolean>(
       'authBridgeIsAuthenticated',
-      { token },
+      { token }
     );
 
-    expect(authenticated).toBe(true);
+    expect(authenticated).toBeTruthy();
   });
 
   it('ignores static bridge auth while resolving request user state', async () => {
@@ -140,7 +145,7 @@ describe('Actions: Auth Bridge', () => {
       'authBridgeResolveUserIgnoringStaticFallback',
       {
         token: createExpiredToken(),
-      },
+      }
     );
 
     expect(user).toBeNull();
@@ -151,7 +156,7 @@ describe('Actions: Auth Bridge', () => {
       'authBridgeResolveUserWithOptInStaticFallback',
       {
         token: createExpiredToken(),
-      },
+      }
     );
 
     expect(user).not.toBeNull();
@@ -161,7 +166,7 @@ describe('Actions: Auth Bridge', () => {
   it('lets per-call authHeaders override bridge-level authHeaders', async () => {
     const user = await callAction<{ slug: string } | null>(
       'authBridgeRespectsPerCallAuthHeaders',
-      {},
+      {}
     );
 
     expect(user).not.toBeNull();

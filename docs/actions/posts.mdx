@@ -10,9 +10,21 @@ import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 Post actions let you **create, update, and delete WordPress posts** from Astro server-side code — form handlers, API routes, middleware, or server components.
 
 <CardGrid>
-  <LinkCard title="Actions overview" href="./index.mdx" description="Shared authentication setup, validation model, and error handling." />
-  <LinkCard title="Term actions" href="./terms.mdx" description="Taxonomy actions for categories, tags, and custom terms." />
-  <LinkCard title="User actions" href="./users.mdx" description="User create/update/delete action patterns and schema usage." />
+  <LinkCard
+    title="Actions overview"
+    href="./index.mdx"
+    description="Shared authentication setup, validation model, and error handling."
+  />
+  <LinkCard
+    title="Term actions"
+    href="./terms.mdx"
+    description="Taxonomy actions for categories, tags, and custom terms."
+  />
+  <LinkCard
+    title="User actions"
+    href="./users.mdx"
+    description="User create/update/delete action patterns and schema usage."
+  />
 </CardGrid>
 
 ---
@@ -40,8 +52,9 @@ export const server = {
 If you are not using JWT sessions, create one static client and pass that:
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
@@ -98,8 +111,8 @@ const { data } = await Astro.callAction(actions.createPost, {
   content: '<p>My first post.</p>',
   excerpt: 'A short summary.',
   status: 'publish',
-  categories: [3],   // category IDs
-  tags: [12, 15],    // tag IDs
+  categories: [3], // category IDs
+  tags: [12, 15], // tag IDs
 });
 ```
 
@@ -110,15 +123,15 @@ const { data } = await Astro.callAction(actions.createPost, {
   title: 'Full Example',
   content: '<p>Post body as raw HTML.</p>',
   excerpt: 'Short summary shown in listings.',
-  status: 'publish',       // 'publish' | 'draft' | 'pending' | 'private' | 'future'
+  status: 'publish', // 'publish' | 'draft' | 'pending' | 'private' | 'future'
   slug: 'full-example',
-  date: '2026-03-01T10:00:00',  // ISO 8601 — used for scheduled posts
-  author: 1,               // user ID
-  featured_media: 42,      // attachment ID
+  date: '2026-03-01T10:00:00', // ISO 8601 — used for scheduled posts
+  author: 1, // user ID
+  featured_media: 42, // attachment ID
   categories: [3, 7],
   tags: [12],
   sticky: false,
-  format: 'standard',      // 'standard' | 'aside' | 'gallery' | 'video' | …
+  format: 'standard', // 'standard' | 'aside' | 'gallery' | 'video' | …
   comment_status: 'open',
   ping_status: 'closed',
 });
@@ -156,7 +169,10 @@ const { data } = await Astro.callAction(actions.deletePost, { id: 101 });
 Pass `force: true` to bypass the trash and permanently remove the post.
 
 ```ts
-const { data } = await Astro.callAction(actions.deletePost, { id: 101, force: true });
+const { data } = await Astro.callAction(actions.deletePost, {
+  id: 101,
+  force: true,
+});
 // data → { id: 101, deleted: true }
 ```
 
@@ -197,6 +213,7 @@ All action factories accept a `resource` parameter that controls which REST endp
 ### Pages
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 // src/actions/index.ts
 import {
   createCreatePostAction,
@@ -206,7 +223,7 @@ import {
 import { WordPressClient } from 'fluent-wp-client';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
@@ -238,6 +255,7 @@ export const server = {
 The `execute*` functions also accept `resource`. This is useful when building fully custom actions or calling from non-Astro contexts:
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 import { WordPressClient } from 'fluent-wp-client';
 import {
   executeCreatePost,
@@ -246,17 +264,21 @@ import {
 } from 'wp-astrojs-integration/actions';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
+  baseUrl: WORDPRESS_URL,
   auth: {
     username: import.meta.env.WP_USERNAME,
     password: import.meta.env.WP_APP_PASSWORD,
   },
 });
 
-const product = await executeCreatePost(wp, {
-  title: 'Running Shoes',
-  status: 'publish',
-}, { resource: 'products' });
+const product = await executeCreatePost(
+  wp,
+  {
+    title: 'Running Shoes',
+    status: 'publish',
+  },
+  { resource: 'products' }
+);
 ```
 
 ---
@@ -269,18 +291,27 @@ When a custom post type surfaces ACF or other plugin fields via the REST API, ex
 
 ```ts
 // src/lib/product-schema.ts
-import { createPostInputSchema, updatePostInputSchema } from 'wp-astrojs-integration';
+import {
+  createPostInputSchema,
+  updatePostInputSchema,
+} from 'wp-astrojs-integration';
 import { z } from 'astro/zod';
 
-const acfShape = z.object({
-  price:    z.number().positive().optional(),
-  sku:      z.string().optional(),
-  in_stock: z.boolean().optional(),
-  gallery:  z.array(z.number().int()).optional(), // attachment IDs
-}).optional();
+const acfShape = z
+  .object({
+    price: z.number().positive().optional(),
+    sku: z.string().optional(),
+    in_stock: z.boolean().optional(),
+    gallery: z.array(z.number().int()).optional(), // attachment IDs
+  })
+  .optional();
 
-export const productCreateSchema = createPostInputSchema.extend({ acf: acfShape });
-export const productUpdateSchema = updatePostInputSchema.extend({ acf: acfShape });
+export const productCreateSchema = createPostInputSchema.extend({
+  acf: acfShape,
+});
+export const productUpdateSchema = updatePostInputSchema.extend({
+  acf: acfShape,
+});
 
 export type ProductCreateInput = z.infer<typeof productCreateSchema>;
 export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
@@ -291,13 +322,23 @@ export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
 The `create*Action` factories accept both `schema` (for typed input) and `resource` (for the REST endpoint). Combine them to get end-to-end type safety for a custom post type:
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 import { WordPressClient } from 'fluent-wp-client';
-import { createCreatePostAction, createUpdatePostAction } from 'wp-astrojs-integration';
-import { productCreateSchema, productUpdateSchema } from '../lib/product-schema';
+import {
+  createCreatePostAction,
+  createUpdatePostAction,
+} from 'wp-astrojs-integration';
+import {
+  productCreateSchema,
+  productUpdateSchema,
+} from '../lib/product-schema';
 
 const wp = new WordPressClient({
-  baseUrl: import.meta.env.WP_URL,
-  auth: { username: import.meta.env.WP_USERNAME, password: import.meta.env.WP_APP_PASSWORD },
+  baseUrl: WORDPRESS_URL,
+  auth: {
+    username: import.meta.env.WP_USERNAME,
+    password: import.meta.env.WP_APP_PASSWORD,
+  },
 });
 
 export const server = {
@@ -346,9 +387,11 @@ type AcfSchemaField = {
 };
 
 async function getChoiceLabels(client: WordPressClient, resource: string) {
-  const acfFields = await client.content(resource).getSchemaValue<
-    Record<string, AcfSchemaField>
-  >('properties.acf.properties');
+  const acfFields = await client
+    .content(resource)
+    .getSchemaValue<Record<string, AcfSchemaField>>(
+      'properties.acf.properties'
+    );
 
   const choiceLabels = new Map<string, Map<string, string>>();
 
@@ -357,7 +400,7 @@ async function getChoiceLabels(client: WordPressClient, resource: string) {
 
     choiceLabels.set(
       fieldName,
-      new Map(fieldSchema.choices.map((choice) => [choice.value, choice.label])),
+      new Map(fieldSchema.choices.map((choice) => [choice.value, choice.label]))
     );
   }
 
@@ -377,7 +420,7 @@ export const server = {
           Object.entries(product.acf ?? {}).map(([fieldName, value]) => [
             fieldName,
             choiceLabels.get(fieldName)?.get(String(value)) ?? value,
-          ]),
+          ])
         ),
       };
     },

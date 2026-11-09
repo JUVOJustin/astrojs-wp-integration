@@ -1,15 +1,16 @@
 type CounterMap = Record<string, number>;
 
-type RouteCacheMetrics = {
+interface RouteCacheMetrics {
   collections: CounterMap;
   entries: CounterMap;
-};
+}
 
 type GlobalMetricsState = typeof globalThis & {
   __WP_ROUTE_CACHE_METRICS__?: RouteCacheMetrics;
 };
 
 function getMetricsState(): RouteCacheMetrics {
+  // SAFETY: This fixture owns the optional global metrics property and initializes it before use.
   const globals = globalThis as GlobalMetricsState;
 
   if (!globals.__WP_ROUTE_CACHE_METRICS__) {
@@ -63,9 +64,10 @@ export function resetRouteCacheMetrics(): RouteCacheMetrics {
  */
 export async function trackedWordPressFetch(
   input: RequestInfo | URL,
-  init?: RequestInit,
+  init?: RequestInit
 ): Promise<Response> {
   const requestUrl =
+    // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Fetch accepts a URL string, URL object, or Request; metrics need one normalized URL.
     typeof input === 'string'
       ? new URL(input)
       : input instanceof URL
@@ -73,7 +75,7 @@ export async function trackedWordPressFetch(
         : new URL(input.url);
 
   const resourceMatch = requestUrl.pathname.match(
-    /^\/wp-json\/wp\/v2\/([^/]+)(?:\/(\d+))?$/,
+    /^\/wp-json\/wp\/v2\/([^/]+)(?:\/(\d+))?$/
   );
 
   if (!resourceMatch) {
@@ -85,8 +87,9 @@ export async function trackedWordPressFetch(
   if (itemId) {
     increment(
       getMetricsState().entries,
-      entryMetricKey(resource, `id:${itemId}`),
+      entryMetricKey(resource, `id:${itemId}`)
     );
+
     return fetch(input, init);
   }
 
@@ -96,7 +99,7 @@ export async function trackedWordPressFetch(
   if (slug) {
     increment(
       getMetricsState().entries,
-      entryMetricKey(resource, `slug:${slug}`),
+      entryMetricKey(resource, `slug:${slug}`)
     );
   } else if (id) {
     increment(getMetricsState().entries, entryMetricKey(resource, `id:${id}`));

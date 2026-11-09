@@ -1,18 +1,16 @@
 import type { ActionClient } from 'astro:actions';
 import type { WordPressClient } from 'fluent-wp-client';
-import {
-  type GetAbilityInput,
-  getAbilityInputSchema,
-} from 'fluent-wp-client/zod';
-import { type ResolvableActionClient, withActionClient } from '../post/client';
+import { getAbilityInputSchema } from 'fluent-wp-client/zod';
+import type { GetAbilityInput } from 'fluent-wp-client/zod';
+
+import { withActionClient } from '../post/client';
+import type { ResolvableActionClient } from '../post/client';
 import { validateActionResponse } from '../response-validation';
-import {
-  type AbilityActionOptions,
-  createAbilityAction,
-  type ExecuteAbilityOptions,
-} from './factory';
+import { createAbilityAction } from './factory';
+import type { AbilityActionOptions, ExecuteAbilityOptions } from './factory';
 
 export type { GetAbilityInput };
+
 /**
  * Input schema for executing one read-only WordPress ability via GET.
  */
@@ -47,17 +45,18 @@ type GetAbilityActionOptions<
 export async function executeGetAbility<T = unknown>(
   client: WordPressClient,
   input: GetAbilityInput,
-  options?: ExecuteGetAbilityOptions<T>,
+  options?: ExecuteGetAbilityOptions<T>
 ): Promise<T> {
   return withActionClient(client, async (resolvedClient) => {
     const result = await resolvedClient.executeGetAbility(
       input.name,
-      input.input,
+      input.input
     );
+
     return validateActionResponse(
       result,
       options?.responseSchema,
-      'WordPress ability GET action',
+      'WordPress ability GET action'
     );
   });
 }
@@ -70,11 +69,12 @@ export function createGetAbilityAction<
   TSchema extends typeof getAbilityInputSchema = typeof getAbilityInputSchema,
 >(
   client: ResolvableActionClient,
-  options?: GetAbilityActionOptions<TResponse, TSchema>,
+  options?: GetAbilityActionOptions<TResponse, TSchema>
 ): ActionClient<TResponse, undefined, TSchema> & string {
   return createAbilityAction<GetAbilityInput, TResponse, TSchema>({
     ...options,
     client,
+    // SAFETY: The fallback is used only when no custom schema is supplied for this ability.
     defaultSchema: getAbilityInputSchema as TSchema,
     execute: (resolvedClient, input, executeOptions) =>
       executeGetAbility<TResponse>(resolvedClient, input, executeOptions),

@@ -32,7 +32,7 @@ export type WordPressLoaderEntryMapper<TEntry, TFilter = unknown> = (
   context: {
     resource: string;
     filter?: TFilter;
-  },
+  }
 ) => TEntry | Promise<TEntry>;
 
 /**
@@ -63,8 +63,10 @@ export interface WordPressLiveContentLoaderOptions<
 /**
  * Options for generic taxonomy loaders targeting one REST term resource.
  */
-export interface WordPressTermLoaderOptions<TEntry = unknown, TFilter = unknown>
-  extends WordPressEntryMappingOptions<TEntry, TFilter> {
+export interface WordPressTermLoaderOptions<
+  TEntry = unknown,
+  TFilter = unknown,
+> extends WordPressEntryMappingOptions<TEntry, TFilter> {
   /** REST resource path (examples: 'categories', 'tags', 'genres') */
   resource: string;
 }
@@ -72,8 +74,9 @@ export interface WordPressTermLoaderOptions<TEntry = unknown, TFilter = unknown>
 /**
  * Options for generic static taxonomy loaders.
  */
-export interface WordPressTermStaticLoaderOptions<TEntry = unknown>
-  extends WordPressTermLoaderOptions<TEntry> {
+export interface WordPressTermStaticLoaderOptions<
+  TEntry = unknown,
+> extends WordPressTermLoaderOptions<TEntry> {
   /**
    * Build-time filter forwarded to `listAll()`. Scopes which terms are fetched
    * at build/prerender time. `page` is omitted — `listAll()` handles pagination.
@@ -99,7 +102,7 @@ export type WordPressLiveFilter<TFilter extends object> = Omit<
   ExtensibleFilter<TFilter>,
   'slug'
 > &
-  LoaderEntryLookup & {
+  Omit<LoaderEntryLookup, 'slug'> & {
     slug?:
       | string
       | (ExtensibleFilter<TFilter> extends { slug?: infer TSlug }
@@ -170,8 +173,9 @@ export interface WordPressContentLoaderOptions<
 /**
  * Options for generic static content loaders.
  */
-export interface WordPressContentStaticLoaderOptions<TEntry = unknown>
-  extends WordPressContentLoaderOptions<TEntry> {
+export interface WordPressContentStaticLoaderOptions<
+  TEntry = unknown,
+> extends WordPressContentLoaderOptions<TEntry> {
   /**
    * Build-time filter forwarded to `listAll()`. Scopes which entries are fetched
    * at build/prerender time. `page` is omitted — `listAll()` handles pagination.
@@ -183,8 +187,10 @@ export interface WordPressContentStaticLoaderOptions<TEntry = unknown>
  * Options for typed static loaders (posts, pages, media, categories, tags, users).
  * Extends the base entry-mapping options with an optional build-time filter.
  */
-export interface WordPressStaticLoaderOptions<TEntry, TFilter>
-  extends WordPressEntryMappingOptions<TEntry> {
+export interface WordPressStaticLoaderOptions<
+  TEntry,
+  TFilter,
+> extends WordPressEntryMappingOptions<TEntry> {
   /**
    * Build-time filter forwarded to `listAll()`. Scopes which entries are fetched
    * at build/prerender time. `page` is omitted — `listAll()` handles pagination.

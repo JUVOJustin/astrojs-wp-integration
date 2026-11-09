@@ -1,20 +1,15 @@
-import {
-  type ActionAPIContext,
-  type ActionClient,
-  defineAction,
-} from 'astro:actions';
 import { z } from 'astro/zod';
-import type { TermWriteInput, WordPressClient } from 'fluent-wp-client';
-import {
-  categorySchema,
-  type WordPressCategory,
-  type WordPressStandardSchema,
+import { defineAction } from 'astro:actions';
+import type { ActionAPIContext, ActionClient } from 'astro:actions';
+import { categorySchema } from 'fluent-wp-client';
+import type {
+  WordPressClient,
+  WordPressCategory,
+  WordPressStandardSchema,
 } from 'fluent-wp-client';
-import {
-  type ResolvableActionClient,
-  resolveRequiredActionClient,
-  withActionClient,
-} from '../post/client';
+
+import { resolveRequiredActionClient, withActionClient } from '../post/client';
+import type { ResolvableActionClient } from '../post/client';
 import { validateActionResponse } from '../response-validation';
 
 /**
@@ -22,11 +17,11 @@ import { validateActionResponse } from '../response-validation';
  */
 export const createTermInputSchema = z
   .object({
-    name: z.string().optional(),
-    slug: z.string().optional(),
     description: z.string().optional(),
-    parent: z.number().int().nonnegative().optional(),
     meta: z.record(z.string(), z.unknown()).optional(),
+    name: z.string().optional(),
+    parent: z.number().int().nonnegative().optional(),
+    slug: z.string().optional(),
   })
   .passthrough();
 
@@ -74,22 +69,22 @@ type CreateTermActionFactoryOptions<
  */
 export async function executeCreateTerm<T = WordPressCategory>(
   client: WordPressClient,
-  input: CreateTermInput & Record<string, unknown>,
-  options?: ExecuteCreateTermOptions<T>,
+  input: CreateTermInput,
+  options?: ExecuteCreateTermOptions<T>
 ): Promise<T> {
   const resource = options?.resource ?? 'categories';
 
   return withActionClient(client, async (resolvedClient) => {
-    const created = await resolvedClient
-      .terms(resource)
-      .create(input as TermWriteInput);
+    const created = await resolvedClient.terms(resource).create(input);
+
+    // SAFETY: An explicitly chosen T requires a matching responseSchema; the fallback serves the default resource type.
     const responseSchema = (options?.responseSchema ??
       categorySchema) as WordPressStandardSchema<T>;
 
     return validateActionResponse(
       created,
       responseSchema,
-      `WordPress ${resource} create action`,
+      `WordPress ${resource} create action`
     );
   });
 }
@@ -102,23 +97,23 @@ export function createCreateTermAction<
   TSchema extends typeof createTermInputSchema = typeof createTermInputSchema,
 >(
   client: ResolvableActionClient,
-  options?: CreateTermActionFactoryOptions<TResponse, TSchema>,
+  options?: CreateTermActionFactoryOptions<TResponse, TSchema>
 ): ActionClient<TResponse, undefined, TSchema> & string {
+  // SAFETY: A custom schema carries TSchema; otherwise the factory uses its default schema.
   const inputSchema = (options?.schema ?? createTermInputSchema) as TSchema;
   const resource = options?.resource;
   const responseSchema = options?.responseSchema;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // SAFETY: Astro's generated action proxy supplies the callable and string-coercion API.
   return defineAction({
     input: inputSchema,
     handler: async (input: z.infer<TSchema>, context: ActionAPIContext) => {
       const resolvedClient = await resolveRequiredActionClient(client, context);
 
-      return executeCreateTerm<TResponse>(
-        resolvedClient,
-        input as CreateTermInput & Record<string, unknown>,
-        { resource, responseSchema },
-      );
+      return executeCreateTerm<TResponse>(resolvedClient, input, {
+        resource,
+        responseSchema,
+      });
     },
-  } as any) as ActionClient<TResponse, undefined, TSchema> & string;
+  }) as ActionClient<TResponse, undefined, TSchema> & string;
 }

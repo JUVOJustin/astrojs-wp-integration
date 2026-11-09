@@ -23,9 +23,9 @@ export function createMockStore() {
         rendered?: { html: string };
       }) => {
         entries.set(id, { data, rendered });
-      },
+      }
     ),
   };
 
-  return { store, entries };
+  return { entries, store };
 }

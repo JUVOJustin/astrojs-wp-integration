@@ -9,6 +9,12 @@ This skill applies when an Astro project uses [`wp-astrojs-integration`](https:/
 
 The library code is small and easy to grep when you need precise API details. Prefer reading from `node_modules/wp-astrojs-integration/dist` over guessing types.
 
+## Supported runtime
+
+Use Astro 7 with `fluent-wp-client` 3.1. Import loaders from `wp-astrojs-integration/loaders` in content configuration. Route caching uses the top-level `cache` option. On Cloudflare use `cacheCloudflare()` from `@astrojs/cloudflare/cache`; do not duplicate its public cache headers. Private responses require explicit `private, no-store` policy. See the caching reference for resource invalidation, deletion events and deployment configuration.
+
+Declare runtime environment fields with `envField` in the consuming Astro config and import them from `astro:env/server`. The simple client example uses a server-side `WORDPRESS_URL` string field, as documented in README.md. Catalog discovery runs at build time and uses `WP_CATALOG_*` configuration.
+
 ## Quickstart
 
 ### 1. Init a `WordPressClient`
@@ -39,11 +45,12 @@ Set `WP_CATALOG_URL` and optional catalog auth env vars in `.env`. Use the virtu
 For simple projects without catalog discovery, instantiate the client directly:
 
 ```ts
+import { WORDPRESS_URL } from 'astro:env/server';
 // src/lib/wp.ts
 import { WordPressClient } from 'fluent-wp-client';
 
 export const wp = new WordPressClient({
-  baseUrl: import.meta.env.PUBLIC_WORDPRESS_BASE_URL,
+  baseUrl: WORDPRESS_URL,
 });
 ```
 
@@ -57,7 +64,7 @@ Live collections fetch from WordPress per request. Read `references/reading-cont
 // src/live.config.ts
 import { defineLiveCollection } from 'astro:content';
 import { postSchema } from 'fluent-wp-client/zod';
-import { wordPressPostLoader } from 'wp-astrojs-integration';
+import { wordPressPostLoader } from 'wp-astrojs-integration/loaders';
 import { wp } from './lib/wp';
 
 const posts = defineLiveCollection({
@@ -86,7 +93,7 @@ Static collections fetch at build time and store entries in the Astro content st
 // src/content.config.ts
 import { defineCollection } from 'astro:content';
 import { postSchema } from 'fluent-wp-client/zod';
-import { wordPressPostStaticLoader } from 'wp-astrojs-integration';
+import { wordPressPostStaticLoader } from 'wp-astrojs-integration/loaders';
 import { wp } from './lib/wp';
 
 const posts = defineCollection({

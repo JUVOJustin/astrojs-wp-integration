@@ -70,6 +70,7 @@ export type {
   UpdateUserInput,
   WpCacheInvalidateInput,
 } from './actions';
+
 // Export predefined server actions
 export {
   createCreatePostAction,
@@ -99,6 +100,7 @@ export {
   updateUserInputSchema,
   wpCacheInvalidateInputSchema,
 } from './actions';
+
 export type {
   CategoryFilter,
   ContentFilter,
@@ -117,6 +119,7 @@ export type {
   WordPressTermLoaderOptions,
   WordPressTermStaticLoaderOptions,
 } from './loaders';
+
 // Export live loaders (for defineLiveCollection - runtime fetching)
 // Export static loaders (for defineCollection - build-time only)
 export {
@@ -137,6 +140,7 @@ export {
   wordPressUserLoader,
   wordPressUserStaticLoader,
 } from './loaders';
+
 export type {
   WordPressAuthBridge,
   WordPressAuthBridgeConfig,
@@ -146,11 +150,9 @@ export type {
   WordPressLoginActionResult,
   WordPressLoginInput,
 } from './server';
+
 // Export server auth bridge helpers
-export {
-  createWordPressAuthBridge,
-  wordPressLoginInputSchema,
-} from './server';
+export { createWordPressAuthBridge, wordPressLoginInputSchema } from './server';
 
 // Components are imported directly via:
 // import WPImage from 'wp-astrojs-integration/components/WPImage.astro';

@@ -1,6 +1,8 @@
-import { type ActionAPIContext, ActionError } from 'astro:actions';
 import { z } from 'astro/zod';
+import { ActionError } from 'astro:actions';
+import type { ActionAPIContext } from 'astro:actions';
 import type { WordPressClient } from 'fluent-wp-client';
+
 import { withActionClient } from '../post/client';
 
 /**
@@ -21,9 +23,9 @@ export interface CacheInvalidationResult {
   tags: string[];
 }
 
-type RestResourceDefinition = {
+interface RestResourceDefinition {
   rest_base?: string;
-};
+}
 
 /**
  * Ensures the current action request can talk to Astro's route cache provider.
@@ -44,7 +46,7 @@ export function assertCacheEnabled(context: ActionAPIContext): void {
  */
 export async function resolveContentResource(
   client: WordPressClient,
-  postType: string,
+  postType: string
 ): Promise<string> {
   return withActionClient(client, async (resolvedClient) => {
     const response = await resolvedClient.request<RestResourceDefinition>({
@@ -53,6 +55,7 @@ export async function resolveContentResource(
 
     const resource = response.data.rest_base;
 
+    // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Discovery metadata may omit rest_base; fall back to the requested resource name.
     if (typeof resource === 'string' && resource.length > 0) {
       return resource;
     }
@@ -69,7 +72,7 @@ export async function resolveContentResource(
  */
 export async function resolveTermResource(
   client: WordPressClient,
-  taxonomy: string,
+  taxonomy: string
 ): Promise<string> {
   return withActionClient(client, async (resolvedClient) => {
     const response = await resolvedClient.request<RestResourceDefinition>({
@@ -78,6 +81,7 @@ export async function resolveTermResource(
 
     const resource = response.data.rest_base;
 
+    // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Discovery metadata may omit rest_base; fall back to the requested resource name.
     if (typeof resource === 'string' && resource.length > 0) {
       return resource;
     }
@@ -95,7 +99,7 @@ export async function resolveTermResource(
 export async function invalidateCacheTags(
   context: ActionAPIContext,
   resource: string,
-  tags: string[],
+  tags: string[]
 ): Promise<CacheInvalidationResult> {
   if (tags.length === 0) {
     throw new ActionError({

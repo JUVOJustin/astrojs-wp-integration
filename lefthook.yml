@@ -1,0 +1,33 @@
+pre-commit:
+  jobs:
+    - run: pnpm exec ultracite fix {staged_files}
+      glob:
+        - '*.js'
+        - '*.jsx'
+        - '*.mjs'
+        - '*.cjs'
+        - '*.ts'
+        - '*.tsx'
+        - '*.mts'
+        - '*.cts'
+        - '*.json'
+        - '*.jsonc'
+        - '*.css'
+        - '*.scss'
+        - '*.less'
+        - '*.vue'
+        - '*.svelte'
+        - '*.html'
+        - '*.md'
+        - '*.mdx'
+        - '*.yaml'
+        - '*.yml'
+        - '*.graphql'
+        - '*.gql'
+      stage_fixed: true
+    - run: pnpm exec prettier --ignore-path tooling/astro.prettierignore --config tooling/astro-prettier.config.mjs --write {staged_files} && pnpm exec eslint --config tooling/astro-eslint.config.mjs --fix {staged_files}
+      glob: '*.astro'
+      stage_fixed: true
+pre-push:
+  jobs:
+    - run: pnpm run check && pnpm run check:types && pnpm run check:astro && pnpm run build && pnpm test

@@ -1,15 +1,15 @@
-import { execSync } from 'child_process';
+import { execSync } from 'node:child_process';
 
 const DEFAULT_WP_BASE_URL = 'http://localhost:8888';
 
-type WpEnvStatus = {
+interface WpEnvStatus {
   ports?: {
     development?: string;
   };
   urls?: {
     development?: string;
   };
-};
+}
 
 /**
  * Rebuilds the wp-env development URL from the reported port when auto-port selection is active.
@@ -29,6 +29,7 @@ function resolveWpEnvDevelopmentUrl(status: WpEnvStatus): string | undefined {
   try {
     const parsed = new URL(configuredUrl);
     parsed.port = dynamicPort;
+
     return parsed.toString().replace(/\/$/, '');
   } catch {
     return `http://localhost:${dynamicPort}`;
@@ -61,11 +62,14 @@ export function resolveWpBaseUrl(): string {
   }
 
   try {
-    const raw = execSync('npx wp-env status --json', {
+    const raw = execSync('pnpm exec wp-env status --json', {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     });
+
+    // SAFETY: wp-env owns this status JSON format; missing URL or port fields use the local fallback.
     const parsed = JSON.parse(stripWpEnvOutput(raw)) as WpEnvStatus;
+
     return resolveWpEnvDevelopmentUrl(parsed) ?? DEFAULT_WP_BASE_URL;
   } catch {
     return DEFAULT_WP_BASE_URL;

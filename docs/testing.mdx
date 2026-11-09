@@ -10,10 +10,26 @@ import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 This package uses integration-first testing against a real local WordPress instance.
 
 <CardGrid>
-  <LinkCard title="Actions overview" href="./actions/index.mdx" description="How action factories map auth and error handling in integration tests." />
-  <LinkCard title="Auth bridge" href="./auth-action-bridge.mdx" description="JWT bridge behavior and action auth wiring covered by integration tests." />
-  <LinkCard title="Caching" href="./caching.mdx" description="How route caching, cache hints, and invalidation actions are exercised end to end." />
-  <LinkCard title="Post actions" href="./actions/posts.mdx" description="Examples of action behavior validated through Astro RPC endpoints." />
+  <LinkCard
+    title="Actions overview"
+    href="./actions/index.mdx"
+    description="How action factories map auth and error handling in integration tests."
+  />
+  <LinkCard
+    title="Auth bridge"
+    href="./auth-action-bridge.mdx"
+    description="JWT bridge behavior and action auth wiring covered by integration tests."
+  />
+  <LinkCard
+    title="Caching"
+    href="./caching.mdx"
+    description="How route caching, cache hints, and invalidation actions are exercised end to end."
+  />
+  <LinkCard
+    title="Post actions"
+    href="./actions/posts.mdx"
+    description="Examples of action behavior validated through Astro RPC endpoints."
+  />
 </CardGrid>
 
 ## Test Projects
@@ -31,26 +47,26 @@ The shared Astro fixture in `tests/fixtures/astro-site/` includes both:
 Start local WordPress first:
 
 ```bash
-npm run wp:start
-npm run wp:status
+pnpm run wp:start
+pnpm run wp:status
 ```
 
-`wp-env` is configured with automatic port selection. If `8888` is unavailable, run `npm run wp:status` to see the active local WordPress URL and ports.
+`wp-env` is configured with automatic port selection. If `8888` is unavailable, run `pnpm run wp:status` to see the active local WordPress URL and ports.
 
 Run tests:
 
 ```bash
-npm run test:integration
-npm run test:build
+pnpm run test:integration
+pnpm run test:build
 # or run both projects
-npm test
+pnpm test
 ```
 
 Stop or reset local WordPress:
 
 ```bash
-npm run wp:stop
-npm run wp:clean
+pnpm run wp:stop
+pnpm run wp:clean
 ```
 
 ## Auth Bridge Coverage
@@ -61,3 +77,9 @@ Auth bridge behavior is covered by the `integration` project against `wp-env`.
 - `tests/setup/global-setup.ts` provisions auth fixtures (application password, JWT, cookie+nonce) before integration suites run.
 - Live loader runtime tests call real Astro pages in the same fixture to verify `defineLiveCollection()` wiring, schema validation, and SSR rendering for posts, pages, categories, and CPT content.
 - Route-caching tests build the same fixture with `@astrojs/node`, start the standalone server entry, and verify cache hints plus the packaged invalidation actions end to end.
+
+## Runtime limits and isolation
+
+The integration project and static-build project run sequentially under `pnpm test`. Each project has a portable 15-minute process deadline with a five-second termination grace period; CI jobs allow 20 minutes including WordPress startup and cleanup. On the current Linux development host, the integration project takes about 15–30 seconds and static-build takes about 50–60 seconds after WordPress is ready. These are local measurements, not CI runner performance guarantees.
+
+Use `pnpm run test:integration -- --maxWorkers=1` for a low-resource run. Do not run multiple test commands against the same fixture and WordPress environment concurrently. WordPress startup executes the excluded PHP fixtures and seed script; Astro templates are covered by package-local ESLint/Prettier, Astro Check, and the real static/SSR builds.

@@ -1,0 +1,31 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+    groups:
+      pnpm:
+        patterns: [pnpm]
+        update-types: [minor, patch]
+      patch:
+        update-types: [patch]
+      review:
+        update-types: [minor, major]
+      security:
+        applies-to: security-updates
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+    groups:
+      patch:
+        update-types: [patch]
+      review:
+        update-types: [minor, major]
+      security:
+        applies-to: security-updates

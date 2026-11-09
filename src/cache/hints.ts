@@ -1,41 +1,34 @@
 import type {
   WordPressAuthor,
   WordPressCategory,
-  WordPressMedia,
-  WordPressPage,
-  WordPressPost,
   WordPressTag,
 } from 'fluent-wp-client';
 
 /**
  * Minimal cache hint shape shared between live loaders and cache invalidation helpers.
  */
-export type WordPressCacheHint = {
+export interface WordPressCacheHint {
   tags?: string[];
   lastModified?: Date;
-};
+}
 
-type WordPressPostLikeEntry = Pick<WordPressPost | WordPressPage, never> & {
+interface WordPressPostLikeEntry {
   id: number;
   author?: number;
   categories?: number[];
   tags?: number[];
   featured_media?: number;
-  date?: string;
   date_gmt?: string;
-  modified?: string;
   modified_gmt?: string;
-};
+}
 
-type WordPressMediaLikeEntry = Pick<WordPressMedia, never> & {
+interface WordPressMediaLikeEntry {
   id: number;
   author?: number;
   post?: number | null;
-  date?: string;
   date_gmt?: string;
-  modified?: string;
   modified_gmt?: string;
-};
+}
 
 type WordPressTermEntry = Pick<
   WordPressCategory | WordPressTag,
@@ -53,21 +46,22 @@ function dedupeTags(tags: string[]): string[] {
   return [...new Set(tags)];
 }
 
+const WORDPRESS_GMT_DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?$/u;
+
 /**
- * Parses one WordPress date string only when it is valid and usable for caching.
+ * Accepts raw WordPress GMT timestamps and their Z-normalized equivalents.
  */
+// oxlint-disable-next-line anti-slop/no-unknown-parameters -- Freshness metadata is optional REST data and may not be a timestamp string.
 function parseWordPressDate(value: unknown): Date | undefined {
-  if (typeof value !== 'string' || value.length === 0) {
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Malformed or unset REST dates must not become cache validators.
+  if (typeof value !== 'string' || !WORDPRESS_GMT_DATE.test(value)) {
     return undefined;
   }
 
-  const parsed = new Date(value);
+  // WordPress REST GMT fields omit the UTC suffix. Local fields have no reliable timezone.
+  const parsed = new Date(value.endsWith('Z') ? value : `${value}Z`);
 
-  if (Number.isNaN(parsed.getTime())) {
-    return undefined;
-  }
-
-  return parsed;
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
 /**
@@ -75,15 +69,10 @@ function parseWordPressDate(value: unknown): Date | undefined {
  */
 export function getWordPressLastModified(entry: {
   modified_gmt?: unknown;
-  modified?: unknown;
   date_gmt?: unknown;
-  date?: unknown;
 }): Date | undefined {
   return (
-    parseWordPressDate(entry.modified_gmt) ??
-    parseWordPressDate(entry.modified) ??
-    parseWordPressDate(entry.date_gmt) ??
-    parseWordPressDate(entry.date)
+    parseWordPressDate(entry.modified_gmt) ?? parseWordPressDate(entry.date_gmt)
   );
 }
 
@@ -93,9 +82,7 @@ export function getWordPressLastModified(entry: {
 function getMostRecentLastModified<
   TEntry extends {
     modified_gmt?: unknown;
-    modified?: unknown;
     date_gmt?: unknown;
-    date?: unknown;
   },
 >(entries: TEntry[]): Date | undefined {
   let latest: Date | undefined;
@@ -130,10 +117,11 @@ function createBaseEntryTags(resource: string, id: number): string[] {
  * Creates narrow relationship tags for one post-like entry.
  */
 function createContentRelationshipTags(
-  entry: WordPressPostLikeEntry,
+  entry: WordPressPostLikeEntry
 ): string[] {
   const tags: string[] = [];
 
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Anonymous or omitted authors must not produce author cache tags.
   if (typeof entry.author === 'number') {
     tags.push(`wp:author:${entry.author}`);
   }
@@ -146,6 +134,7 @@ function createContentRelationshipTags(
     tags.push(`wp:term:post_tag:${tagId}`);
   }
 
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- WordPress uses zero for missing featured media; only numeric IDs form tags.
   if (typeof entry.featured_media === 'number' && entry.featured_media > 0) {
     tags.push(`wp:entry:media:${entry.featured_media}`);
   }
@@ -158,14 +147,14 @@ function createContentRelationshipTags(
  */
 export function createContentEntryCacheHint(
   resource: string,
-  entry: WordPressPostLikeEntry,
+  entry: WordPressPostLikeEntry
 ): WordPressCacheHint {
   return {
+    lastModified: getWordPressLastModified(entry),
     tags: dedupeTags([
       ...createBaseEntryTags(resource, entry.id),
       ...createContentRelationshipTags(entry),
     ]),
-    lastModified: getWordPressLastModified(entry),
   };
 }
 
@@ -174,11 +163,11 @@ export function createContentEntryCacheHint(
  */
 export function createContentCollectionCacheHint(
   resource: string,
-  entries: WordPressPostLikeEntry[],
+  entries: WordPressPostLikeEntry[]
 ): WordPressCacheHint {
   return {
-    tags: dedupeTags([GLOBAL_CACHE_TAG, `wp:resource:${resource}`]),
     lastModified: getMostRecentLastModified(entries),
+    tags: dedupeTags([GLOBAL_CACHE_TAG, `wp:resource:${resource}`]),
   };
 }
 
@@ -186,21 +175,23 @@ export function createContentCollectionCacheHint(
  * Creates a cache hint for one media entry.
  */
 export function createMediaEntryCacheHint(
-  entry: WordPressMediaLikeEntry,
+  entry: WordPressMediaLikeEntry
 ): WordPressCacheHint {
   const tags = createBaseEntryTags('media', entry.id);
 
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Anonymous or omitted authors must not produce author cache tags.
   if (typeof entry.author === 'number') {
     tags.push(`wp:author:${entry.author}`);
   }
 
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Unattached media has no numeric parent post ID.
   if (typeof entry.post === 'number' && entry.post > 0) {
     tags.push(`wp:attachment-parent:${entry.post}`);
   }
 
   return {
-    tags: dedupeTags(tags),
     lastModified: getWordPressLastModified(entry),
+    tags: dedupeTags(tags),
   };
 }
 
@@ -208,11 +199,11 @@ export function createMediaEntryCacheHint(
  * Creates the collection-level cache hint for media resources.
  */
 export function createMediaCollectionCacheHint(
-  entries: WordPressMediaLikeEntry[],
+  entries: WordPressMediaLikeEntry[]
 ): WordPressCacheHint {
   return {
-    tags: dedupeTags([GLOBAL_CACHE_TAG, 'wp:resource:media']),
     lastModified: getMostRecentLastModified(entries),
+    tags: dedupeTags([GLOBAL_CACHE_TAG, 'wp:resource:media']),
   };
 }
 
@@ -221,13 +212,14 @@ export function createMediaCollectionCacheHint(
  */
 export function createTermEntryCacheHint(
   resource: string,
-  entry: WordPressTermEntry,
+  entry: WordPressTermEntry
 ): WordPressCacheHint {
   const tags = [
     ...createBaseEntryTags(resource, entry.id),
     `wp:term:${entry.taxonomy}:${entry.id}`,
   ];
 
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof -- Root terms use zero; only numeric parent IDs form relationship tags.
   if (typeof entry.parent === 'number' && entry.parent > 0) {
     tags.push(`wp:term:${entry.taxonomy}:${entry.parent}`);
   }
@@ -242,7 +234,7 @@ export function createTermEntryCacheHint(
  */
 export function createTermCollectionCacheHint(
   resource: string,
-  entries: WordPressTermEntry[],
+  entries: WordPressTermEntry[]
 ): WordPressCacheHint {
   const taxonomy = entries[0]?.taxonomy;
 
@@ -259,7 +251,7 @@ export function createTermCollectionCacheHint(
  * Creates a cache hint for one WordPress user entry.
  */
 export function createUserEntryCacheHint(
-  entry: WordPressUserEntry,
+  entry: WordPressUserEntry
 ): WordPressCacheHint {
   return {
     tags: dedupeTags([
@@ -283,7 +275,7 @@ export function createUserCollectionCacheHint(): WordPressCacheHint {
  */
 export function createContentInvalidationTags(
   resource: string,
-  id: number,
+  id: number
 ): string[] {
   return [`wp:entry:${resource}:${id}`];
 }
@@ -293,7 +285,7 @@ export function createContentInvalidationTags(
  */
 export function createTermInvalidationTags(
   resource: string,
-  entry: WordPressTermEntry,
+  entry: WordPressTermEntry
 ): string[] {
   return [`wp:entry:${resource}:${entry.id}`];
 }

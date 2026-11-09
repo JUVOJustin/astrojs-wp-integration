@@ -16,6 +16,7 @@ export {
   wordPressTermLoader,
   wordPressUserLoader,
 } from './live';
+
 // Re-export static loaders
 export {
   wordPressCategoryStaticLoader,
@@ -27,6 +28,7 @@ export {
   wordPressTermStaticLoader,
   wordPressUserStaticLoader,
 } from './static';
+
 // Re-export types
 export type {
   CategoryFilter,
